@@ -9,6 +9,6 @@ class BertQA(nn.Module):
     def __init__(self):
         self.bert = BertModelForQuestionAnswering.from_pretrained("bert-base-cased")
     
-    def forward(self, input):
-        x = self.bert(**input)
+    def forward(self, x):
+        x = self.bert(**x)
         return x[:2]

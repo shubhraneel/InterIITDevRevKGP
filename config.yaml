@@ -1,0 +1,15 @@
+task: qa
+data:
+  dataloader_path: "data.pkl"
+training:
+  optim_function: adam
+  optim_params:
+    lr: 1e-3
+  sched_function: reduce_lr_on_plateau
+  sched_func_params: {}
+  sched_params:
+    monitor: val_loss
+model:
+  model_name: bert
+  save_path: models/exp_bert/
+  params: {}
