@@ -1,6 +1,7 @@
 task: qa
 data:
-  dataloader_path: "data.pkl"
+  train_dataloader_path: "train_data.pkl"
+  test_dataloader_path: "val_data.pkl"
 training:
   optim_function: adam
   optim_params:

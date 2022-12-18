@@ -171,7 +171,7 @@ if __name__=="__main__":
         train_reader(
             model_name=config.model.model_name, 
             save_path=config.model.save_path, 
-            dataloader_path=config.data.dataloader_path,
+            dataloader_path=config.data.train_dataloader_path,
             epochs=config.training.epochs,
             model_params=config.model.params.__dict__,
             optim_function=config.training.optim_function,
@@ -185,7 +185,7 @@ if __name__=="__main__":
         train_retriever(
             model_name=config.model.model_name, 
             save_path=config.model.save_path, 
-            dataloader_path=config.data.dataloader_path,
+            dataloader_path=config.data.train_dataloader_path,
             epochs=config.training.epochs,
             model_params=config.model.params.__dict__,
             optim_function=config.training.optim_function,
