@@ -13,10 +13,26 @@ from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 from nltk.stem import WordNetLemmatizer
 
-torch.manual_seed(0)
-random.seed(0)
-np.random.seed(0)
+def set_seed(seed=0, verbose=False):
+    if seed is None:
+        seed = int(show_time())
+    if verbose: print("[Info] seed set to: {}".format(seed))
 
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    try:
+        np.random.seed(seed)
+    except ImportError:
+        pass
+
+    try:
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    except ImportError:
+        pass
+      
 # read from csv
 df=pd.read_csv("train_data.csv")
 df=df.drop(labels=["Unnamed: 0"],axis="columns")
@@ -137,6 +153,7 @@ if __name__ == "__main__":
     # parser.add_argument("input_text", help="Text to be preprocessed")
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for preprocessing')
     args = parser.parse_args()
+    set_seed(0)
     
     # Preprocess the input text
 #     output_text = preprocess(args.input_text, args.lowercase, args.remove_urls, args.remove_punctuation, args.remove_html, 
