@@ -8,6 +8,26 @@ from config import Config
 
 import pickle
 
+# class PredictionModule():
+#     def __init__(self):
+#         pass
+    
+#     def predict_dataset(self):
+#         pass
+
+
+# class PredictionModuleTwoStep(PredictionModule):
+#     def __init__(self, retrieverModule, readerModule):
+#         super().__init__()
+#         self.retrieverModule = retrieverModule
+#         self.readerModule = readerModule
+    
+#     def predict_dataset(self, dataloader):
+#         for batch in dataloader:
+            
+#             outputs, _ = self.retrieverModule(batch)
+
+
 class RetrieverModule(pl.LightningModule):
     def __init__(self, model):
         super().__init__()
@@ -36,6 +56,14 @@ class RetrieverModule(pl.LightningModule):
                 **sched_params
             }
         }
+
+    def predict_dataset(self, dataloader):
+        all_outputs = []
+        for batch in dataloader:
+            outputs, _ = self.model(batch)
+            all_outputs.append(self.model.decode(outputs))
+        all_outputs = torch.cat(all_outputs)
+        return all_outputs
 
 
 class ReaderModule(pl.LightningModule):
@@ -66,6 +94,14 @@ class ReaderModule(pl.LightningModule):
                 **sched_params
             }
         }
+
+    def predict_dataset(self, dataloader):
+        all_outputs = []
+        for batch in dataloader:
+            outputs, _ = self.model(batch)
+            all_outputs.append(self.model.decode(outputs))
+        all_outputs = torch.cat(all_outputs)
+        return all_outputs
 
 
 def train_retriever(
