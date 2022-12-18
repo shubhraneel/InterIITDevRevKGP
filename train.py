@@ -15,15 +15,15 @@ class RetrieverModule(pl.LightningModule):
         
     def forward(self, x):
         output, loss = self.model(x)
-        return loss
+        return output, loss
 
     def training_step(self, batch, batch_idx):
-        loss = self(batch)
+        _, loss = self(batch)
         self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss = self(batch)
+        _, loss = self(batch)
         self.log("val_loss", loss)
         return loss
 
@@ -45,15 +45,15 @@ class ReaderModule(pl.LightningModule):
 
     def forward(self, x):
         output, loss = self.model(x)
-        return loss
+        return output, loss
 
     def training_step(self, batch, batch_idx):
-        output, loss = self(batch)
+        _, loss = self(batch)
         self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        output, loss = self(batch)
+        _, loss = self(batch)
         self.log("val_loss", loss)
         return loss
 
