@@ -5,27 +5,18 @@ import argparse
 from torch.optim import Adam, SGD, lr_scheduler
 import yaml
 from config import Config
-
+import torch
 import pickle
 
-# class PredictionModule():
-#     def __init__(self):
-#         pass
+class basemodel():
+    def __init__(self):
+        pass
     
-#     def predict_dataset(self):
-#         pass
-
-
-# class PredictionModuleTwoStep(PredictionModule):
-#     def __init__(self, retrieverModule, readerModule):
-#         super().__init__()
-#         self.retrieverModule = retrieverModule
-#         self.readerModule = readerModule
+    def train(self):
+        raise NotImplementedError("No training method implemented")
     
-#     def predict_dataset(self, dataloader):
-#         for batch in dataloader:
-            
-#             outputs, _ = self.retrieverModule(batch)
+    def evaluate(self):
+        raise NotImplementedError("No evaluation method implemented")
 
 
 class RetrieverModule(pl.LightningModule):
@@ -104,99 +95,122 @@ class ReaderModule(pl.LightningModule):
         return all_outputs
 
 
-def train_retriever(
-    model_name="bert", save_path="models/", 
-    dataloader_path="data.pkl", epochs=10, 
-    context_path=None, optim_function=None, optim_params=None,
-    sched_function=None, sched_params=None, model_params=None
-):
-
-    if model_name == "bert":
-        model = BertRetriever(**model_params)
-
-    with open(dataloader_path) as f:
-        train_dataloader = pickle.load(f)
-
-    with open(context_path) as f:
-        context_dict = pickle.load(f)
+class basic_bert_model(basemodel):
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
     
-    module = RetrieverModule(model=model)
-
-    # add the actual optimizer functions based on the string input
-    if optim_function=="adam":
-        optim_func = Adam
-    if sched_function=="reduce_lr_on_plateau":
-        sched_func = lr_scheduler.ReduceLROnPlateau
-
-    module.configure_optimizers(
-        optim_function=optim_func, sched_function=sched_func, 
-        optim_params=optim_params, sched_func_params=sched_func_params,
-        sched_params=sched_params
-    )
-
-    trainer = pl.Trainer(max_epochs=epochs, default_root_dir=save_path)
-    trainer.fit(model=module, train_dataloaders=train_dataloader)
+    def train(self):
+        if self.config.training.train_retriever:
+            self.train_reader(
+            model_name=self.config.model.model_name, 
+            save_path=self.config.model.save_path, 
+            dataloader_path=self.config.data.train_dataloader_path,
+            epochs=self.config.training.epochs,
+            model_params=self.config.model.params.__dict__,
+            optim_function=self.config.training.optim_function,
+            optim_params=self.config.training.optim_params.__dict__,
+            sched_function=self.config.training.sched_function,
+            sched_func_params=self.config.training.sched_func_params.__dict__,
+            sched_params=self.config.training.sched_params.__dict__
+        )
 
 
-def train_reader(
-    model_name="bert", save_path="models/", 
-    dataloader_path="data.pkl", epochs=10,
-    optim_function=None, optim_params=None,
-    sched_function=None, sched_params=None,
-    model_params=None
-):
+        if self.config.training.train_reader:
+            self.train_retriever(
+            model_name=self.config.model.model_name, 
+            save_path=self.config.model.save_path, 
+            dataloader_path=self.config.data.train_dataloader_path,
+            epochs=self.config.training.epochs,
+            model_params=self.config.model.params.__dict__,
+            optim_function=self.config.training.optim_function,
+            optim_params=self.config.training.optim_params.__dict__,
+            sched_function=self.config.training.sched_function,
+            sched_func_params=self.config.training.sched_func_params.__dict__,
+            sched_params=self.config.training.sched_params.__dict__
+        )
 
-    if model_name == "bert":
-        model = BertQA(**model_params)
 
-    with open(dataloader_path) as f:
-        train_dataloader = pickle.load(f)
+    def train_retriever(
+        self, model_name="bert", save_path="models/", 
+        dataloader_path="data.pkl", epochs=10, 
+        context_path=None, optim_function=None, optim_params=None,
+        sched_function=None, sched_params=None, model_params=None
+    ):
 
-    with open(context_path) as f:
-        context_dict = pickle.load(f)
-    
-    module = ReaderModule(model=model)
+        if model_name == "bert":
+            model = BertRetriever(**model_params)
 
-    # add the actual optimizer functions based on the string input
-    if optim_function=="adam":
-        optim_func = Adam
-    if sched_function=="reduce_lr_on_plateau":
-        sched_func = lr_scheduler.ReduceLROnPlateau
+        with open(dataloader_path) as f:
+            train_dataloader = pickle.load(f)
 
-    module.configure_optimizers(
-        optim_function=optim_func, sched_function=sched_func, 
-        optim_params=optim_params, sched_func_params=sched_func_params,
-        sched_params=sched_params
-    )
+        with open(context_path) as f:
+            context_dict = pickle.load(f)
+        
+        self.retriever = RetrieverModule(model=model)
 
-    trainer = pl.Trainer(max_epochs=epochs, default_root_dir=save_path)
-    trainer.fit(model=module, train_dataloaders=train_dataloader)
+        # add the actual optimizer functions based on the string input
+        if optim_function=="adam":
+            optim_func = Adam
+        if sched_function=="reduce_lr_on_plateau":
+            sched_func = lr_scheduler.ReduceLROnPlateau
+
+        self.retriever.configure_optimizers(
+            optim_function=optim_func, sched_function=sched_func, 
+            optim_params=optim_params, sched_func_params=sched_func_params,
+            sched_params=sched_params
+        )
+
+        trainer = pl.Trainer(max_epochs=epochs, default_root_dir=save_path)
+        trainer.fit(model=self.retriever, train_dataloaders=train_dataloader)
+
+
+    def train_reader(
+        self, model_name="bert", save_path="models/", 
+        dataloader_path="data.pkl", epochs=10,
+        optim_function=None, optim_params=None,
+        sched_function=None, sched_params=None,
+        model_params=None
+    ):
+
+        if model_name == "bert":
+            model = BertQA(**model_params)
+
+        with open(dataloader_path) as f:
+            train_dataloader = pickle.load(f)
+
+        with open(context_path) as f:
+            context_dict = pickle.load(f)
+        
+        self.reader = ReaderModule(model=model)
+
+        # add the actual optimizer functions based on the string input
+        if optim_function=="adam":
+            optim_func = Adam
+        if sched_function=="reduce_lr_on_plateau":
+            sched_func = lr_scheduler.ReduceLROnPlateau
+
+        self.reader.configure_optimizers(
+            optim_function=optim_func, sched_function=sched_func, 
+            optim_params=optim_params, sched_func_params=sched_func_params,
+            sched_params=sched_params
+        )
+
+        trainer = pl.Trainer(max_epochs=epochs, default_root_dir=save_path)
+        trainer.fit(model=self.reader, train_dataloaders=train_dataloader)
+
+    def evaluate(self):
+        # @shubhraneel, sing self.reader and self.retreiver, implement the logic and return the following list:
+        # [Predicted tf, gold_tf, predicted_spans, true_spans]
+        pass
+
+
+
 
 if __name__=="__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', default="config.yaml", desc="Config File")
-
-    # parser.add_argument('--qa', action="store_true")
-    # parser.add_argument('--retrieve', action="store_true")
-    # parser.add_argument('--save_path')
-    # parser.add_argument('--model_name')
-    # parser.add_argument('--dataloader_path')
-    # parser.add_argument('--epochs', type=int)
-    # parser.add_argument('--optim')
-    # parser.add_argument('--sched')
-    # parser.add_argument('--lr', type=float)
-    # parser.add_argument(
-    #     '--optim_params', default="", 
-    #     desc="Provide other optional optimizer params as param1=value1,param2=value2,..."
-    # )
-    # parser.add_argument(
-    #     '--sched_params', default="", 
-    #     desc="Provide other optional scheduler params as param1=value1,param2=value2,..."
-    # )
-
-    # # model specific arguments, we can do this in a different way with YAML config
-    # parser.add_argument('--context_path')
 
     args = parser.parse_args()
     with open(args.config) as f:
@@ -204,29 +218,4 @@ if __name__=="__main__":
         config = Config(**config)
 
     if config.task == "qa":
-        train_reader(
-            model_name=config.model.model_name, 
-            save_path=config.model.save_path, 
-            dataloader_path=config.data.train_dataloader_path,
-            epochs=config.training.epochs,
-            model_params=config.model.params.__dict__,
-            optim_function=config.training.optim_function,
-            optim_params=config.training.optim_params.__dict__,
-            sched_function=config.training.sched_function,
-            sched_func_params=config.training.sched_func_params.__dict__,
-            sched_params=config.training.sched_params.__dict__
-        )
-
-    elif config.task == "retrieve":
-        train_retriever(
-            model_name=config.model.model_name, 
-            save_path=config.model.save_path, 
-            dataloader_path=config.data.train_dataloader_path,
-            epochs=config.training.epochs,
-            model_params=config.model.params.__dict__,
-            optim_function=config.training.optim_function,
-            optim_params=config.training.optim_params.__dict__,
-            sched_function=config.training.sched_function,
-            sched_func_params=config.training.sched_func_params.__dict__,
-            sched_params=config.training.sched_params.__dict__
-        )
+        model = basic_bert_model(args)
