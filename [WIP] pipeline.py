@@ -24,10 +24,10 @@ df=df.drop(labels=["Unnamed: 0"],axis="columns")
 # themes
 themes=df["Theme"].unique()
 
-# train_val_test split in 70-15-15
-train_themes=themes[:253]
-val_themes=themes[253:307]
-test_themes=themes[307:]
+# train_val_test split
+train_themes,test_themes=train_test_split(themes,train_size=(train_size+val_size)/100)
+train_themes,val_themes=train_test_split(themes,train_size=train_size/(train_size+val_size))
+
 
 # train
 arr=np.full(df.Theme.shape,False)
@@ -71,9 +71,9 @@ train_dataset=SquadDataset(train_df.Theme, train_df.Paragraph, train_df.Question
 val_dataset=SquadDataset(val_df.Theme, val_df.Paragraph, val_df.Question, val_df.Answer_possible, val_df.Answer_text, val_df.Answer_start)
 test_dataset=SquadDataset(test_df.Theme, test_df.Paragraph, test_df.Question, test_df.Answer_possible, test_df.Answer_text, test_df.Answer_start)
 
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size,shuffle=True)
-val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
-test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+# train_dataloader = DataLoader(train_dataset, batch_size=batch_size,shuffle=True)
+# val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
+# test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
 
 def preprocess(input_text, lowercase, remove_urls, remove_punctuation, remove_html, remove_whitespace, remove_stopwords, stem, lemmatize):
     # Convert to lowercase if specified
@@ -131,13 +131,16 @@ if __name__ == "__main__":
     parser.add_argument("--remove_stopwords", action="store_true", help="Remove stop words from text")
     parser.add_argument("--stem", action="store_true", help="Perform stemming on text")
     parser.add_argument("--lemmatize", action="store_true", help="Perform lemmatization on text")
+    parser.add_argument("--train_size", action="store_true", help="training set size in percent")
+    parser.add_argument("--val_size", action="store_true", help="val set size in percent")
+    parser.add_argument("--test_size", action="store_true", help="test set size in percent")
     # parser.add_argument("input_text", help="Text to be preprocessed")
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for preprocessing')
     args = parser.parse_args()
     
     # Preprocess the input text
-    output_text = preprocess(args.input_text, args.lowercase, args.remove_urls, args.remove_punctuation, args.remove_html, 
-                             args.remove_whitespace, args.remove_stopwords, args.stem, args.lemmatize)
+#     output_text = preprocess(args.input_text, args.lowercase, args.remove_urls, args.remove_punctuation, args.remove_html, 
+#                              args.remove_whitespace, args.remove_stopwords, args.stem, args.lemmatize)
     
     # Print the output text
     # print(output_text)
