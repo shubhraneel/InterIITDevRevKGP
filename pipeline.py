@@ -1,18 +1,3 @@
-# imports
-import torch
-from torch.utils.data import Dataset, DataLoader
-import pandas as pd
-import numpy as np
-import random
-import argparse
-import re
-import string
-import nltk
-from bs4 import BeautifulSoup
-from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
-from nltk.stem import WordNetLemmatizer
-
 def set_seed(seed=0, verbose=False):
     if seed is None:
         seed = int(show_time())
@@ -32,37 +17,38 @@ def set_seed(seed=0, verbose=False):
         torch.backends.cudnn.benchmark = False
     except ImportError:
         pass
-      
-# read from csv
-df=pd.read_csv("train_data.csv")
-df=df.drop(labels=["Unnamed: 0"],axis="columns")
 
-# themes
-themes=df["Theme"].unique()
+def read_data(): 
+    df=pd.read_csv("train_data.csv")
+    df=df.drop(labels=["Unnamed: 0"],axis="columns")
+    return df
 
-# train_val_test split
-train_themes,test_themes=train_test_split(themes,train_size=(train_size+val_size)/100)
-train_themes,val_themes=train_test_split(themes,train_size=train_size/(train_size+val_size))
+def split(df, train_size, val_size, test_size, rando):
+    # train_val_test split
+    themes=list(df["Theme"].unique())
+    train_themes,test_themes=train_test_split(themes,train_size=(train_size+val_size)/100, random_state=rando)
+    train_themes,val_themes=train_test_split(themes,train_size=train_size/(train_size+val_size), random_state=rando)
 
+    # train
+    arr=np.full(df.Theme.shape,False)
+    for t in train_themes:
+        arr=np.logical_or(df.Theme==t, arr)
+    train_df=df.iloc[list(arr)]
 
-# train
-arr=np.full(df.Theme.shape,False)
-for t in train_themes:
-  arr=np.logical_or(df.Theme==t, arr)
-train_df=df.iloc[list(arr)]
+    # val
+    arr=np.full(df.Theme.shape,False)
+    for t in val_themes:
+        arr=np.logical_or(df.Theme==t, arr)
+    val_df=df.iloc[list(arr)]
 
-# val
-arr=np.full(df.Theme.shape,False)
-for t in val_themes:
-  arr=np.logical_or(df.Theme==t, arr)
-val_df=df.iloc[list(arr)]
+    # test
+    arr=np.full(df.Theme.shape,False)
+    for t in test_themes:
+        arr=np.logical_or(df.Theme==t, arr)
+    test_df=df.iloc[list(arr)]
 
-# test
-arr=np.full(df.Theme.shape,False)
-for t in test_themes:
-  arr=np.logical_or(df.Theme==t, arr)
-test_df=df.iloc[list(arr)]
-
+    return train_df, val_df, test_df
+    
 class SquadDataset(Dataset):
     """Custom Dataset for SQuAD data compatible with torch.utils.data.DataLoader."""
 
@@ -83,81 +69,148 @@ class SquadDataset(Dataset):
     def __len__(self):
         return len(self.Theme)
 
-train_dataset=SquadDataset(train_df.Theme, train_df.Paragraph, train_df.Question, train_df.Answer_possible, train_df.Answer_text, train_df.Answer_start)
-val_dataset=SquadDataset(val_df.Theme, val_df.Paragraph, val_df.Question, val_df.Answer_possible, val_df.Answer_text, val_df.Answer_start)
-test_dataset=SquadDataset(test_df.Theme, test_df.Paragraph, test_df.Question, test_df.Answer_possible, test_df.Answer_text, test_df.Answer_start)
+def create_dataset(train_df, val_df, test_df):
+    train_dataset=SquadDataset(train_df.Theme, train_df.Paragraph, train_df.Question, train_df.Answer_possible, train_df.Answer_text, train_df.Answer_start)
+    val_dataset=SquadDataset(val_df.Theme, val_df.Paragraph, val_df.Question, val_df.Answer_possible, val_df.Answer_text, val_df.Answer_start)
+    test_dataset=SquadDataset(test_df.Theme, test_df.Paragraph, test_df.Question, test_df.Answer_possible, test_df.Answer_text, test_df.Answer_start)
+    return train_dataset, val_dataset, test_dataset
 
-# train_dataloader = DataLoader(train_dataset, batch_size=batch_size,shuffle=True)
-# val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
-# test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
-
-def preprocess(input_text, lowercase, remove_urls, remove_punctuation, remove_html, remove_whitespace, remove_stopwords, stem, lemmatize):
+def lowercase(input_text):
     # Convert to lowercase if specified
-    if lowercase:
-        input_text = input_text.lower()
-    
+    input_text = input_text.lower()
+    return input_text
+
+def remove_urls(input_text):
     # Remove URLs if specified
-    if remove_urls:
-        input_text = re.sub(r"http\S+", "", input_text)
+    input_text = re.sub(r"http\S+", "", input_text)
+    return input_text
     
+def remove_punc(input_text):
     # Remove punctuation if specified
-    if remove_punctuation:
-        input_text = input_text.translate(str.maketrans('', '', string.punctuation))
+    input_text = input_text.translate(str.maketrans('', '', string.punctuation))
+    return input_text
     
+def remove_html(input_text):
     # Remove HTML tags if specified
-    if remove_html:
-        soup = BeautifulSoup(input_text, "html.parser")
-        input_text = soup.get_text()
+    soup = BeautifulSoup(input_text, "html.parser")
+    input_text = soup.get_text()
+    return input_text
     
+def remove_white(input_text):
     # Remove white space if specified
-    if remove_whitespace:
-        input_text = input_text.strip()
+    input_text = input_text.strip()
+    return input_text
     
+def tokenize(input_text):
     # Tokenize the input text
     tokens = nltk.word_tokenize(input_text)
-    
-    # Remove stop words if specified
-    if remove_stopwords:
-        stop_words = set(stopwords.words("english"))
-        tokens = [token for token in tokens if token not in stop_words]
-    
-    # Perform stemming if specified
-    if stem:
-        stemmer = PorterStemmer()
-        tokens = [stemmer.stem(token) for token in tokens]
-    
-    # Perform lemmatization if specified
-    if lemmatize:
-        lemma = WordNetLemmatizer()
-        tokens = [lemma.lemmatize(token) for token in tokens]
-    
-    # Perform other preprocessing steps
-    # ...
-    
     return tokens
+    
+def rm_stopwords(input_text, stop_words):
+    # Remove stop words if specified
+    tokens = nltk.word_tokenize(input_text)
+    # stop_words = set(stopwords.words("english"))
+    tokens = [token for token in tokens if token not in stop_words]
+    return tokens
+    
+def stemming(input_text, stemmer):
+    # Perform stemming if specified
+    tokens = nltk.word_tokenize(input_text)
+    tokens = [stemmer.stem(token) for token in tokens]
+    return tokens
+    
+def lemmatize(input_text, lemma):
+    # Perform lemmatization if specified
+    tokens = nltk.word_tokenize(input_text)
+    tokens = [lemma.lemmatize(token) for token in tokens]
+    return tokens
+
+def preprocess(df, args_low, args_urls, args_punct, args_html, args_white, args_stop, args_stem, args_lemm):
+    # performs preprocessing on dataset
+    if args_low:
+        df["Paragraph"]=df["Paragraph"].apply(lowercase)
+        df["Question"]=df["Question"].apply(lowercase)
+        
+    if args_urls:
+        df["Paragraph"]=df["Paragraph"].apply(remove_urls)
+        df["Question"]=df["Question"].apply(remove_urls)
+
+    if args_punct:
+        df["Paragraph"]=df["Paragraph"].apply(remove_punc)
+        df["Question"]=df["Question"].apply(remove_punc)
+
+    if args_html:
+        df["Paragraph"]=df["Paragraph"].apply(remove_html)
+        df["Question"]=df["Question"].apply(remove_html)
+
+    if args_white:
+        df["Paragraph"]=df["Paragraph"].apply(remove_white)
+        df["Question"]=df["Question"].apply(remove_white)
+
+    if not(args_stop or args_stem or args_lemm):
+        df["Paragraph"]=df["Paragraph"].apply(tokenize)
+        df["Question"]=df["Question"].apply(tokenize)
+
+    if args_stop:
+        stop_words = set(stopwords.words("english"))
+        df["Paragraph"]=df["Paragraph"].apply(lambda x: rm_stopwords(x,stop_words))
+        df["Question"]=df["Question"].apply(lambda x: rm_stopwords(x,stop_words))
+
+    if args_stem:
+        stemmer = PorterStemmer()
+        df["Paragraph"]=df["Paragraph"].apply(lambda x: stemming(x,stemmer))
+        df["Question"]=df["Question"].apply(lambda x: stemming(x,stemmer))
+
+    if args_lemm:
+        lemma = WordNetLemmatizer()
+        df["Paragraph"]=df["Paragraph"].apply(lambda x: lemmatize(x, lemma))
+        df["Question"]=df["Question"].apply(lambda x: lemmatize(x, lemma))
+
+    return df
+    
 
 if __name__ == "__main__":
     # Define command-line arguments using argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--lowercase", action="store_true", help="Convert text to lowercase")
-    parser.add_argument("--remove_urls", action="store_true", help="Remove URLs from text")
-    parser.add_argument("--remove_punctuation", action="store_true", help="Remove punctuation from text")
-    parser.add_argument("--remove_html", action="store_true", help="Remove HTML tags from text")
-    parser.add_argument("--remove_whitespace", action="store_true", help="Remove leading and trailing white space from text")
-    parser.add_argument("--remove_stopwords", action="store_true", help="Remove stop words from text")
-    parser.add_argument("--stem", action="store_true", help="Perform stemming on text")
-    parser.add_argument("--lemmatize", action="store_true", help="Perform lemmatization on text")
-    parser.add_argument("--train_size", action="store_true", help="training set size in percent")
-    parser.add_argument("--val_size", action="store_true", help="val set size in percent")
-    parser.add_argument("--test_size", action="store_true", help="test set size in percent")
-    # parser.add_argument("input_text", help="Text to be preprocessed")
-    parser.add_argument('--batch_size', type=int, default=32, help='Batch size for preprocessing')
-    args = parser.parse_args()
+    import torch
+    from sklearn.model_selection import train_test_split
+    from torch.utils.data import Dataset, DataLoader
+    import pandas as pd
+    import numpy as np
+    import random
+    import os
+    from efficiency.log import show_time
+    import argparse
+    import re
+    import string
+    import nltk
+    from bs4 import BeautifulSoup
+    from nltk.corpus import stopwords
+    from nltk.stem import PorterStemmer
+    from nltk.stem import WordNetLemmatizer
+    nltk.download('punkt')
+    nltk.download('stopwords')
+    nltk.download('wordnet')
+
     set_seed(0)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--random", type=int, default=0, help="sets random state for dataset split")
+    parser.add_argument("--low", action="store_true", help="Convert text to lowercase")
+    parser.add_argument("--urls", action="store_true", help="Remove URLs from text")
+    parser.add_argument("--punct", action="store_true", help="Remove punctuation from text")
+    parser.add_argument("--html", action="store_true", help="Remove HTML tags from text")
+    parser.add_argument("--white", action="store_true", help="Remove leading and trailing white space from text")
+    parser.add_argument("--stop", action="store_true", help="Remove stop words from text")
+    parser.add_argument("--stem", action="store_true", help="Perform stemming on text")
+    parser.add_argument("--lemm", action="store_true", help="Perform lemmatization on text")
+    parser.add_argument("--train_size", type=int, default=70, help="training set size in percent")
+    parser.add_argument("--val_size", type=int, default=15, help="val set size in percent")
+    parser.add_argument("--test_size", type=int, default=15, help="test set size in percent")
+    args = parser.parse_args()
     
-    # Preprocess the input text
-#     output_text = preprocess(args.input_text, args.lowercase, args.remove_urls, args.remove_punctuation, args.remove_html, 
-#                              args.remove_whitespace, args.remove_stopwords, args.stem, args.lemmatize)
-    
-    # Print the output text
-    # print(output_text)
+    df=read_data()
+    df = preprocess(df, args.low, args.urls, args.punct, args.html, args.white, args.stop, args.stem, args.lemm)
+    train_df, val_df, test_df=split(df, args.train_size, args.val_size, args.test_size, args.random)
+    train_dataset, val_dataset, test_dataset=create_dataset(train_df, val_df, test_df)
+    print(train_df.head())
+    print(train_df.shape)
