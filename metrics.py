@@ -40,9 +40,6 @@ def f1_score(prediction, ground_truth):
 def normalize_answer(s):
     """Lower text and remove punctuation, articles and extra whitespace."""
 
-    def remove_articles(text):
-        return re.sub(r"\b(a|an|the)\b", " ", text)
-
     def white_space_fix(text):
         return " ".join(text.split())
 
@@ -53,4 +50,4 @@ def normalize_answer(s):
     def lower(text):
         return text.lower()
 
-    return white_space_fix(remove_articles(remove_punc(lower(s))))
+    return white_space_fix(remove_punc(lower(s)))
