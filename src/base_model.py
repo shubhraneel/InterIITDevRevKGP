@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from . import compute_f1
 
 class Base_Model():
     def __init__(self):
@@ -18,3 +17,4 @@ class Base_Model():
 
     def calculate_metrics(self):
         # TODO: add logic here 
+        pass
