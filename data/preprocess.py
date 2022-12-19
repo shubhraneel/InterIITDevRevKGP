@@ -15,6 +15,7 @@ def preprocess_fn(df, tokenizer):
     return df
 
 def find_position(Paragraph, Answer_text, Answer_start, tokenizer):
+	# TODO: optimize this so that tokenizers are called only once
     encoded_s = tokenizer(Paragraph)
     encoded_s_sliced = tokenizer(Paragraph[id:])
     encoded_t = tokenizer(Answer_text)
