@@ -1,7 +1,7 @@
 from ast import literal_eval
 import pandas as pd
 
-def preprocess_fn(df, sep_token):
+def preprocess_fn(df):
     """
     No preprocessing in v1
     """
@@ -10,7 +10,5 @@ def preprocess_fn(df, sep_token):
 
     df["Answer_text"] = df["Answer_text"].apply(lambda x: literal_eval(x))
     df["Answer_start"] = df["Answer_start"].apply(lambda x: literal_eval(x))
-	
-	df["Question_Paragraph"] = df["Question"] + " " + sep_token + " " + df["Paragraph"]
 
     return df
