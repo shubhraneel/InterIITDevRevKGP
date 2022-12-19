@@ -1,7 +1,10 @@
 task: qa
+seed: 3407
+
 data:
-  train_dataloader_path: "train_data.pkl"
-  test_dataloader_path: "val_data.pkl"
+  data_path: "train_data.csv"
+  test_size: 0.2
+
 training:
   optim_function: adam
   optim_params:
@@ -12,8 +15,9 @@ training:
     monitor: val_loss
   train_reader: True
   train_retriever: True
+
 model:
-  model_name: bert
+  model_path: "bert-base-uncased"
   save_path: models/exp_bert/
   params: {}
   reader_path: null
