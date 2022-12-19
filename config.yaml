@@ -2,7 +2,7 @@ task: qa
 seed: 3407
 
 data:
-  data_path: "./data-dir/train_data.csv"
+  data_path: "./data-dir/df_sample.csv"
   test_size: 0.2
 
 training:
