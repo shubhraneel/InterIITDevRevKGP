@@ -13,7 +13,7 @@ class SQuAD_Dataset(Dataset):
 		self.tokenizer = tokenizer
 
 		# preprocess
-		self.data = preprocess_fn(df, tokenizer.sep_token)
+		self.data = preprocess_fn(df)
 
 		# tokenize
 		self._tokenize()
@@ -25,7 +25,7 @@ class SQuAD_Dataset(Dataset):
 		self.data["Paragraph_tokenized"] 			= self.data["Paragraph"].apply(lambda x: self.tokenizer(x))
 		self.data["Question_tokenized"] 			= self.data["Question"].apply(lambda x: self.tokenizer(x))
 		self.data["Answer_text_tokenized"] 			= self.data["Answer_text"].apply(lambda x: self.tokenizer(x))
-		self.data["Question_Paragraph_tokenized"] 	= self.data["Question_Paragraph"].apply(lambda x: self.tokenizer(x))
+		self.data["Question_Paragraph_tokenized"] 	= self.data.apply(lambda x: self.tokenizer(x["Question"], self.tokenizer(x["Paragraph"]))
 
 	def __len__(self):
 		return len(self.data)
