@@ -14,9 +14,6 @@ from src import Bert_Classifier_QA
 from torch.utils.data import DataLoader
 
 if __name__ == "__main__":
-	print(os.getcwd())
-	print(os.listdir("data-dir/"))
-
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--config', default="config.yaml", help="Config File")
 
@@ -27,7 +24,8 @@ if __name__ == "__main__":
 
 	set_seed(config.seed)
 
-	df = pd.read_excel(config.data.data_path)
+	# df = pd.read_excel(config.data.data_path)
+	df = pd.read_csv(config.data.data_path)
 	df_train, df_test = train_test_split(df, test_size=config.data.test_size, random_state=config.seed)
 	df_train, df_val = train_test_split(df_train, test_size=config.data.test_size, random_state=config.seed)
 	
