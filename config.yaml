@@ -2,12 +2,15 @@ task: qa
 seed: 3407
 
 data:
-  data_path: "./data-dir/df_sample.csv"
+  data_path: data-dir/df_sample.csv
   test_size: 0.2
+  train_batch_size: 8
+  val_batch_size: 8
 
 training:
+  epochs: 1
   optimizer: adam
-  lr: 2e-5
+  lr: 0.00002
   sched_function: none
   sched_func_params: {}
   sched_params:
@@ -16,7 +19,7 @@ training:
   train_retriever: True
 
 model:
-  model_path: "bert-base-uncased"
+  model_path: bert-base-uncased
   num_labels: 2
   save_path: models/exp_bert/
   params: {}

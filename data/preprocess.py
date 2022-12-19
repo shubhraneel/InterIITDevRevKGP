@@ -6,11 +6,12 @@ def preprocess_fn(df, tokenizer):
     No preprocessing in v1
     """
 
-    # TODO: convert answer_start_idx which is a char_idx to a token_idx (using sentencepiece/byte-pair-encoding directly)
-
     df["Answer_text"] = df["Answer_text"].apply(lambda x: literal_eval(x))
     df["Answer_start"] = df["Answer_start"].apply(lambda x: literal_eval(x))
+    
+    # TODO: this is inefficient, we should tokenize everything at once
     df["Answer_encoded_start"]  = df.apply(lambda x: find_position(x.Paragraph, x.Answer_text, x.Answer_start, tokenizer), axis = 1)
+    # df["Answer_start"] = df["Answer_start"].apply(lambda x: x if x != [] else [0])
 
     return df
 
@@ -28,3 +29,12 @@ def find_position(Paragraph, Answer_text, Answer_start, tokenizer):
     end = start + len_t
 
     return start, end
+
+
+"""
+    paragraph - Elon Musk is a very bla bla bla bla 
+    answer = very bla
+    answer_start = 15
+    answer_start = 4
+    answer_end = 5
+"""
