@@ -1,9 +1,9 @@
 import pandas as pd
 
 import torch
-from import torch.utils.data Dataset
+from torch.utils.data import Dataset
 
-from . import preprocess_fn
+from data.preprocess import preprocess_fn
 
 # TODO: memory optimization
 class SQuAD_Dataset(Dataset):
