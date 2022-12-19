@@ -1,9 +1,9 @@
 import pandas as pd
 
 import torch
-from import torch.utils.data Dataset
+from torch.utils.data import Dataset
 
-from . import preprocess_fn
+from data.preprocess import preprocess_fn
 
 # TODO: memory optimization
 class SQuAD_Dataset(Dataset):
@@ -13,7 +13,7 @@ class SQuAD_Dataset(Dataset):
 		self.tokenizer = tokenizer
 
 		# preprocess
-		self.data = preprocess_fn(df)
+		self.data = preprocess_fn(df, self.tokenizer)
 
 		# tokenize
 		self._tokenize()
@@ -24,8 +24,8 @@ class SQuAD_Dataset(Dataset):
 		self.data["Theme_tokenized"] 				= self.data["Theme"].apply(lambda x: self.tokenizer(x))
 		self.data["Paragraph_tokenized"] 			= self.data["Paragraph"].apply(lambda x: self.tokenizer(x))
 		self.data["Question_tokenized"] 			= self.data["Question"].apply(lambda x: self.tokenizer(x))
-		self.data["Answer_text_tokenized"] 			= self.data["Answer_text"].apply(lambda x: self.tokenizer(x))
-		self.data["Question_Paragraph_tokenized"] 	= self.data.apply(lambda x: self.tokenizer(x["Question"], self.tokenizer(x["Paragraph"])))
+		# self.data["Answer_text_tokenized"] 			= self.data["Answer_text"].apply(lambda x: self.tokenizer(x))
+		self.data["Question_Paragraph_tokenized"] 	= self.data.apply(lambda x: self.tokenizer(x["Question"], self.tokenizer(x["Paragraph"])), axis = 1)
 
 	def __len__(self):
 		return len(self.data)
@@ -39,10 +39,10 @@ class SQuAD_Dataset(Dataset):
 
 		answerable = self.data.iloc[idx]["Answer_possible"]
 	
-		answer_text = self.data.iloc[idx]["Answer_text_tokenized"]
+		# answer_text = self.data.iloc[idx]["Answer_text_tokenized"]
 		answer_start_idx = self.data.iloc[idx]["Answer_start"]
 
-		return theme, paragraph, question, question_paragraph, answerable, answer_text, answer_start_idx
+		return theme, paragraph, question, question_paragraph, answerable, answer_start_idx
 
 	def collate_fn(self, items):
 		batch = {
@@ -61,10 +61,10 @@ class SQuAD_Dataset(Dataset):
 
 			"answerable": torch.stack([x[4] for x in items], dim=0),
 
-			"answer_input_ids": torch.stack([x[5]["input_ids"] for x in items], dim=0),
-			"answer_attention_mask": torch.stack([x[5]["attention_mask"] for x in items], dim=0),
+			# "answer_input_ids": torch.stack([x[5]["input_ids"] for x in items], dim=0),
+			# "answer_attention_mask": torch.stack([x[5]["attention_mask"] for x in items], dim=0),
 
-			"answer_start_idx": torch.stack([x[6] for x in items], dim=0),
+			"answer_start_idx": torch.stack([x[5] for x in items], dim=0),
 		}
 
 		return batch
