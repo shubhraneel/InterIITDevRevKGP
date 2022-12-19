@@ -1,12 +1,16 @@
-import argparse
 import yaml
+import argparse
 import pandas as pd 
 from sklearn.model_selection import train_test_split
-from transformers import AutoTokenizer
-from data import SQuAD_Dataset
-from config import Config
 
+from transformers import AutoTokenizer
+
+from config import Config
 from utils import set_seed
+from data import SQuAD_Dataset
+from .src import Bert_Classifier_QA
+
+from torch.utils.data import DataLoader
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
@@ -29,3 +33,9 @@ if __name__ == "__main__":
 	val_ds = SQuAD_Dataset(config, df_val, tokenizer)
 	test_ds = SQuAD_Dataset(config, df_test, tokenizer)
 
+	train_dataloader = DataLoader(train_ds, batch_size=config.data.train_batch_size)
+	val_dataloader = DataLoader(val_ds, batch_size=config.data.val_batch_size)
+	test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size)
+
+	model = Bert_Classifier_QA()
+	model.__train__()

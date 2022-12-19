@@ -16,10 +16,10 @@ class Bert_Classifier(pl.LightningModule):
 
         self.config = config
         
-        self.classifier = BertForSequenceClassification.from_pretrained(config.model.model_path, num_labels=config.model.num_labels)
+        self.classifier_model = BertForSequenceClassification.from_pretrained(config.model.model_path, num_labels=config.model.num_labels)
 
     def training_step(self, batch, batch_idx):
-        out = self.classifier(batch["question_paragraph_input_ids"], batch["question_paragraph_attention_mask"])
+        out = self.classifier_model(batch["question_paragraph_input_ids"], batch["question_paragraph_attention_mask"])
 
         return out.loss
 
@@ -51,14 +51,17 @@ class Bert_Classifier_QA(Base_Model):
     """
     DO NOT change the calculate_metrics function
     """
+    def __init__(self, config):
+        self.classifier_model = Bert_Classifier(config)
+        self.classifier_trainer = pl.Trainer()
 
-    def __init__(self):
-        pass
+        self.qa_model = Bert_QA(config)
+        self.qa_model_trainer = pl.Trainer()
         
-    def __train__(self):
-        # TODO
+    def __train__(self, dataloader):
+        classifier_trainer.fit(model=self.classifier, train_dataloaders=dataloader)
+        qa_model_trainer.fit(model=self.qa_model, train_dataloaders=dataloader)
 
-        # pl.fit() for both models 
-
-    def __evaluate__(self):
+    def __evaluate__(self, dataloader):
         # TODO
+        

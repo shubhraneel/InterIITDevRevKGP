@@ -24,7 +24,7 @@ class SQuAD_Dataset(Dataset):
 		self.data["Theme_tokenized"] 				= self.data["Theme"].apply(lambda x: self.tokenizer(x))
 		self.data["Paragraph_tokenized"] 			= self.data["Paragraph"].apply(lambda x: self.tokenizer(x))
 		self.data["Question_tokenized"] 			= self.data["Question"].apply(lambda x: self.tokenizer(x))
-		# self.data["Answer_text_tokenized"] 			= self.data["Answer_text"].apply(lambda x: self.tokenizer(x))
+		# self.data["Answer_text_tokenized"] 		= self.data["Answer_text"].apply(lambda x: self.tokenizer(x))
 		self.data["Question_Paragraph_tokenized"] 	= self.data.apply(lambda x: self.tokenizer(x["Question"], self.tokenizer(x["Paragraph"])), axis = 1)
 
 	def __len__(self):
