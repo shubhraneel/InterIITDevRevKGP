@@ -13,10 +13,6 @@ import json
 import pexpect
 
 DEFAULTS = {
-    'tfidf_path': os.path.join(
-        DATA_DIR,
-        'wikipedia/docs-tfidf-ngram=2-hash=16777216-tokenizer=simple.npz'
-    ),
     'corenlp_classpath': os.getenv('CLASSPATH')
 }
 
@@ -264,14 +260,12 @@ class TfidfDocRanker(object):
     Scores new queries by taking sparse dot products.
     """
 
-    def __init__(self, tfidf_path=None, strict=True):
+    def __init__(self, tfidf_path, strict=True):
         """
         Args:
             tfidf_path: path to saved model file
             strict: fail on empty queries or continue (and return empty result)
         """
-        # Load from disk
-        tfidf_path = tfidf_path or DEFAULTS['tfidf_path']
 
         matrix, metadata = utils.load_sparse_csr(tfidf_path)
         self.doc_mat = matrix
