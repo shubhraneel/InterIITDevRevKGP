@@ -38,26 +38,10 @@ class SQuAD_Dataset(Dataset):
 			tokenized_inputs = self._tokenize(example)
 
 			for key in tokenized_keys:
-				self.data[key].extend(torch.tensor(tokenized_inputs[key]))
-
-		# tokenize
-		# self.data.map(self._char_to_token_mapping(), batched = True)
-
-	# def _tokenize(self):
-	# 	# TODO: create a minimalistic version to minimize memory usage
-    #     # TODO: this is inefficient, we should tokenize everything at once
-	# 	# TODO: try this - self.data["Theme_tokenized"] 				= self.tokenizer(self.data["Theme"], padding="max_length", truncation="longest_first", return_tensors="pt")
-	# 	self.data["Theme_tokenized"] 				= self.data["Theme"].apply(lambda x: self.tokenizer(x, padding="max_length", truncation="longest_first", return_tensors="pt"))
-	# 	self.data["Paragraph_tokenized"] 			= self.data["Paragraph"].apply(lambda x: self.tokenizer(x, padding="max_length", truncation="longest_first", return_tensors="pt"))
-	# 	self.data["Question_tokenized"] 			= self.data["Question"].apply(lambda x: self.tokenizer(x, padding="max_length", truncation="longest_first", return_tensors="pt"))
-	# 	# self.data["Answer_text_tokenized"] 		= self.data["Answer_text"].apply(lambda x: self.tokenizer(x, padding="max_length", truncation="longest_first", return_tensors="pt"))    
-	# 	self.data["Question_Paragraph_tokenized"] 	= self.data.apply(lambda x: self.tokenizer(x["Question"], x["Paragraph"], padding="max_length", truncation="only_second", return_tensors="pt"), axis = 1)
+				self.data[key].extend(tokenized_inputs[key])
 
 	def _tokenize(self, examples):
 		questions = [q.strip() for q in examples["question"]]
-
-		# print(questions)
-		# print(examples["context"])
 
 		inputs = self.tokenizer(
 			questions,
@@ -115,9 +99,9 @@ class SQuAD_Dataset(Dataset):
 					idx -= 1
 				end_positions.append(idx + 1)
 
-		inputs["start_positions"] = start_positions
-		inputs["end_positions"] = end_positions
-		inputs["answerable"] = answerable
+		inputs["start_positions"] = torch.tensor(start_positions)
+		inputs["end_positions"] = torch.tensor(end_positions)
+		inputs["answerable"] = torch.tensor(answerable)
 
 		inputs["question_context_input_ids"] = inputs.pop("input_ids")
 		inputs["question_context_attention_mask"] = inputs.pop("attention_mask")
@@ -141,25 +125,10 @@ class SQuAD_Dataset(Dataset):
 		return inputs
 
 	def __len__(self):
-		return len(self.data)
+		return len(self.data["question"])
 
 	def __getitem__(self, idx):
-		# item = {
-		# 	"theme":						        self.data.iloc[idx]["Theme_tokenized"],
-		# 	"paragraph":						    self.data.iloc[idx]["Paragraph_tokenized"],
-		# 	"question":						        self.data.iloc[idx]["Question_tokenized"],
-		# 	"question_paragraph":			        self.data.iloc[idx]["Question_Paragraph_tokenized"],
-
-		# 	"answerable":			                torch.from_numpy(np.array(self.data.iloc[idx]["Answer_possible"]).astype(int)),
-
-		# 	# "answer_text":			            self.data.iloc[idx]["Answer_text_tokenized"],
-		# 	# "answer_start_idx":			        torch.from_numpy(np.array(self.data.iloc[idx]["Answer_start"])),
-		# 	"answer_encoded_start_idx":             torch.from_numpy(np.array(self.data.iloc[idx]["Answer_encoded_start"])),
-        # }
-
 		return {key: self.data[key][idx] for key in self.data.keys()}
-
-		# return item
 
 	def collate_fn(self, items):
 		batch = {
@@ -167,28 +136,28 @@ class SQuAD_Dataset(Dataset):
 			"title_attention_mask":                 torch.stack([x["title_attention_mask"] for x in items], dim=0).squeeze(),
 			"title_token_type_ids":                 torch.stack([x["title_token_type_ids"] for x in items], dim=0).squeeze(),
 			
-			"context_input_ids":                  torch.stack([x["context_input_ids"] for x in items], dim=0).squeeze(),
-			"context_attention_mask":             torch.stack([x["context_attention_mask"] for x in items], dim=0).squeeze(),
-			"context_token_type_ids":             torch.stack([x["context_token_type_ids"] for x in items], dim=0).squeeze(),
+			"context_input_ids":                    torch.stack([x["context_input_ids"] for x in items], dim=0).squeeze(),
+			"context_attention_mask":               torch.stack([x["context_attention_mask"] for x in items], dim=0).squeeze(),
+			"context_token_type_ids":               torch.stack([x["context_token_type_ids"] for x in items], dim=0).squeeze(),
 
 			"question_input_ids":                   torch.stack([x["question_input_ids"] for x in items], dim=0).squeeze(),
 			"question_attention_mask":              torch.stack([x["question_attention_mask"] for x in items], dim=0).squeeze(),
 			"question_token_type_ids":              torch.stack([x["question_token_type_ids"] for x in items], dim=0).squeeze(),
 
 	        # TODO: eliminate this here, use torch to concatenate q and p in model forward function
-			"question_context_input_ids":         torch.stack([x["question_context_input_ids"] for x in items], dim=0).squeeze(),
-			"question_context_attention_mask":    torch.stack([x["question_context_attention_mask"] for x in items], dim=0).squeeze(),
-			"question_context_token_type_ids":    torch.stack([x["question_context_token_type_ids"] for x in items], dim=0).squeeze(),
+			"question_context_input_ids":           torch.stack([x["question_context_input_ids"] for x in items], dim=0).squeeze(),
+			"question_context_attention_mask":      torch.stack([x["question_context_attention_mask"] for x in items], dim=0).squeeze(),
+			"question_context_token_type_ids":      torch.stack([x["question_context_token_type_ids"] for x in items], dim=0).squeeze(),
 
 			"answerable":                           torch.stack([x["answerable"] for x in items], dim=0),
-			"start_positions":                       torch.stack([x["start_positions"] for x in items], dim=0),
-			"end_positions":                         torch.stack([x["end_positions"] for x in items], dim=0),
+			"start_positions":                      torch.stack([x["start_positions"] for x in items], dim=0),
+			"end_positions":                        torch.stack([x["end_positions"] for x in items], dim=0),
 			# "answer_input_ids":                   torch.stack([x["answer"]["input_ids"] for x in items], dim=0),
 			# "answer_attention_mask":              torch.stack([x["answer"]["attention_mask"] for x in items], dim=0),
 			# "answer_token_type_ids":              torch.stack([x["answer"]["token_type_ids"] for x in items], dim=0),
 
 			# "answer_start_idx":                   torch.stack([x["answer_start_idx"] for x in items], dim=0),
-			# "answer_encoded_start_idx":             torch.stack([x["answer_encoded_start_idx"] for x in items], dim=0),
+			# "answer_encoded_start_idx":           torch.stack([x["answer_encoded_start_idx"] for x in items], dim=0),
 		}
 
 		return batch

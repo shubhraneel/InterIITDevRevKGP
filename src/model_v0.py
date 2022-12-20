@@ -86,8 +86,8 @@ class Bert_QA(pl.LightningModule):
         #     out = self.qa_model(input_ids = batch["question_paragraph_input_ids"], 
         #                         attention_mask = batch["question_paragraph_attention_mask"],
         #                         token_type_ids = batch["question_paragraph_token_type_ids"],
-        #                         start_positions = batch["answer_encoded_start_idx"][:, 0],
-        #                         end_positions = batch["answer_encoded_start_idx"][:, 1],
+        #                         start_positions = batch["answer_encoded_start_idx"],
+        #                         end_positions = batch["answer_encoded_start_idx"],
         #                         )
         # else:
         out = self.qa_model(input_ids = batch["question_context_input_ids"], 
@@ -102,10 +102,19 @@ class Bert_QA(pl.LightningModule):
         out = self.qa_model(input_ids = batch["question_context_input_ids"], 
                             attention_mask = batch["question_context_attention_mask"],
                             token_type_ids = batch["question_context_token_type_ids"],
-                            start_positions = batch["start_positions"][:, 0],
-                            end_positions = batch["end_positions"][:, 1],
+                            start_positions = batch["start_positions"],
+                            end_positions = batch["end_positions"],
                             )
         
+        # TODO: ANSWERS CONVERGING TO 0, 0
+        # print("Actual spans")
+        # print(batch["start_positions"])
+        # print(batch["end_positions"])
+
+        # print("Predicted spans")
+        # print(torch.argmax(out.start_logits, dim=1))
+        # print(torch.argmax(out.end_logits, dim=1))
+
         return out.loss
     
     def validation_step(self, batch, batch_idx):
@@ -123,7 +132,7 @@ class Bert_QA(pl.LightningModule):
         return out.loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr = self.config.training.lr)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.config.training.lr)
         return optimizer
 
 
@@ -141,7 +150,9 @@ class Bert_Classifier_QA(Base_Model):
         self.tokenizer = tokenizer
         
     def __train__(self, dataloader):
-        self.classifier_trainer.fit(model = self.classifier_model, train_dataloaders = dataloader)
+        print("Starting training")
+
+        # self.classifier_trainer.fit(model = self.classifier_model, train_dataloaders = dataloader)
         self.qa_model_trainer.fit(model = self.qa_model, train_dataloaders = dataloader)
 
     def __inference__(self, dataloader):
@@ -163,8 +174,8 @@ class Bert_Classifier_QA(Base_Model):
             pred = self.qa_model.predict_step(batch, batch_idx)
             all_start_preds.extend(torch.argmax(pred.start_logits, axis = 1).tolist())
             all_end_preds.extend(torch.argmax(pred.end_logits, axis = 1).tolist())
-            all_start_ground.extend(batch["start_positions"][:, 0].detach().cpu().numpy())
-            all_end_ground.extend(batch["end_positions"][:, 1].detach().cpu().numpy())
+            all_start_ground.extend(batch["start_positions"].detach().cpu().numpy())
+            all_end_ground.extend(batch["end_positions"].detach().cpu().numpy())
             
             # print(batch["paragraph_input_ids"])
             all_input_words.extend(self.tokenizer.batch_decode(sequences = batch["context_input_ids"]))
@@ -183,7 +194,6 @@ class Bert_Classifier_QA(Base_Model):
 
         for idx, sentence in enumerate(all_input_words):
             sentence = sentence.split(" ")
-            # print(sentence)
             predicted_span = " ".join(sentence[all_start_preds[idx]: all_end_preds[idx]])
             gold_span = " ".join(sentence[all_start_ground[idx]: all_end_ground[idx]])
 
