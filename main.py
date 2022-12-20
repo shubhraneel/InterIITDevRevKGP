@@ -39,5 +39,7 @@ if __name__ == "__main__":
 	val_dataloader = DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
 	test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
 
-	model = Bert_Classifier_QA(config)
+	model = Bert_Classifier_QA(config, tokenizer = tokenizer)
 	model.__train__(train_dataloader)
+	# model.__inference__(test_dataloader)
+	model.calculate_metrics(test_dataloader)

@@ -29,3 +29,12 @@ def find_position(Paragraph, Answer_text, Answer_start, tokenizer):
     end = start + len_t
 
     return start, end
+
+
+"""
+    paragraph - Elon Musk is a very bla bla bla bla 
+    answer = very bla
+    answer_start = 15
+    answer_start = 4
+    answer_end = 5
+"""
