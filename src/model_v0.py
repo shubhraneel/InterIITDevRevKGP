@@ -30,35 +30,35 @@ class Bert_Classifier(pl.LightningModule):
             #                         labels=batch["answerable"],
             #                         )
         # else:
-        out = self.classifier_model(input_ids=batch["question_paragraph_input_ids"], 
-                                attention_mask=batch["question_paragraph_attention_mask"], 
-                                token_type_ids=batch["question_paragraph_token_type_ids"],
+        out = self.classifier_model(input_ids=batch["question_context_input_ids"], 
+                                attention_mask=batch["question_context_attention_mask"], 
+                                token_type_ids=batch["question_context_token_type_ids"],
                                 )
     
         return out
 
     def training_step(self, batch, batch_idx):
-        out = self.classifier_model(input_ids=batch["question_paragraph_input_ids"], 
-                                    attention_mask=batch["question_paragraph_attention_mask"], 
-                                    token_type_ids=batch["question_paragraph_token_type_ids"],
+        out = self.classifier_model(input_ids=batch["question_context_input_ids"], 
+                                    attention_mask=batch["question_context_attention_mask"], 
+                                    token_type_ids=batch["question_context_token_type_ids"],
                                     labels=batch["answerable"],
                                     )
         
         return out.loss
 
     def validation_step(self, batch, batch_idx):
-        out = self.classifier_model(input_ids=batch["question_paragraph_input_ids"], 
-                                    attention_mask=batch["question_paragraph_attention_mask"], 
-                                    token_type_ids=batch["question_paragraph_token_type_ids"],
+        out = self.classifier_model(input_ids=batch["question_context_input_ids"], 
+                                    attention_mask=batch["question_context_attention_mask"], 
+                                    token_type_ids=batch["question_context_token_type_ids"],
                                     labels=batch["answerable"],
                                     )
 
         return out.loss
 
     def test_step(self, batch, batch_idx):
-        out = self.classifier_model(input_ids=batch["question_paragraph_input_ids"], 
-                                    attention_mask=batch["question_paragraph_attention_mask"], 
-                                    token_type_ids=batch["question_paragraph_token_type_ids"],
+        out = self.classifier_model(input_ids=batch["question_context_input_ids"], 
+                                    attention_mask=batch["question_context_attention_mask"], 
+                                    token_type_ids=batch["question_context_token_type_ids"],
                                     labels=batch["answerable"],
                                     )
 
@@ -90,35 +90,35 @@ class Bert_QA(pl.LightningModule):
         #                         end_positions = batch["answer_encoded_start_idx"][:, 1],
         #                         )
         # else:
-        out = self.qa_model(input_ids = batch["question_paragraph_input_ids"], 
-                            attention_mask = batch["question_paragraph_attention_mask"],
-                            token_type_ids = batch["question_paragraph_token_type_ids"],
+        out = self.qa_model(input_ids = batch["question_context_input_ids"], 
+                            attention_mask = batch["question_context_attention_mask"],
+                            token_type_ids = batch["question_context_token_type_ids"],
                             )
 
         return out
 
     def training_step(self, batch, batch_idx):
         # TODO: pass answer start and end idx
-        out = self.qa_model(input_ids = batch["question_paragraph_input_ids"], 
-                            attention_mask = batch["question_paragraph_attention_mask"],
-                            token_type_ids = batch["question_paragraph_token_type_ids"],
-                            start_positions = batch["answer_encoded_start_idx"][:, 0],
-                            end_positions = batch["answer_encoded_start_idx"][:, 1],
+        out = self.qa_model(input_ids = batch["question_context_input_ids"], 
+                            attention_mask = batch["question_context_attention_mask"],
+                            token_type_ids = batch["question_context_token_type_ids"],
+                            start_positions = batch["start_positions"][:, 0],
+                            end_positions = batch["end_positions"][:, 1],
                             )
         
         return out.loss
     
     def validation_step(self, batch, batch_idx):
-        out = self.qa_model(input_ids = batch["question_paragraph_input_ids"], 
-                            attention_mask = batch["question_paragraph_attention_mask"],
-                            token_type_ids = batch["question_paragraph_token_type_ids"],
+        out = self.qa_model(input_ids = batch["question_context_input_ids"], 
+                            attention_mask = batch["question_context_attention_mask"],
+                            token_type_ids = batch["question_context_token_type_ids"],
                             )
         return out.loss
 
     def test_step(self, batch, batch_idx):
-        out = self.qa_model(input_ids = batch["question_paragraph_input_ids"], 
-                            attention_mask = batch["question_paragraph_attention_mask"],
-                            token_type_ids = batch["question_paragraph_token_type_ids"],
+        out = self.qa_model(input_ids = batch["question_context_input_ids"], 
+                            attention_mask = batch["question_context_attention_mask"],
+                            token_type_ids = batch["question_context_token_type_ids"],
                             )
         return out.loss
 
@@ -163,11 +163,11 @@ class Bert_Classifier_QA(Base_Model):
             pred = self.qa_model.predict_step(batch, batch_idx)
             all_start_preds.extend(torch.argmax(pred.start_logits, axis = 1).tolist())
             all_end_preds.extend(torch.argmax(pred.end_logits, axis = 1).tolist())
-            all_start_ground.extend(batch["answer_encoded_start_idx"][:, 0].detach().cpu().numpy())
-            all_end_ground.extend(batch["answer_encoded_start_idx"][:, 1].detach().cpu().numpy())
+            all_start_ground.extend(batch["start_positions"][:, 0].detach().cpu().numpy())
+            all_end_ground.extend(batch["end_positions"][:, 1].detach().cpu().numpy())
             
             # print(batch["paragraph_input_ids"])
-            all_input_words.extend(self.tokenizer.batch_decode(sequences = batch["paragraph_input_ids"]))
+            all_input_words.extend(self.tokenizer.batch_decode(sequences = batch["context_input_ids"]))
 
         predicted_spans = []
         gold_spans = []
