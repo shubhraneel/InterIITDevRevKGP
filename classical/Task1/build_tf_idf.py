@@ -330,6 +330,7 @@ class CoreNLPTokenizer(Tokenizer):
         self.corenlp = pexpect.spawn('/bin/bash', maxread=100000, timeout=60)
         self.corenlp.setecho(False)
         self.corenlp.sendline('stty -icanon')
+        logger.info(' '.join(cmd))
         self.corenlp.sendline(' '.join(cmd))
         self.corenlp.delaybeforesend = 0
         self.corenlp.delayafterread = 0
@@ -354,6 +355,7 @@ class CoreNLPTokenizer(Tokenizer):
     def tokenize(self, text):
         # Since we're feeding text to the commandline, we're waiting on seeing
         # the NLP> prompt. Hacky!
+        # logger.info(f'tokenizing {text}')
         if 'NLP>' in text:
             raise RuntimeError('Bad token (NLP>) in text!')
 
