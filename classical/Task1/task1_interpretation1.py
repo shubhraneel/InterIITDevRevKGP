@@ -5,6 +5,7 @@ from tqdm import tqdm
 import numpy as np
 import re
 import string
+import time
 
 import nltk
 from nltk.corpus import stopwords
@@ -12,13 +13,10 @@ from nltk.stem import WordNetLemmatizer
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, classification_report
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.linear_model import LogisticRegression
-
-import scipy 
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -81,10 +79,10 @@ def to_target(text):
 
 
 if __name__ == "__main__":
-    df = pd.read_csv("dataset/train_data.csv")
+    df = pd.read_csv("data-dir/train_data.csv")
     # collated_df=collate_paragraphs(df)
     # collated_df=co_appearance_on_collated_df(collated_df)
-    # collated_df.to_csv("dataset/collated.csv")
+    # collated_df.to_csv("data-dir/collated.csv")
     with concurrent.futures.ProcessPoolExecutor(8) as pool:
         df['Paragraph'] = list(
             tqdm(pool.map(preprocess, df['Paragraph'], chunksize=5000)))
@@ -95,10 +93,13 @@ if __name__ == "__main__":
         df['coappearance'] = list(
             tqdm(pool.map(co_app, df['Question'], df['Paragraph'], chunksize=5000)))
     
-    df.to_csv("dataset/preprocessed.csv")
+    df.to_csv("data-dir/preprocessed.csv")
     X_train, X_test, y_train, y_test = train_test_split(df, df['target'].values, test_size=0.2, random_state=123, stratify=df['target'].values)
 
-    tfidf_vectorizer = TfidfVectorizer()
+    ### TO:DO 
+    ### try with doc2vec, word2vec avg, infersent avg
+     
+    tfidf_vectorizer = TfidfVectorizer(max_features=10000)
     tfidf_vectorizer.fit(X_train['Paragraph'])
     tfidf_p_train = tfidf_vectorizer.transform(X_train['Paragraph'])
     tfidf_q_train = tfidf_vectorizer.transform(X_train['Question'])
@@ -106,7 +107,7 @@ if __name__ == "__main__":
     print(tfidf_p_train.shape)
     print(tfidf_q_train.shape)
     
-    cosine_similarity_train=np.vstack([ cosine_similarity(tfidf_p_train[i],tfidf_q_train[i]) for i in range(tfidf_p_train.shape[0])])
+    cosine_similarity_train=np.vstack([cosine_similarity(tfidf_p_train[i],tfidf_q_train[i]) for i in range(tfidf_p_train.shape[0])])
     # print(cosine_similarity_train.shape)
 
     X_train=pd.DataFrame(X_train['coappearance'])
@@ -116,18 +117,25 @@ if __name__ == "__main__":
     classifier = RandomForestClassifier()
     classifier.fit(X_train,y_train)
 
+
+    tsince = int(round(time.time()*1000))
     tfidf_p_test = tfidf_vectorizer.transform(X_test['Paragraph'])
     tfidf_q_test = tfidf_vectorizer.transform(X_test['Question'])
-    print(tfidf_p_test.shape)
-    print(tfidf_q_test.shape)
+    # print(tfidf_p_test.shape)
+    # print(tfidf_q_test.shape)
     cosine_similarity_test=np.vstack([ cosine_similarity(tfidf_p_test[i],tfidf_q_test[i]) for i in range(tfidf_p_test.shape[0])])
     # print(cosine_similarity_test.shape)
     
     X_test=pd.DataFrame(X_test['coappearance'])
     X_test['cosine']=cosine_similarity_test
-    print(X_test.head())
+    # print(X_test.head())
     y_pred = classifier.predict(X_test)
+    ttime_elapsed = int(round(time.time()*1000)) - tsince
+    ttime_per_example = ttime_elapsed/X_test.shape[0]
+    print (f'test time elapsed {ttime_elapsed} ms')
+    print (f'test time elapsed per example {ttime_per_example} ms')
     print(classification_report(y_test,y_pred))
+
 
     cnf_matrix = confusion_matrix(y_test,y_pred)
     group_names = ['TN','FP','FN','TP']
