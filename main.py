@@ -26,6 +26,10 @@ if __name__ == "__main__":
 
 	# df = pd.read_excel(config.data.data_path)
 	df = pd.read_csv(config.data.data_path)
+	# TODO: Split the dataset in a way where training theme question-context pair should not be
+	# split into train/test/val. Keep it only in the train.
+	# Mixup allowed between val and test.
+
 	df_train, df_test = train_test_split(df, test_size=config.data.test_size, random_state=config.seed)
 	df_train, df_val = train_test_split(df_train, test_size=config.data.test_size, random_state=config.seed)
 	
@@ -40,6 +44,8 @@ if __name__ == "__main__":
 	test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
 
 	model = Bert_Classifier_QA(config, tokenizer=tokenizer)
-	model.__train__(train_dataloader)
-	model.__inference__(test_dataloader)
-	# model.calculate_metrics(test_dataloader)
+	# model.__train__(train_dataloader)
+	# model.__inference__(test_dataloader)
+	classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
+
+	print(f"Classification F1: {classification_f1}, QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")

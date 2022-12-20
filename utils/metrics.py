@@ -67,7 +67,7 @@ def compute_f1(a_gold, a_pred):
   print(a_gold)
   print("\n###################\n")
   print(a_pred)
-  exit(0)
+  # exit(0)
   gold_toks = get_tokens(a_gold)
   pred_toks = get_tokens(a_pred)
   common = collections.Counter(gold_toks) & collections.Counter(pred_toks)

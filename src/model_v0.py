@@ -152,7 +152,7 @@ class Bert_Classifier_QA(Base_Model):
     def __train__(self, dataloader):
         print("Starting training")
 
-        # self.classifier_trainer.fit(model = self.classifier_model, train_dataloaders = dataloader)
+        self.classifier_trainer.fit(model = self.classifier_model, train_dataloaders = dataloader)
         self.qa_model_trainer.fit(model = self.qa_model, train_dataloaders = dataloader)
 
     def __inference__(self, dataloader):
@@ -177,20 +177,10 @@ class Bert_Classifier_QA(Base_Model):
             all_start_ground.extend(batch["start_positions"].detach().cpu().numpy())
             all_end_ground.extend(batch["end_positions"].detach().cpu().numpy())
             
-            # print(batch["paragraph_input_ids"])
             all_input_words.extend(self.tokenizer.batch_decode(sequences = batch["context_input_ids"]))
 
         predicted_spans = []
         gold_spans = []
-
-        print(all_start_preds)
-        print("\n###########\n")
-        print(all_start_ground)
-
-        print("\n###########\n")
-        print(all_end_preds)
-        print("\n###########\n")
-        print(all_end_ground)
 
         for idx, sentence in enumerate(all_input_words):
             sentence = sentence.split(" ")
