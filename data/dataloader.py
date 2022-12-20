@@ -141,7 +141,7 @@ class SQuAD_Dataset(Dataset):
 		return inputs
 
 	def __len__(self):
-		return len(self.data)
+		return len(self.data["questions"])
 
 	def __getitem__(self, idx):
 		# item = {
