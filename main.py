@@ -38,10 +38,6 @@ if __name__ == "__main__":
 
 	df_val, df_test = train_test_split(df_val, test_size = (config.data.test_size)/(config.data.test_size*(1-config.data.test_size)+config.data.test_size),
  										random_state=config.seed)
-	df_train.to_csv("/home/venky/train.csv")
-	df_val.to_csv("/home/venky/test.csv")
-
-
 	#df_train, df_test = train_test_split(df, test_size=config.data.test_size, random_state=config.seed)
 	#df_train, df_val = train_test_split(df_train, test_size=config.data.test_size, random_state=config.seed)
 	
