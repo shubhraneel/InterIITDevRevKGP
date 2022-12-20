@@ -1,4 +1,6 @@
 
+import time
+import pandas as pd
 import logging
 import prettytable
 import argparse
@@ -347,7 +349,7 @@ class TfidfDocRanker(object):
     Scores new queries by taking sparse dot products.
     """
 
-    def __init__(self, tfidf_path, strict=True):
+    def __init__(self, tfidf_path, strict=False):
         """
         Args:
             tfidf_path: path to saved model file
@@ -400,7 +402,7 @@ class TfidfDocRanker(object):
 
     def parse(self, query):
         """Parse the query into tokens (either ngrams or tokens)."""
-        print(query)
+        # print(query)
         tokens = self.tokenizer.tokenize(query)
         return tokens.ngrams(n=self.ngrams, uncased=True,
                              filter_fn=filter_ngram)
@@ -454,17 +456,35 @@ parser.add_argument('--model', type=str, default=None)
 args = parser.parse_args()
 
 logger.info('Initializing ranker...')
-ranker = TfidfDocRanker(tfidf_path="data-dir/sqlite_para-tfidf-ngram=2-hash=16777216-tokenizer=corenlp.npz")
+ranker = TfidfDocRanker(
+    tfidf_path="data-dir/sqlite_para-tfidf-ngram=2-hash=16777216-tokenizer=corenlp.npz")
 
 
 def process(query, k=1):
     doc_names, doc_scores = ranker.closest_docs(query, k)
-    table = prettytable.PrettyTable(
-        ['Rank', 'Doc Id', 'Doc Score']
-    )
-    for i in range(len(doc_names)):
-        table.add_row([i + 1, doc_names[i], '%.5g' % doc_scores[i]])
-    print(table)
+    # table = prettytable.PrettyTable(
+    #     ['Rank', 'Doc Id', 'Doc Score']
+    # )
+    # for i in range(len(doc_names)):
+    #     table.add_row([i + 1, doc_names[i], '%.5g' % doc_scores[i]])
+    # print(table)
+    return doc_names
 
-process("When did Beyonce leave Destiny's Child and become a solo singer?",k=10)
-process("What palace was Frédéric sometimes invited to as a companion of the ruler's son?",k=10)
+
+df_q = pd.read_csv("data-dir/questions_only.csv")
+tsince = int(round(time.time()*1000))
+num_app = 0
+for idx, row in df_q.iterrows():
+    if str(row['id']) in process(row['Question'], k=10):
+        num_app += 1
+ttime_elapsed = int(round(time.time()*1000)) - tsince
+ttime_per_example = ttime_elapsed/df_q.shape[0]
+print(f'test time elapsed {ttime_elapsed} ms')
+print(f'test time elapsed per example {ttime_per_example} ms')
+print(f'Acc = {num_app/df_q.shape[0]}')
+tsince = int(round(time.time()*1000))
+ranker.batch_closest_docs(queries=df_q['Question'].tolist(),k=10, num_workers=4)
+ttime_elapsed = int(round(time.time()*1000)) - tsince
+ttime_per_example = ttime_elapsed/df_q.shape[0]
+print(f'Batched test time elapsed {ttime_elapsed} ms')
+print(f'Batched test time elapsed per example {ttime_per_example} ms')
