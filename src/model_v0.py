@@ -152,7 +152,7 @@ class Bert_Classifier_QA(Base_Model):
     def __train__(self, dataloader):
         print("Starting training")
 
-        # self.classifier_trainer.fit(model = self.classifier_model, train_dataloaders = dataloader)
+        self.classifier_trainer.fit(model = self.classifier_model, train_dataloaders = dataloader)
         self.qa_model_trainer.fit(model = self.qa_model, train_dataloaders = dataloader)
 
     def __inference__(self, dataloader):
