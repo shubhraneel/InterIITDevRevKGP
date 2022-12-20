@@ -134,3 +134,4 @@ lightning_logs
 data-dir/*
 .vscode*
 data-dir/corenlp/*
+data-dir/*
