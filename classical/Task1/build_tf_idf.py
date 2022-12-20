@@ -559,13 +559,13 @@ if __name__ == '__main__':
 
     basename = os.path.splitext(os.path.basename(args.db_path))[0]
     basename += ('-tfidf-ngram=%d-hash=%d-tokenizer=%s' %
-                 (args.ngram, args.hash_size))
+                 (args.ngram, args.hash_size,'corenlp'))
     filename = os.path.join(args.out_dir, basename)
 
     logger.info('Saving to %s.npz' % filename)
     metadata = {
         'doc_freqs': freqs,
-        'tokenizer': args.tokenizer,
+        'tokenizer': 'corenlp',
         'hash_size': args.hash_size,
         'ngram': args.ngram,
         'doc_dict': doc_dict
