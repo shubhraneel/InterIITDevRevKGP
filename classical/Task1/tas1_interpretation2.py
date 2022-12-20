@@ -1,4 +1,7 @@
 
+import logging
+import prettytable
+import argparse
 import copy
 import numpy as np
 import scipy.sparse as sp
@@ -7,7 +10,11 @@ import os
 from multiprocessing.pool import ThreadPool
 from functools import partial
 
-from . import utils
+import regex
+import unicodedata
+import numpy as np
+import scipy.sparse as sp
+from sklearn.utils import murmurhash3_32
 
 import json
 import pexpect
@@ -15,6 +22,86 @@ import pexpect
 DEFAULTS = {
     'corenlp_classpath': os.getenv('CLASSPATH')
 }
+
+
+def load_sparse_csr(filename):
+    loader = np.load(filename, allow_pickle=True)
+    matrix = sp.csr_matrix((loader['data'], loader['indices'],
+                            loader['indptr']), shape=loader['shape'])
+    return matrix, loader['metadata'].item(0) if 'metadata' in loader else None
+
+
+# ------------------------------------------------------------------------------
+# Token hashing.
+# ------------------------------------------------------------------------------
+
+
+def hash(token, num_buckets):
+    """Unsigned 32 bit murmurhash for feature hashing."""
+    return murmurhash3_32(token, positive=True) % num_buckets
+
+
+# ------------------------------------------------------------------------------
+# Text cleaning.
+# ------------------------------------------------------------------------------
+
+
+STOPWORDS = {
+    'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your',
+    'yours', 'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she',
+    'her', 'hers', 'herself', 'it', 'its', 'itself', 'they', 'them', 'their',
+    'theirs', 'themselves', 'what', 'which', 'who', 'whom', 'this', 'that',
+    'these', 'those', 'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'have', 'has', 'had', 'having', 'do', 'does', 'did', 'doing', 'a', 'an',
+    'the', 'and', 'but', 'if', 'or', 'because', 'as', 'until', 'while', 'of',
+    'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through',
+    'during', 'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down',
+    'in', 'out', 'on', 'off', 'over', 'under', 'again', 'further', 'then',
+    'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any',
+    'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor',
+    'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 's', 't', 'can',
+    'will', 'just', 'don', 'should', 'now', 'd', 'll', 'm', 'o', 're', 've',
+    'y', 'ain', 'aren', 'couldn', 'didn', 'doesn', 'hadn', 'hasn', 'haven',
+    'isn', 'ma', 'mightn', 'mustn', 'needn', 'shan', 'shouldn', 'wasn', 'weren',
+    'won', 'wouldn', "'ll", "'re", "'ve", "n't", "'s", "'d", "'m", "''", "``"
+}
+
+
+def normalize(text):
+    """Resolve different type of unicode encodings."""
+    return unicodedata.normalize('NFD', text)
+
+
+def filter_word(text):
+    """Take out english stopwords, punctuation, and compound endings."""
+    text = normalize(text)
+    if regex.match(r'^\p{P}+$', text):
+        return True
+    if text.lower() in STOPWORDS:
+        return True
+    return False
+
+
+def filter_ngram(gram, mode='any'):
+    """Decide whether to keep or discard an n-gram.
+
+    Args:
+        gram: list of tokens (length N)
+        mode: Option to throw out ngram if
+          'any': any single token passes filter_word
+          'all': all tokens pass filter_word
+          'ends': book-ended by filterable tokens
+    """
+    filtered = [filter_word(w) for w in gram]
+    if mode == 'any':
+        return any(filtered)
+    elif mode == 'all':
+        return all(filtered)
+    elif mode == 'ends':
+        return filtered[0] or filtered[-1]
+    else:
+        raise ValueError('Invalid mode: %s' % mode)
+
 
 """Base tokenizer/tokens classes and utilities."""
 
@@ -267,11 +354,11 @@ class TfidfDocRanker(object):
             strict: fail on empty queries or continue (and return empty result)
         """
 
-        matrix, metadata = utils.load_sparse_csr(tfidf_path)
+        matrix, metadata = load_sparse_csr(tfidf_path)
         self.doc_mat = matrix
         self.ngrams = metadata['ngram']
         self.hash_size = metadata['hash_size']
-        self.tokenizer = CoreNLPTokenizer
+        self.tokenizer = CoreNLPTokenizer()
         self.doc_freqs = metadata['doc_freqs'].squeeze()
         self.doc_dict = metadata['doc_dict']
         self.num_docs = len(self.doc_dict[0])
@@ -313,9 +400,10 @@ class TfidfDocRanker(object):
 
     def parse(self, query):
         """Parse the query into tokens (either ngrams or tokens)."""
+        print(query)
         tokens = self.tokenizer.tokenize(query)
         return tokens.ngrams(n=self.ngrams, uncased=True,
-                             filter_fn=utils.filter_ngram)
+                             filter_fn=filter_ngram)
 
     def text2spvec(self, query):
         """Create a sparse tfidf-weighted word vector from query.
@@ -323,8 +411,8 @@ class TfidfDocRanker(object):
         tfidf = log(tf + 1) * log((N - Nt + 0.5) / (Nt + 0.5))
         """
         # Get hashed ngrams
-        words = self.parse(utils.normalize(query))
-        wids = [utils.hash(w, self.hash_size) for w in words]
+        words = self.parse(normalize(query))
+        wids = [hash(w, self.hash_size) for w in words]
 
         if len(wids) == 0:
             if self.strict:
@@ -352,3 +440,31 @@ class TfidfDocRanker(object):
         )
 
         return spvec
+
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+fmt = logging.Formatter('%(asctime)s: [ %(message)s ]', '%m/%d/%Y %I:%M:%S %p')
+console = logging.StreamHandler()
+console.setFormatter(fmt)
+logger.addHandler(console)
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--model', type=str, default=None)
+args = parser.parse_args()
+
+logger.info('Initializing ranker...')
+ranker = TfidfDocRanker(tfidf_path="data-dir/sqlite_para-tfidf-ngram=2-hash=16777216-tokenizer=corenlp.npz")
+
+
+def process(query, k=1):
+    doc_names, doc_scores = ranker.closest_docs(query, k)
+    table = prettytable.PrettyTable(
+        ['Rank', 'Doc Id', 'Doc Score']
+    )
+    for i in range(len(doc_names)):
+        table.add_row([i + 1, doc_names[i], '%.5g' % doc_scores[i]])
+    print(table)
+
+process("When did Beyonce leave Destiny's Child and become a solo singer?",k=10)
+process("What palace was Frédéric sometimes invited to as a companion of the ruler's son?",k=10)
