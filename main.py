@@ -44,8 +44,8 @@ if __name__ == "__main__":
 	test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
 
 	model = Bert_Classifier_QA(config, tokenizer=tokenizer)
-	# model.__train__(train_dataloader)
-	# model.__inference__(test_dataloader)
+	model.__train__(train_dataloader)
+	model.__inference__(test_dataloader)
 	classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
 
 	print(f"Classification F1: {classification_f1}, QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
