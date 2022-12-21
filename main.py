@@ -9,7 +9,7 @@ from transformers import AutoTokenizer
 from config import Config
 from utils import set_seed
 from data import SQuAD_Dataset
-from src import Bert_Classifier_QA
+from src import AutoModel_Classifier_QA
 
 from torch.utils.data import DataLoader
 
@@ -43,7 +43,7 @@ if __name__ == "__main__":
 	val_dataloader = DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
 	test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
 
-	model = Bert_Classifier_QA(config, tokenizer=tokenizer)
+	model = AutoModel_Classifier_QA(config, tokenizer=tokenizer)
 	model.__train__(train_dataloader)
 	model.__inference__(test_dataloader)
 	classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
