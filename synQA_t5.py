@@ -23,8 +23,8 @@ class QuestionAnswerGeneration(pl.LightningModule):
             #                         )
         # else:
         out = self.model(
-            input_ids=batch['paragraph_input_ids'],
-            attention_mask=batch['paragraph_attention_mask'],
+            input_ids=batch['context_input_ids'],
+            attention_mask=batch['context_attention_mask'],
             decoder_input_ids=batch['question_input_ids'],
             decoder_attention_mask=batch['question_attention_mask'],
             # labels=batch['question_answer_input_ids'],
@@ -53,15 +53,17 @@ class QuestionAnswerGeneration(pl.LightningModule):
         self.model.eval()
         outs = []
         for batch in test_dataloader:
-            outputs = self.model.generate(batch['paragraph_input_ids'], attention_mask = batch['paragraph_attention_mask'])
+            outputs = self.model.generate(batch['context_input_ids'], attention_mask = batch['context_attention_mask'])
             outs.append(outputs)
         return torch.stack(outs)
 
 tokenizer = T5Tokenizer.from_pretrained('t5-base', TOKENIZERS_PARALLELISM=True, model_max_length=512, padding="max_length")
 df = pd.read_csv('data-dir/train_data.csv')
-df = preprocess_fn(df)
 df_train, df_test = train_test_split(df, test_size=0.2, random_state=3407)
 df_train, df_val = train_test_split(df_train, test_size=0.1, random_state=3407)
+
+print(len(df_train))
+print(len(df_val))
 
 train_ds = SQuAD_Dataset(df_train, tokenizer)
 val_ds = SQuAD_Dataset(df_val, tokenizer)
@@ -70,6 +72,9 @@ test_ds = SQuAD_Dataset(df_test, tokenizer)
 train_dataloader = DataLoader(train_ds, batch_size=16, collate_fn=train_ds.collate_fn)
 val_dataloader = DataLoader(val_ds, batch_size=16, collate_fn=val_ds.collate_fn)
 test_dataloader = DataLoader(test_ds, batch_size=16, collate_fn=test_ds.collate_fn)
+
+print(len(train_dataloader))
+print(len(val_dataloader))
 
 model = QuestionAnswerGeneration()
 

@@ -6,6 +6,8 @@ def preprocess_fn(df):
     No preprocessing in v1
     """
 
+    df = df[df['Answer_possible'] == True]
+
     data_dict = {}
     data_dict["answers"] = []
     data_dict["context"] = []
@@ -31,4 +33,3 @@ def preprocess_fn(df):
         data_dict["title"].append(title)
 
     return data_dict
-    

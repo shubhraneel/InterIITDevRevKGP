@@ -14,17 +14,19 @@ class SQuAD_Dataset(Dataset):
     self.tokenizer = tokenizer
 
     # preprocess
-    self.data = preprocess_fn(df, self.tokenizer)
+    self.data = preprocess_fn(df)
 
     # TODO: parallelize in batches
 
     data_keys = ["answers", "context", "id", "question", "title"]
 
-    tokenized_keys = ["question_context_input_ids", "question_context_attention_mask", "question_context_token_type_ids", 
-            "title_input_ids", "title_attention_mask", "title_token_type_ids", 
-            "context_input_ids", "context_attention_mask", "context_token_type_ids",
-            "question_input_ids", "question_attention_mask", "question_token_type_ids",
-            "start_positions", "end_positions", "answerable", "answer_input_ids", "answer_attention_mask"
+    tokenized_keys = ["question_context_input_ids", "question_context_attention_mask", #"question_context_token_type_ids", 
+            "title_input_ids", "title_attention_mask", #"title_token_type_ids", 
+            "context_input_ids", "context_attention_mask", #"context_token_type_ids",
+            "question_input_ids", "question_attention_mask", #"question_token_type_ids",
+            # "start_positions", "end_positions", "answerable", 
+            "answer_input_ids", "answer_attention_mask",
+            "question_answer_input_ids", "question_answer_attention_mask"
             ]
 
     for key in tokenized_keys:
@@ -47,90 +49,90 @@ class SQuAD_Dataset(Dataset):
       examples["context"],
       max_length=512,
       truncation="only_second",
-      return_offsets_mapping=True,
+      # return_offsets_mapping=True,
       padding="max_length",
       return_tensors="pt",
     )
 
-    offset_mapping = inputs.pop("offset_mapping")
-    answers = examples["answers"]
-    start_positions = []
-    end_positions = []
-    answerable = []
+    # offset_mapping = inputs.pop("offset_mapping")
+    answers = [answer["text"][0] for answer in examples["answers"]]
+    # start_positions = []
+    # end_positions = []
+    # answerable = []
 
-    for i, offset in enumerate(offset_mapping):
-      answer = answers[i]
+    # for i, offset in enumerate(offset_mapping):
+    #   answer = answers[i]
 
-      if (len(answer["answer_start"]) == 0):
-        start_positions.append(0)
-        end_positions.append(0)
-        answerable.append(0)
-        continue
+    #   if (len(answer["answer_start"]) == 0):
+    #     start_positions.append(0)
+    #     end_positions.append(0)
+    #     answerable.append(0)
+    #     continue
 
-      answerable.append(1)
+    #   answerable.append(1)
 
-      start_char = answer["answer_start"][0]
-      end_char = answer["answer_start"][0] + len(answer["text"][0])
-      sequence_ids = inputs.sequence_ids(i)
+    #   start_char = answer["answer_start"][0]
+    #   end_char = answer["answer_start"][0] + len(answer["text"][0])
+    #   sequence_ids = inputs.sequence_ids(i)
 
-      # Find the start and end of the context
-      idx = 0
-      while sequence_ids[idx] != 1:
-        idx += 1
-      context_start = idx
-      while sequence_ids[idx] == 1:
-        idx += 1
-      context_end = idx - 1
+    #   # Find the start and end of the context
+    #   idx = 0
+    #   while sequence_ids[idx] != 1:
+    #     idx += 1
+    #   context_start = idx
+    #   while sequence_ids[idx] == 1:
+    #     idx += 1
+    #   context_end = idx - 1
 
-      # If the answer is not fully inside the context, label it (0, 0)
-      if offset[context_start][0] > end_char or offset[context_end][1] < start_char:
-        start_positions.append(0)
-        end_positions.append(0)
-      else:
-        # Otherwise it's the start and end token positions
-        idx = context_start
-        while idx <= context_end and offset[idx][0] <= start_char:
-          idx += 1
-        start_positions.append(idx - 1)
+    #   # If the answer is not fully inside the context, label it (0, 0)
+    #   if offset[context_start][0] > end_char or offset[context_end][1] < start_char:
+    #     start_positions.append(0)
+    #     end_positions.append(0)
+    #   else:
+    #     # Otherwise it's the start and end token positions
+    #     idx = context_start
+    #     while idx <= context_end and offset[idx][0] <= start_char:
+    #       idx += 1
+    #     start_positions.append(idx - 1)
 
-        idx = context_end
-        while idx >= context_start and offset[idx][1] >= end_char:
-          idx -= 1
-        end_positions.append(idx + 1)
+    #     idx = context_end
+    #     while idx >= context_start and offset[idx][1] >= end_char:
+    #       idx -= 1
+    #     end_positions.append(idx + 1)
 
-    inputs["start_positions"] = torch.tensor(start_positions)
-    inputs["end_positions"] = torch.tensor(end_positions)
-    inputs["answerable"] = torch.tensor(answerable)
+    # inputs["start_positions"] = torch.tensor(start_positions)
+    # inputs["end_positions"] = torch.tensor(end_positions)
+    # inputs["answerable"] = torch.tensor(answerable)
 
     inputs["question_context_input_ids"] = inputs.pop("input_ids")
     inputs["question_context_attention_mask"] = inputs.pop("attention_mask")
-    inputs["question_context_token_type_ids"] = inputs.pop("token_type_ids")
+    # inputs["question_context_token_type_ids"] = inputs.pop("token_type_ids")
 
-    title_tokenized = self.tokenizer(examples["title"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")
+    title_tokenized = self.tokenizer(examples["title"], max_length=512, truncation="longest_first", padding="max_length", return_tensors="pt")
     inputs["title_input_ids"] = title_tokenized["input_ids"]
     inputs["title_attention_mask"] = title_tokenized["attention_mask"]
-    inputs["title_token_type_ids"] = title_tokenized["token_type_ids"]
+    # inputs["title_token_type_ids"] = title_tokenized["token_type_ids"]
 
-    context_tokenized = self.tokenizer(examples["context"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
+    context_tokenized = self.tokenizer(examples["context"], max_length=512, truncation="longest_first", padding="max_length", return_tensors="pt")    
     inputs["context_input_ids"] = context_tokenized["input_ids"]
     inputs["context_attention_mask"] = context_tokenized["attention_mask"]
-    inputs["context_token_type_ids"] = context_tokenized["token_type_ids"]
+    # inputs["context_token_type_ids"] = context_tokenized["token_type_ids"]
 
-    question_tokenized = self.tokenizer(examples["question"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
+    question_tokenized = self.tokenizer(examples["question"], max_length=512, truncation="longest_first", padding="max_length", return_tensors="pt")    
     inputs["question_input_ids"] = question_tokenized["input_ids"]
     inputs["question_attention_mask"] = question_tokenized["attention_mask"]
-    inputs["question_token_type_ids"] = question_tokenized["token_type_ids"]
+    # inputs["question_token_type_ids"] = question_tokenized["token_type_ids"]
     
-    answer_tokenized = self.tokenizer(examples["answer"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")
+    answer_tokenized = self.tokenizer(answers, max_length=512, truncation="longest_first", padding="max_length", return_tensors="pt")
     inputs["answer_input_ids"] = answer_tokenized["input_ids"]
     inputs["answer_attention_mask"] = answer_tokenized["attention_mask"]
-    inputs["answer_token_type_ids"] = answer_tokenized["token_type_ids"]
+    # inputs["answer_token_type_ids"] = answer_tokenized["token_type_ids"]
 
-    examples['question_answer'] = ["<q> " + question + " <a> " + answer + " </a>" for question, answer in zip(examples["question"], examples["answer"])]
-    question_answer_tokenized = self.tokenizer(examples["question_answer"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")
+    examples['question_answer'] = ["<q> " + question + " <a> " + answer + " </a>" for question, answer in zip(examples["question"], answers)]
+    question_answer_tokenized = self.tokenizer(examples["question_answer"], max_length=512, truncation="longest_first", padding="max_length", return_tensors="pt")
     inputs["question_answer_input_ids"] = question_answer_tokenized["input_ids"]
     inputs["question_answer_attention_mask"] = question_answer_tokenized["attention_mask"]
-    inputs["question_answer_token_type_ids"] = question_answer_tokenized["token_type_ids"]
+    # inputs["question_answer_token_type_ids"] = question_answer_tokenized["token_type_ids"]
 
     return inputs
 
@@ -144,28 +146,30 @@ class SQuAD_Dataset(Dataset):
     batch = {
       "title_input_ids":                      torch.stack([x["title_input_ids"] for x in items], dim=0).squeeze(),
       "title_attention_mask":                 torch.stack([x["title_attention_mask"] for x in items], dim=0).squeeze(),
-      "title_token_type_ids":                 torch.stack([x["title_token_type_ids"] for x in items], dim=0).squeeze(),
+      # "title_token_type_ids":                 torch.stack([x["title_token_type_ids"] for x in items], dim=0).squeeze(),
       
       "context_input_ids":                    torch.stack([x["context_input_ids"] for x in items], dim=0).squeeze(),
       "context_attention_mask":               torch.stack([x["context_attention_mask"] for x in items], dim=0).squeeze(),
-      "context_token_type_ids":               torch.stack([x["context_token_type_ids"] for x in items], dim=0).squeeze(),
+      # "context_token_type_ids":               torch.stack([x["context_token_type_ids"] for x in items], dim=0).squeeze(),
 
       "question_input_ids":                   torch.stack([x["question_input_ids"] for x in items], dim=0).squeeze(),
       "question_attention_mask":              torch.stack([x["question_attention_mask"] for x in items], dim=0).squeeze(),
-      "question_token_type_ids":              torch.stack([x["question_token_type_ids"] for x in items], dim=0).squeeze(),
+      # "question_token_type_ids":              torch.stack([x["question_token_type_ids"] for x in items], dim=0).squeeze(),
 
           # TODO: eliminate this here, use torch to concatenate q and p in model forward function
       "question_context_input_ids":           torch.stack([x["question_context_input_ids"] for x in items], dim=0).squeeze(),
       "question_context_attention_mask":      torch.stack([x["question_context_attention_mask"] for x in items], dim=0).squeeze(),
-      "question_context_token_type_ids":      torch.stack([x["question_context_token_type_ids"] for x in items], dim=0).squeeze(),
+      # "question_context_token_type_ids":      torch.stack([x["question_context_token_type_ids"] for x in items], dim=0).squeeze(),
 
       "answer_input_ids":                   torch.stack([x["answer_input_ids"] for x in items], dim=0).squeeze(),
       "answer_attention_mask":              torch.stack([x["answer_attention_mask"] for x in items], dim=0).squeeze(),
-      "answer_token_type_ids":              torch.stack([x["answer_token_type_ids"] for x in items], dim=0).squeeze(),
+      # "answer_token_type_ids":              torch.stack([x["answer_token_type_ids"] for x in items], dim=0).squeeze(),
+      "question_answer_input_ids":                   torch.stack([x["question_answer_input_ids"] for x in items], dim=0).squeeze(),
+      "question_answer_attention_mask":              torch.stack([x["question_answer_attention_mask"] for x in items], dim=0).squeeze(),
 
-      "answerable":                           torch.stack([x["answerable"] for x in items], dim=0),
-      "start_positions":                      torch.stack([x["start_positions"] for x in items], dim=0),
-      "end_positions":                        torch.stack([x["end_positions"] for x in items], dim=0),
+      # "answerable":                           torch.stack([x["answerable"] for x in items], dim=0),
+      # "start_positions":                      torch.stack([x["start_positions"] for x in items], dim=0),
+      # "end_positions":                        torch.stack([x["end_positions"] for x in items], dim=0),
 
       # "answer_input_ids":                   torch.stack([x["answer"]["input_ids"] for x in items], dim=0),
       # "answer_attention_mask":              torch.stack([x["answer"]["attention_mask"] for x in items], dim=0),
