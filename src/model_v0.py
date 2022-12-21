@@ -23,18 +23,18 @@ class Bert_Classifier(pl.LightningModule):
         self.test_dataloader = test_dataloader
 
     def forward(self, batch):
-        # if "answerable" in batch.keys():
-            # out = self.classifier_model(input_ids=batch["question_paragraph_input_ids"], 
-            #                         attention_mask=batch["question_paragraph_attention_mask"], 
-            #                         token_type_ids=batch["question_paragraph_token_type_ids"],
-            #                         labels=batch["answerable"],
-            #                         )
-        # else:
-        out = self.classifier_model(input_ids=batch["question_context_input_ids"], 
-                                attention_mask=batch["question_context_attention_mask"], 
-                                token_type_ids=batch["question_context_token_type_ids"],
-                                )
-    
+        if "answerable" in batch.keys():
+            out = self.classifier_model(input_ids=batch["question_context_input_ids"], 
+                                     attention_mask=batch["question_context_attention_mask"], 
+                                     token_type_ids=batch["question_context_token_type_ids"],
+                                     labels=batch["answerable"],
+                                     )
+        else:
+            out = self.classifier_model(input_ids=batch["question_context_input_ids"], 
+                                    attention_mask=batch["question_context_attention_mask"], 
+                                    token_type_ids=batch["question_context_token_type_ids"],
+                                    )
+        
         return out
 
     def training_step(self, batch, batch_idx):
@@ -82,18 +82,18 @@ class Bert_QA(pl.LightningModule):
 
     def forward(self, batch):
 
-        # if "answer_encoded_start_idx" in batch.keys():
-        #     out = self.qa_model(input_ids = batch["question_paragraph_input_ids"], 
-        #                         attention_mask = batch["question_paragraph_attention_mask"],
-        #                         token_type_ids = batch["question_paragraph_token_type_ids"],
-        #                         start_positions = batch["answer_encoded_start_idx"],
-        #                         end_positions = batch["answer_encoded_start_idx"],
-        #                         )
-        # else:
-        out = self.qa_model(input_ids = batch["question_context_input_ids"], 
-                            attention_mask = batch["question_context_attention_mask"],
-                            token_type_ids = batch["question_context_token_type_ids"],
-                            )
+        if "start_positions" in batch.keys():
+             out = self.qa_model(input_ids = batch["question_context_input_ids"], 
+                                 attention_mask = batch["question_context_attention_mask"],
+                                 token_type_ids = batch["question_context_token_type_ids"],
+                                 start_positions = batch["start_positions"],
+                                 end_positions = batch["end_positions"],
+                                 )
+        else:
+            out = self.qa_model(input_ids = batch["question_context_input_ids"], 
+                                attention_mask = batch["question_context_attention_mask"],
+                                token_type_ids = batch["question_context_token_type_ids"],
+                                )
 
         return out
 
@@ -204,4 +204,9 @@ class Bert_Classifier_QA(Base_Model):
 
     def __evaluate__(self, dataloader):
         # TODO
-        pass
+        print("Running on Test")
+
+        test_classifier = self.classifier_trainer.test(model = self.classifier_model, train_dataloaders = dataloader)
+        test_qa = self.qa_model_trainer.test(model = self.qa_model, train_dataloaders = dataloader)
+        
+        return test_classifier, test_qa
