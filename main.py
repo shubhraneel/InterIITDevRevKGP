@@ -9,13 +9,13 @@ from transformers import AutoTokenizer
 from config import Config
 from utils import set_seed
 from data import SQuAD_Dataset
-from src import AutoModel_Classifier_QA
+from src import AutoModel_Classifier_QA, FewShotQA_Model
 
 from torch.utils.data import DataLoader
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--config', default="config.yaml", help="Config File")
+	parser.add_argument('--config', default="config-fewshot-qa.yaml", help="Config File")
 
 	args = parser.parse_args()
 	with open(args.config) as f:
@@ -35,17 +35,28 @@ if __name__ == "__main__":
 	
 	tokenizer = AutoTokenizer.from_pretrained(config.model.model_path, TOKENIZERS_PARALLELISM=True, model_max_length=512, padding="max_length") # add local_files_only=local_files_only if using server
 
-	train_ds = SQuAD_Dataset(config, df_train, tokenizer)
-	val_ds = SQuAD_Dataset(config, df_val, tokenizer)
-	test_ds = SQuAD_Dataset(config, df_test, tokenizer)
+	mask_token = tokenizer.mask_token
+
+	train_ds = SQuAD_Dataset(config, df_train, tokenizer, mask_token)
+	val_ds = SQuAD_Dataset(config, df_val, tokenizer, mask_token)
+	test_ds = SQuAD_Dataset(config, df_test, tokenizer, mask_token)
 
 	train_dataloader = DataLoader(train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
 	val_dataloader = DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
 	test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
 
-	model = AutoModel_Classifier_QA(config, tokenizer=tokenizer)
-	model.__train__(train_dataloader)
-	model.__inference__(test_dataloader)
-	classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
+	if config.fewshot_qa:
+		model = FewShotQA_Model(config, tokenizer=tokenizer)
 
-	print(f"Classification F1: {classification_f1}, QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
+	else:
+		model = AutoModel_Classifier_QA(config, tokenizer=tokenizer)
+
+	model.__train__(train_dataloader)
+	# TODO: Uncomment this
+	# model.__inference__(test_dataloader)
+	
+	model.__evaluate__(val_dataloader)
+
+	# IMPORTANT TODO: fix this for fewshot_qa (this will currently give an error)
+	# classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
+	# print(f"Classification F1: {classification_f1}, QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
