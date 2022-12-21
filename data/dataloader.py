@@ -32,8 +32,8 @@ class SQuAD_Dataset(Dataset):
 			self.data[key] = []
 
 		# TODO: Parallelise in batches
-		for idx in tqdm(range(len(self.data["question"]))):
-			example = {key: [self.data[key][idx]] for key in data_keys}
+		for idx in tqdm(range(0, len(self.data["question"]), 32)):
+			example = {key: self.data[key][idx:idx+32] for key in data_keys}
 
 			tokenized_inputs = self._tokenize(example)
 
