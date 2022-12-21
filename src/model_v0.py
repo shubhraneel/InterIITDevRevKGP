@@ -6,18 +6,18 @@ import torch.nn.functional as F
 
 import pytorch_lightning as pl
 
-from transformers import BertForSequenceClassification, BertForQuestionAnswering
+from transformers import AutoModelForQuestionAnswering, AutoModelForSequenceClassification
 
 from . import Base_Model
 from tqdm import tqdm
 
-class Bert_Classifier(pl.LightningModule):
+class AutoModel_Classifier(pl.LightningModule):
     def __init__(self, config, train_dataloader = None, validation_dataloader = None, test_dataloader = None):
         super().__init__()
 
         self.config = config
         
-        self.classifier_model = BertForSequenceClassification.from_pretrained(config.model.model_path, num_labels=config.model.num_labels)
+        self.classifier_model = AutoModelForSequenceClassification.from_pretrained(config.model.model_path, num_labels=config.model.num_labels)
         self.train_dataloader = train_dataloader
         self.validation_dataloader = validation_dataloader
         self.test_dataloader = test_dataloader
@@ -69,13 +69,13 @@ class Bert_Classifier(pl.LightningModule):
         return optimizer
 
 
-class Bert_QA(pl.LightningModule):
+class AutoModel_QA(pl.LightningModule):
     def __init__(self, config, train_dataloader = None, validation_dataloader = None, test_dataloader = None):
         super().__init__()
 
         self.config = config
         
-        self.qa_model = BertForQuestionAnswering.from_pretrained(config.model.model_path)
+        self.qa_model = AutoModelForQuestionAnswering.from_pretrained(config.model.model_path)
         self.train_dataloader = train_dataloader
         self.validation_dataloader = validation_dataloader
         self.test_dataloader = test_dataloader
@@ -136,15 +136,15 @@ class Bert_QA(pl.LightningModule):
         return optimizer
 
 
-class Bert_Classifier_QA(Base_Model):
+class AutoModel_Classifier_QA(Base_Model):
     """
     DO NOT change the calculate_metrics function
     """
     def __init__(self, config, tokenizer = None):
-        self.classifier_model = Bert_Classifier(config)
+        self.classifier_model = AutoModel_Classifier(config)
         self.classifier_trainer = pl.Trainer(max_epochs = config.training.epochs, accelerator = "gpu", devices = 1)
 
-        self.qa_model = Bert_QA(config)
+        self.qa_model = AutoModel_QA(config)
         self.qa_model_trainer = pl.Trainer(max_epochs = config.training.epochs, accelerator = "gpu", devices = 1)
 
         self.tokenizer = tokenizer
