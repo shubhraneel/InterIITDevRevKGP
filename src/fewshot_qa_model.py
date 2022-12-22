@@ -30,11 +30,11 @@ class FewShotQA_Model(Base_Model):
         os.makedirs("fewshot_qa_outputs/", exist_ok=True)
         self.save_path = os.path.join("fewshot_qa_outputs/")
     
-    def train(epoch, tokenizer, model, device, dataloader, optimizer):
+    def train(self, epoch, tokenizer, model, device, dataloader, optimizer):
         """
         Function to be called for training with the parameters passed from main function
         """
-
+        model = model.to(device)
         model.train()
         total_loss = 0.0
         for step, batch in enumerate(dataloader, 0):
@@ -59,7 +59,7 @@ class FewShotQA_Model(Base_Model):
             
         print(str(epoch), str(step), str(total_loss / (step + 1)))
 
-    def validate(epoch, tokenizer, model, device, val_dataloader, max_gen_length=32): # IMPORTANT TODO: Don't hardcode 32 
+    def validate(self, epoch, tokenizer, model, device, val_dataloader, max_gen_length=32): # IMPORTANT TODO: Don't hardcode 32 
         """
         Function to evaluate model for predictions
 
@@ -111,12 +111,12 @@ class FewShotQA_Model(Base_Model):
     def __train__(self, train_dataloader, val_dataloader):
         best_f1 = -1
         for epoch in range(self.config.training.epochs):
-            train(epoch, self.tokenizer, self.model, self.device, train_dataloader, self.optimizer)
+            self.train(epoch, self.tokenizer, self.model, self.device, train_dataloader, self.optimizer)
             
-            predictions, actuals = validate(epoch, self.tokenizer, self.model, self.device, val_dataloader)
+            predictions, actuals = self.validate(epoch, self.tokenizer, self.model, self.device, val_dataloader)
             
-            processed_preds = postprocess_preds(predictions)
-            processed_actuals = postprocess_actuals(actuals)
+            processed_preds = self.postprocess_preds(predictions)
+            processed_actuals = self.postprocess_actuals(actuals)
 
             cur_metrics, _ = few_shot_calculate_metrics(processed_preds, processed_actuals)
 
@@ -132,9 +132,9 @@ class FewShotQA_Model(Base_Model):
 
     def __inference__(self, test_dataloader):
         epoch=1
-        predictions, actuals = validate(epoch, self.tokenizer, self.model, self.device, test_dataloader)
-        processed_preds = postprocess_preds(predictions)
-        processed_actuals = postprocess_actuals(actuals)
+        predictions, actuals = self.validate(epoch, self.tokenizer, self.model, self.device, test_dataloader)
+        processed_preds = self.postprocess_preds(predictions)
+        processed_actuals = self.postprocess_actuals(actuals)
         
         generation_data = {"Generated_Text": predictions, "Actual_Text": actuals}
         generation_data["PP_Generated_Text"] = processed_preds
