@@ -90,16 +90,18 @@ class FewShotQA_Model(Base_Model):
         
         return predictions, actuals
 
-    def extract_answers(self, s):
-        if 'Answer:' in s:
-            # Find the 'Answer:' substring and take everything after it
-            answer = s.split('Answer:')[1]
-            # Strip leading and trailing whitespace
-            answer = answer.strip()
-            return answer
-        else:
-            # If 'Answer:' is not present, return an empty string
-            return ""
+    def extract_answers(self, strings):
+        answers = []
+        for s in strings:    
+            if 'Answer:' in s:
+                # Find the 'Answer:' substring and take everything after it
+                answer = s.split('Answer:')[1]
+                # Strip leading and trailing whitespace
+                answer = answer.strip()
+                return answers
+            else:
+                # If 'Answer:' is not present, return an empty string
+                return ""
 
     def __train__(self, train_dataloader):
         for epoch in range(self.config.training.epochs):
