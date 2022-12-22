@@ -11,15 +11,22 @@ from utils import set_seed
 from data import SQuAD_Dataset
 from src import AutoModel_Classifier_QA
 
+from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning import Trainer
+
 from torch.utils.data import DataLoader
 
 if __name__ == "__main__":
+	wandb_logger = WandbLogger()
+	trainer = Trainer(logger=wandb_logger)
+
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--config', default="config.yaml", help="Config File")
 
 	args = parser.parse_args()
 	with open(args.config) as f:
 		config = yaml.safe_load(f)
+		wandb_logger.experiment.config.update(config)
 		config = Config(**config)
 
 	set_seed(config.seed)
@@ -44,8 +51,8 @@ if __name__ == "__main__":
 	test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
 
 	model = AutoModel_Classifier_QA(config, tokenizer=tokenizer)
-	model.__train__(train_dataloader)
-	model.__inference__(test_dataloader)
+	model.__train__(train_dataloader, logger=wandb_logger)
+	model.__inference__(test_dataloader, logger=wandb_logger)
 	classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
 
 	print(f"Classification F1: {classification_f1}, QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")

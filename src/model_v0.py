@@ -43,7 +43,7 @@ class AutoModel_Classifier(pl.LightningModule):
                                     token_type_ids=batch["question_context_token_type_ids"],
                                     labels=batch["answerable"],
                                     )
-        
+        self.log('train_loss_classifier', out.loss)
         return out.loss
 
     def validation_step(self, batch, batch_idx):
@@ -52,7 +52,7 @@ class AutoModel_Classifier(pl.LightningModule):
                                     token_type_ids=batch["question_context_token_type_ids"],
                                     labels=batch["answerable"],
                                     )
-
+        self.log('val_loss_classifier', out.loss)
         return out.loss
 
     def test_step(self, batch, batch_idx):
@@ -61,7 +61,7 @@ class AutoModel_Classifier(pl.LightningModule):
                                     token_type_ids=batch["question_context_token_type_ids"],
                                     labels=batch["answerable"],
                                     )
-
+        self.log('test_loss_classifier', out.loss)
         return out.loss
 
     def configure_optimizers(self):
@@ -105,6 +105,7 @@ class AutoModel_QA(pl.LightningModule):
                             start_positions = batch["start_positions"],
                             end_positions = batch["end_positions"],
                             )
+        self.log('train_loss_qa', out.loss)
         
         # TODO: ANSWERS CONVERGING TO 0, 0
         # print("Actual spans")
@@ -122,6 +123,7 @@ class AutoModel_QA(pl.LightningModule):
                             attention_mask = batch["question_context_attention_mask"],
                             token_type_ids = batch["question_context_token_type_ids"],
                             )
+        self.log('val_loss_qa', out.loss)
         return out.loss
 
     def test_step(self, batch, batch_idx):
@@ -129,6 +131,7 @@ class AutoModel_QA(pl.LightningModule):
                             attention_mask = batch["question_context_attention_mask"],
                             token_type_ids = batch["question_context_token_type_ids"],
                             )
+        self.log('test_loss_qa', out.loss)
         return out.loss
 
     def configure_optimizers(self):
@@ -142,20 +145,20 @@ class AutoModel_Classifier_QA(Base_Model):
     """
     def __init__(self, config, tokenizer = None):
         self.classifier_model = AutoModel_Classifier(config)
-        self.classifier_trainer = pl.Trainer(max_epochs = config.training.epochs, accelerator = "gpu", devices = 1)
 
         self.qa_model = AutoModel_QA(config)
-        self.qa_model_trainer = pl.Trainer(max_epochs = config.training.epochs, accelerator = "gpu", devices = 1)
 
         self.tokenizer = tokenizer
         
-    def __train__(self, dataloader):
+    def __train__(self, dataloader, logger):
         print("Starting training")
 
-        self.classifier_trainer.fit(model = self.classifier_model, train_dataloaders = dataloader)
-        self.qa_model_trainer.fit(model = self.qa_model, train_dataloaders = dataloader)
+        classifier_trainer = pl.Trainer(max_epochs = config.training.epochs, accelerator = "gpu", devices = 1, logger=logger)
+        classifier_trainer.fit(model = self.classifier_model, train_dataloaders = dataloader)
+        qa_model_trainer = pl.Trainer(max_epochs = config.training.epochs, accelerator = "gpu", devices = 1, logger=logger)
+        qa_model_trainer.fit(model = self.qa_model, train_dataloaders = dataloader)
 
-    def __inference__(self, dataloader):
+    def __inference__(self, dataloader, logger):
 
         all_preds = []
         all_ground = []
