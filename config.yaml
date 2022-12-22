@@ -6,6 +6,7 @@ data:
   test_size: 0.2
   train_batch_size: 8
   val_batch_size: 2
+  alias_flag: 0
 
 training:
   epochs: 1
