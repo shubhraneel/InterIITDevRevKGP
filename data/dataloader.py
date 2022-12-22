@@ -9,13 +9,13 @@ from tqdm import tqdm
 
 # TODO: memory optimization
 class SQuAD_Dataset(Dataset):
-	def __init__(self, config, df, tokenizer, mask_token):
+	def __init__(self, config, df, tokenizer):
 		self.config = config
 
 		self.tokenizer = tokenizer
 
 		# preprocess
-		self.data = preprocess_fn(df, self.tokenizer, mask_token)
+		self.data = preprocess_fn(df, self.tokenizer)
 
 		# TODO: parallelize in batches
 
@@ -25,12 +25,8 @@ class SQuAD_Dataset(Dataset):
 						"title_input_ids", "title_attention_mask", "title_token_type_ids", 
 						"context_input_ids", "context_attention_mask", "context_token_type_ids",
 						"question_input_ids", "question_attention_mask", "question_token_type_ids",
-						"fewshot_qa_prompt_input_ids", "fewshot_qa_prompt_attention_mask",
-						"fewshot_qa_answer_input_ids",
 						"start_positions", "end_positions", "answerable"
 						]
-
-		fewshot_qa_keys = ["fewshot_qa_prompt", "fewshot_qa_answer"]
 
 		for key in tokenized_keys:
 			self.data[key] = []
@@ -127,13 +123,6 @@ class SQuAD_Dataset(Dataset):
 		inputs["question_attention_mask"] = question_tokenized["attention_mask"]
 		inputs["question_token_type_ids"] = question_tokenized["token_type_ids"]
 
-		fewshot_qa_prompt_tokenized = self.tokenizer(examples["fewshot_qa_prompt"], max_length=512, truncation="longest_first", padding="max_length", return_tensors="pt")   
-		inputs["fewshot_qa_prompt_input_ids"] = fewshot_qa_prompt_tokenized["input_ids"]
-		inputs["fewshot_qa_prompt_attention_mask"] = fewshot_qa_prompt_tokenized["attention_mask"]
-
-		fewshot_qa_answer_tokenized = self.tokenizer(examples["fewshot_qa_answer"], max_length=512, truncation="longest_first", padding="max_length", return_tensors="pt")   
-		inputs["fewshot_qa_answer_input_ids"] = fewshot_qa_answer_tokenized["input_ids"]
-
 		return inputs
 
 	def __len__(self):
@@ -170,11 +159,6 @@ class SQuAD_Dataset(Dataset):
 
 			# "answer_start_idx":                   torch.stack([x["answer_start_idx"] for x in items], dim=0),
 			# "answer_encoded_start_idx":           torch.stack([x["answer_encoded_start_idx"] for x in items], dim=0),
-
-			"fewshot_qa_prompt_input_ids":          torch.stack([x["fewshot_qa_prompt_input_ids"] for x in items], dim=0).squeeze(),
-			"fewshot_qa_prompt_attention_mask":     torch.stack([x["fewshot_qa_prompt_attention_mask"] for x in items], dim=0).squeeze(),
-
-			"fewshot_qa_answer_input_ids":          torch.stack([x["fewshot_qa_answer_input_ids"] for x in items], dim=0).squeeze(),
 		}
 
 		return batch
