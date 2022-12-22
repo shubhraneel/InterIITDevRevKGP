@@ -206,7 +206,7 @@ class AutoModel_Classifier_QA(Base_Model):
         # TODO
         print("Running on Test")
 
-        test_classifier = self.classifier_trainer.test(model = self.classifier_model, train_dataloaders = dataloader)
-        test_qa = self.qa_model_trainer.test(model = self.qa_model, train_dataloaders = dataloader)
+        test_classifier = self.classifier_trainer.test(model = self.classifier_model, dataloaders = dataloader)
+        test_qa = self.qa_model_trainer.test(model = self.qa_model, dataloaders = dataloader)
         
         return test_classifier, test_qa
