@@ -90,23 +90,16 @@ class FewShotQA_Model(Base_Model):
         
         return predictions, actuals
 
-    def postprocess_preds(predictions):
-        processed_preds = []
-        for p in predictions:
-            if 'answers' in p:
-                processed_preds.append(p.split('answers')[1].split('context')[0].strip())
-            else:
-                processed_preds.append("")
-        return processed_preds
-
-    def postprocess_actuals(self, actuals):
-        acts = []
-        for ac in actuals:
-            if 'answers' in ac:
-                acts.append([a.split('answers')[1].split('context')[0].strip() for a in ac])
-            else:
-                acts.append("")
-        return acts
+    def extract_answers(self, s):
+        if 'Answer:' in s:
+            # Find the 'Answer:' substring and take everything after it
+            answer = s.split('Answer:')[1]
+            # Strip leading and trailing whitespace
+            answer = answer.strip()
+            return answer
+        else:
+            # If 'Answer:' is not present, return an empty string
+            return ""
 
     def __train__(self, train_dataloader):
         for epoch in range(self.config.training.epochs):
@@ -115,8 +108,8 @@ class FewShotQA_Model(Base_Model):
     def __inference__(self, test_dataloader):
         epoch=1
         predictions, actuals = self.validate(epoch, self.tokenizer, self.model, self.device, test_dataloader)
-        processed_preds = self.postprocess_preds(predictions)
-        processed_actuals = self.postprocess_actuals(actuals)
+        processed_preds = self.extract_answers(predictions)
+        processed_actuals = self.extract_answers(actuals)
         
         generation_data = {"Generated_Text": predictions, "Actual_Text": actuals}
         generation_data["PP_Generated_Text"] = processed_preds
