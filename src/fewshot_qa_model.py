@@ -1,21 +1,23 @@
 import numpy as np 
-
+import pandas as pd
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import time
 import pytorch_lightning as pl
 from . import Base_Model
-from fewshot_qa_utils import *
-
+from utils import compute_f1
+from utils import few_shot_calculate_metrics
 from transformers import BartForConditionalGeneration
+from tqdm import tqdm
 
 class FewShotQA_Model(Base_Model):
     """
     DO NOT change the calculate_metrics function
     """
 
-    def __init__(self, config, tokenizer):
+    def __init__(self, config, tokenizer, model):
         self.config = config
 
         self.model = BartForConditionalGeneration("facebook/bart-large")
@@ -57,7 +59,7 @@ class FewShotQA_Model(Base_Model):
             
         print(str(epoch), str(step), str(total_loss / (step + 1)))
 
-    def validate(epoch, tokenizer, model, device, val_dataloader):
+    def validate(epoch, tokenizer, model, device, val_dataloader, max_gen_length=32): # IMPORTANT TODO: Don't hardcode 32 
         """
         Function to evaluate model for predictions
 
@@ -72,11 +74,10 @@ class FewShotQA_Model(Base_Model):
                 input_ids = batch["fewshot_qa_prompt_input_ids"].to(device, dtype=torch.long)
                 attention_mask = batch["fewshot_qa_prompt_attention_mask"].to(device, dtype=torch.long)
 
-                # IMPORTANT TODO: Don't hardcode 32 
                 generated_ids = model.generate(
                     input_ids=input_ids,
                     attention_mask=attention_mask, 
-                    max_length=32, 
+                    max_length=max_gen_length, 
                     num_beams=1, 
                     early_stopping=True,
                     #decoder_start_token_id=tokenizer.bos_token_id
@@ -90,9 +91,26 @@ class FewShotQA_Model(Base_Model):
         
         return predictions, actuals
 
+    def postprocess_preds(predictions):
+        processed_preds = []
+        for p in predictions:
+            if 'answers' in p:
+                processed_preds.append(p.split('answers')[1].split('context')[0].strip())
+            else:
+                processed_preds.append("")
+        return processed_preds
+
+    def postprocess_actuals(actuals):
+        acts = []
+        
+        for ac in actuals:
+            acts.append([a.split('answers')[1].split('context')[0].strip() for a in ac])
+
+        return acts
+
     def __train__(self, train_dataloader, val_dataloader):
         best_f1 = -1
-        for epoch in range(config.training.epochs):
+        for epoch in range(self.config.training.epochs):
             train(epoch, self.tokenizer, self.model, self.device, train_dataloader, self.optimizer)
             
             predictions, actuals = validate(epoch, self.tokenizer, self.model, self.device, val_dataloader)
@@ -100,8 +118,7 @@ class FewShotQA_Model(Base_Model):
             processed_preds = postprocess_preds(predictions)
             processed_actuals = postprocess_actuals(actuals)
 
-            # IMPORTANT TODO: change this to our calculate_metrics function and delete the utils file (also in main)
-            cur_metrics = get_metrics(processed_preds, processed_actuals)
+            cur_metrics, _ = few_shot_calculate_metrics(processed_preds, processed_actuals)
 
             if cur_metrics[0] > best_f1:
                 print(f"New best: {cur_metrics}")
@@ -109,12 +126,13 @@ class FewShotQA_Model(Base_Model):
                 
                 # Saving the model after training
 
-                model.save_pretrained(self.save_path)
-                tokenizer.save_pretrained(self.save_path)
+                self.model.save_pretrained(self.save_path)
+                self.tokenizer.save_pretrained(self.save_path)
                 best_f1 = cur_metrics[0]
 
-    def __evaluate__(self, test_dataloader):
-        predictions, actuals = validate(epoch, self.tokenizer, self.model, self.device, val_dataloader)
+    def __inference__(self, test_dataloader):
+        epoch=1
+        predictions, actuals = validate(epoch, self.tokenizer, self.model, self.device, test_dataloader)
         processed_preds = postprocess_preds(predictions)
         processed_actuals = postprocess_actuals(actuals)
         
@@ -125,5 +143,32 @@ class FewShotQA_Model(Base_Model):
 
         generation_df.to_csv(os.path.join(self.save_path, "predictions.csv"), index=False)
 
-        test_metrics = get_metrics(processed_preds, processed_actuals)
-        print(f"Test metrics: {test_metrics}")
+        result = {"predicted_spans": processed_preds,
+                    "gold_spans": processed_actuals}
+            
+        return result
+
+    def few_shot_calculate_metrics(self, dataloader):
+
+        """
+            1. Run the inference script
+            2. Calculate the time taken
+            3. Calculate the F1 score
+            4. Return all
+        """
+
+        torch.cuda.synchronize()
+        tsince = int(round(time.time() * 1000))
+        results = self.__inference__(dataloader)
+        torch.cuda.synchronize()
+        ttime_elapsed = int(round(time.time() * 1000)) - tsince
+        # print ('test time elapsed {}ms'.format(ttime_elapsed))
+
+        ttime_per_example = (ttime_elapsed * dataloader.batch_size)/len(results["ground"])
+
+        f1_spans = []
+        for i in range(len(results["predicted_spans"])):
+            f1_spans.append(compute_f1(results["predicted_spans"][i], results["gold_spans"][i])) # For the text
+
+        qa_f1 = np.mean(f1_spans)
+        return qa_f1, ttime_per_example
