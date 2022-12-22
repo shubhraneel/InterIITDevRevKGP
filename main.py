@@ -12,6 +12,7 @@ from data import SQuAD_Dataset
 from src import AutoModel_Classifier_QA
 
 from torch.utils.data import DataLoader
+from sklearn.model_selection import GroupShuffleSplit
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
@@ -29,9 +30,16 @@ if __name__ == "__main__":
 	# TODO: Split the dataset in a way where training theme question-context pair should not be
 	# split into train/test/val. Keep it only in the train.
 	# Mixup allowed between val and test.
+	splitter = GroupShuffleSplit(train_size=(1-config.data.test_size)**2,n_splits=1, random_state=config.seed)
+	split = splitter.split(df,groups=df['Theme'])
+	train_inds , val_inds = next(split)
+	df_train = df.iloc[train_inds]
+	df_val = df.iloc[val_inds]
 
-	df_train, df_test = train_test_split(df, test_size=config.data.test_size, random_state=config.seed)
-	df_train, df_val = train_test_split(df_train, test_size=config.data.test_size, random_state=config.seed)
+	df_val, df_test = train_test_split(df_val, test_size = (config.data.test_size)/(config.data.test_size*(1-config.data.test_size)+config.data.test_size),
+ 										random_state=config.seed)
+	#df_train, df_test = train_test_split(df, test_size=config.data.test_size, random_state=config.seed)
+	#df_train, df_val = train_test_split(df_train, test_size=config.data.test_size, random_state=config.seed)
 	
 	tokenizer = AutoTokenizer.from_pretrained(config.model.model_path, TOKENIZERS_PARALLELISM=True, model_max_length=512, padding="max_length") # add local_files_only=local_files_only if using server
 
