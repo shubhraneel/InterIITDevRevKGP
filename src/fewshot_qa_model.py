@@ -8,7 +8,6 @@ import time
 import pytorch_lightning as pl
 from . import Base_Model
 from utils import compute_f1
-from utils import few_shot_calculate_metrics
 from transformers import BartForConditionalGeneration
 from tqdm import tqdm
 
@@ -17,13 +16,13 @@ class FewShotQA_Model(Base_Model):
     DO NOT change the calculate_metrics function
     """
 
-    def __init__(self, config, tokenizer, model):
+    def __init__(self, config, tokenizer):
         self.config = config
 
         self.model = BartForConditionalGeneration("facebook/bart-large")
         self.tokenizer = tokenizer
 
-        self.optimizer = torch.optim.Adam(params=model.parameters(), lr=self.config.training.lr)
+        self.optimizer = torch.optim.Adam(params=self.model.parameters(), lr=self.config.training.lr)
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -100,35 +99,18 @@ class FewShotQA_Model(Base_Model):
                 processed_preds.append("")
         return processed_preds
 
-    def postprocess_actuals(actuals):
+    def postprocess_actuals(self, actuals):
         acts = []
-        
         for ac in actuals:
-            acts.append([a.split('answers')[1].split('context')[0].strip() for a in ac])
-
+            if 'answers' in ac:
+                acts.append([a.split('answers')[1].split('context')[0].strip() for a in ac])
+            else:
+                acts.append("")
         return acts
 
-    def __train__(self, train_dataloader, val_dataloader):
-        best_f1 = -1
+    def __train__(self, train_dataloader):
         for epoch in range(self.config.training.epochs):
             self.train(epoch, self.tokenizer, self.model, self.device, train_dataloader, self.optimizer)
-            
-            predictions, actuals = self.validate(epoch, self.tokenizer, self.model, self.device, val_dataloader)
-            
-            processed_preds = self.postprocess_preds(predictions)
-            processed_actuals = self.postprocess_actuals(actuals)
-
-            cur_metrics, _ = few_shot_calculate_metrics(processed_preds, processed_actuals)
-
-            if cur_metrics[0] > best_f1:
-                print(f"New best: {cur_metrics}")
-                print(f"[Saving Model]...\n")
-                
-                # Saving the model after training
-
-                self.model.save_pretrained(self.save_path)
-                self.tokenizer.save_pretrained(self.save_path)
-                best_f1 = cur_metrics[0]
 
     def __inference__(self, test_dataloader):
         epoch=1
@@ -143,8 +125,13 @@ class FewShotQA_Model(Base_Model):
 
         generation_df.to_csv(os.path.join(self.save_path, "predictions.csv"), index=False)
 
-        result = {"predicted_spans": processed_preds,
-                    "gold_spans": processed_actuals}
+        all_ground = []
+        for batch_idx, batch in tqdm(enumerate(test_dataloader), position = 0, leave = True):
+            all_ground.extend(batch["answerable"].detach().cpu().numpy())
+
+        result = {"ground": all_ground,
+                "predicted_spans": processed_preds,
+                "gold_spans": processed_actuals}
             
         return result
 
