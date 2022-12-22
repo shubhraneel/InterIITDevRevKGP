@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 """A script to read in and store documents in a sqlite database."""
 
+import pandas as pd
 import argparse
 import sqlite3
 import json
@@ -104,7 +105,8 @@ def store_contents(data_path, save_path, preprocess, num_workers=None):
     c = conn.cursor()
     c.execute("CREATE TABLE documents (id PRIMARY KEY, text);")
 
-    workers = ProcessPool(num_workers, initializer=init, initargs=(preprocess,))
+    workers = ProcessPool(num_workers, initializer=init,
+                          initargs=(preprocess,))
     files = [f for f in iter_files(data_path)]
     count = 0
     with tqdm(total=len(files)) as pbar:
@@ -122,18 +124,21 @@ def store_contents(data_path, save_path, preprocess, num_workers=None):
 # Main.
 # ------------------------------------------------------------------------------
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('data_path', type=str, help='/path/to/data')
-    parser.add_argument('save_path', type=str, help='/path/to/saved/db.db')
+    # parser.add_argument('data_path', type=str, help='/path/to/data')
+    # parser.add_argument('save_path', type=str, help='/path/to/saved/db.db')
     parser.add_argument('--preprocess', type=str, default=None,
                         help=('File path to a python module that defines '
                               'a `preprocess` function'))
     parser.add_argument('--num-workers', type=int, default=1,
                         help='Number of CPU processes (for tokenizing, etc)')
     args = parser.parse_args()
-
-    store_contents(
-        args.data_path, args.save_path, args.preprocess, args.num_workers
-    )
+    df_ = pd.read_csv("data-dir/train_data.csv")
+    themes = df_['Theme'].unique()
+    for theme in themes:
+        store_contents(
+            f"data-dir/theme_wise/{theme.casefold()}/paragraphs.json", f"data-dir/theme_wise/{theme.casefold()}/sqlite_para.db", args.preprocess, args.num_workers
+        )
+        # print(f"{theme} done")
+        # break
