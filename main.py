@@ -51,12 +51,13 @@ if __name__ == "__main__":
 	else:
 		model = AutoModel_Classifier_QA(config, tokenizer=tokenizer)
 
-	model.__train__(train_dataloader)
-	# TODO: Uncomment this
-	# model.__inference__(test_dataloader)
+	model.__train__(train_dataloader, val_dataloader)
+	model.__inference__(test_dataloader)
 	
-	model.__evaluate__(val_dataloader)
-
-	# IMPORTANT TODO: fix this for fewshot_qa (this will currently give an error)
-	# classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
-	# print(f"Classification F1: {classification_f1}, QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
+	if config.fewshot_qa:
+		qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
+		print(f"QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
+	
+	else:
+		classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
+		print(f"Classification F1: {classification_f1}, QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
