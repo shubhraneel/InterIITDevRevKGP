@@ -456,12 +456,20 @@ parser.add_argument('--model', type=str, default=None)
 args = parser.parse_args()
 
 logger.info('Initializing ranker...')
-ranker = TfidfDocRanker(
-    tfidf_path="data-dir/sqlite_para-tfidf-ngram=2-hash=16777216-tokenizer=corenlp.npz")
+ranker_dict = {}
+questions_dict = {}
+df_ = pd.read_csv("data-dir/train_data.csv")
+themes = df_['Theme'].unique()
+for theme in themes:
+    ranker_dict[theme] = TfidfDocRanker(
+        tfidf_path=f"data-dir/theme_wise/{theme.casefold()}/sqlite_para-tfidf-ngram=2-hash=16777216-tokenizer=corenlp.npz")
+    questions_dict[theme] = pd.read_csv(
+        f"data-dir/theme_wise/{theme.casefold()}/questions_only.csv")
+    # break
 
 
-def process(query, k=1):
-    doc_names, doc_scores = ranker.closest_docs(query, k)
+def process(query, theme, k=1):
+    doc_names, doc_scores = ranker_dict[theme].closest_docs(query, k)
     # table = prettytable.PrettyTable(
     #     ['Rank', 'Doc Id', 'Doc Score']
     # )
@@ -471,39 +479,68 @@ def process(query, k=1):
     return doc_names
 
 
-df_q = pd.read_csv("data-dir/questions_only.csv")
+# df_q = pd.read_csv("data-dir/questions_only.csv")
 
 tsince = int(round(time.time()*1000))
 num_app = 0
-for idx, row in df_q.iterrows():
-    if str(row['id']) in process(row['Question'], k=10):
-        num_app += 1
+num_T = 0
+for theme in themes:
+    for idx, row in questions_dict[theme].iterrows():
+        num_T += 1
+        if str(row['id']) in process(row['Question'], theme=theme, k=3):
+            num_app += 1
+    # break
 ttime_elapsed = int(round(time.time()*1000)) - tsince
-ttime_per_example = ttime_elapsed/df_q.shape[0]
+ttime_per_example = ttime_elapsed/num_T
 print(f'test time elapsed {ttime_elapsed} ms')
 print(f'test time elapsed per example {ttime_per_example} ms')
-print(f'Acc = {num_app/df_q.shape[0]}')
-# tsince = int(round(time.time()*1000))
-# ranker.batch_closest_docs(queries=df_q['Question'].tolist(),k=10, num_workers=2)
-# ttime_elapsed = int(round(time.time()*1000)) - tsince
-# ttime_per_example = ttime_elapsed/df_q.shape[0]
-# print(f'Batched test time elapsed {ttime_elapsed} ms')
-# print(f'Batched test time elapsed per example {ttime_per_example} ms')
+print(f'Acc = {num_app/num_T}, {num_app}, {num_T}')
+# # tsince = int(round(time.time()*1000))
+# # ranker.batch_closest_docs(queries=df_q['Question'].tolist(),k=10, num_workers=2)
+# # ttime_elapsed = int(round(time.time()*1000)) - tsince
+# # ttime_per_example = ttime_elapsed/df_q.shape[0]
+# # print(f'Batched test time elapsed {ttime_elapsed} ms')
+# # print(f'Batched test time elapsed per example {ttime_per_example} ms')
 
 
-tsince = int(round(time.time()*1000))
-num_app = 0
-for idx, row in df_q.iterrows():
-    if str(row['id']) in process(row['Question'], k=50):
-        num_app += 1
-ttime_elapsed = int(round(time.time()*1000)) - tsince
-ttime_per_example = ttime_elapsed/df_q.shape[0]
-print(f'test time elapsed {ttime_elapsed} ms')
-print(f'test time elapsed per example {ttime_per_example} ms')
-print(f'Acc k->50 = {num_app/df_q.shape[0]}')
 # tsince = int(round(time.time()*1000))
-# ranker.batch_closest_docs(queries=df_q['Question'].tolist(),k=50, num_workers=2)
+# num_app = 0
+# for idx, row in df_q.iterrows():
+#     if str(row['id']) in process(row['Question'], k=50):
+#         num_app += 1
 # ttime_elapsed = int(round(time.time()*1000)) - tsince
 # ttime_per_example = ttime_elapsed/df_q.shape[0]
-# print(f'Batched test time elapsed {ttime_elapsed} ms')
-# print(f'Batched test time elapsed per example {ttime_per_example} ms')
+# print(f'test time elapsed {ttime_elapsed} ms')
+# print(f'test time elapsed per example {ttime_per_example} ms')
+# print(f'Acc k->50 = {num_app/df_q.shape[0]}')
+# # tsince = int(round(time.time()*1000))
+# # ranker.batch_closest_docs(queries=df_q['Question'].tolist(),k=50, num_workers=2)
+# # ttime_elapsed = int(round(time.time()*1000)) - tsince
+# # ttime_per_example = ttime_elapsed/df_q.shape[0]
+# # print(f'Batched test time elapsed {ttime_elapsed} ms')
+# # print(f'Batched test time elapsed per example {ttime_per_example} ms')
+
+# tsince = int(round(time.time()*1000))
+# num_app = 0
+# for idx, row in df_q.iterrows():
+#     if str(row['id']) in process(row['Question'], k=3):
+#         num_app += 1
+# ttime_elapsed = int(round(time.time()*1000)) - tsince
+# ttime_per_example = ttime_elapsed/df_q.shape[0]
+# print(f'test time elapsed {ttime_elapsed} ms')
+# print(f'test time elapsed per example {ttime_per_example} ms')
+# print(f'Acc k->3 = {num_app/df_q.shape[0]}')
+
+
+# tsince = int(round(time.time()*1000))
+# num_app = 0
+# for idx, row in df_q.iterrows():
+#     if str(row['id']) in process(row['Question'], k=100):
+#         num_app += 1
+#     else:
+#         print(row['Question'],idx)
+# ttime_elapsed = int(round(time.time()*1000)) - tsince
+# ttime_per_example = ttime_elapsed/df_q.shape[0]
+# print(f'test time elapsed {ttime_elapsed} ms')
+# print(f'test time elapsed per example {ttime_per_example} ms')
+# print(f'Acc k->100 = {num_app/df_q.shape[0]}')

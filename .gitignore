@@ -135,3 +135,5 @@ data-dir/*
 .vscode*
 data-dir/corenlp/*
 data-dir/*
+data-dir/*
+.vscode/*

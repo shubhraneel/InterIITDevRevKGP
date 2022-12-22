@@ -6,6 +6,7 @@
 # LICENSE file in the root directory of this source tree.
 """A script to build the tf-idf document matrices for retrieval."""
 
+import pandas as pd
 import numpy as np
 import scipy.sparse as sp
 import argparse
@@ -20,7 +21,7 @@ from collections import Counter
 import unicodedata
 from sklearn.utils import murmurhash3_32
 import sqlite3
-import copy 
+import copy
 import pexpect
 import json
 
@@ -65,7 +66,6 @@ STOPWORDS = {
     'isn', 'ma', 'mightn', 'mustn', 'needn', 'shan', 'shouldn', 'wasn', 'weren',
     'won', 'wouldn', "'ll", "'re", "'ve", "n't", "'s", "'d", "'m", "''", "``"
 }
-
 
 
 def normalize(text):
@@ -115,14 +115,13 @@ def save_sparse_csr(filename, matrix, metadata=None):
     np.savez(filename, **data)
 
 
-
 class DocDB(object):
     """Sqlite backed document storage.
     Implements get_doc_text(doc_id).
     """
 
     def __init__(self, db_path):
-        self.path = db_path 
+        self.path = db_path
         self.connection = sqlite3.connect(self.path, check_same_thread=False)
 
     def __enter__(self):
@@ -157,8 +156,6 @@ class DocDB(object):
         result = cursor.fetchone()
         cursor.close()
         return result if result is None else result[0]
-
-
 
 
 class Tokens(object):
@@ -330,7 +327,7 @@ class CoreNLPTokenizer(Tokenizer):
         self.corenlp = pexpect.spawn('/bin/bash', maxread=100000, timeout=60)
         self.corenlp.setecho(False)
         self.corenlp.sendline('stty -icanon')
-        logger.info(' '.join(cmd))
+        # logger.info(' '.join(cmd))
         self.corenlp.sendline(' '.join(cmd))
         self.corenlp.delaybeforesend = 0
         self.corenlp.delayafterread = 0
@@ -401,6 +398,7 @@ class CoreNLPTokenizer(Tokenizer):
 # ------------------------------------------------------------------------------
 # Multiprocessing functions
 # ------------------------------------------------------------------------------
+
 
 DOC2IDX = None
 PROCESS_TOK = None
@@ -530,13 +528,12 @@ def get_doc_freqs(cnts):
 # Main.
 # ------------------------------------------------------------------------------
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('db_path', type=str, default=None,
-                        help='Path to sqlite db holding document texts')
-    parser.add_argument('out_dir', type=str, default=None,
-                        help='Directory for saving output files')
+    # parser.add_argument('db_path', type=str, default=None,
+    #                     help='Path to sqlite db holding document texts')
+    # parser.add_argument('out_dir', type=str, default=None,
+    #                     help='Directory for saving output files')
     parser.add_argument('--ngram', type=int, default=2,
                         help=('Use up to N-size n-grams '
                               '(e.g. 2 = unigrams + bigrams)'))
@@ -546,28 +543,33 @@ if __name__ == '__main__':
                         help='Number of CPU processes (for tokenizing, etc)')
     args = parser.parse_args()
 
-    logging.info('Counting words...')
-    count_matrix, doc_dict = get_count_matrix(
-        args, 'sqlite', {'db_path': args.db_path}
-    )
+    df_ = pd.read_csv("data-dir/train_data.csv")
+    themes = df_['Theme'].unique()
+    for theme in themes:
+        logging.info(f'Counting words...{theme}')
+        count_matrix, doc_dict = get_count_matrix(
+            args, 'sqlite', {'db_path': f"data-dir/theme_wise/{theme.casefold()}/sqlite_para.db"}
+        )
 
-    logger.info('Making tfidf vectors...')
-    tfidf = get_tfidf_matrix(count_matrix)
+        logger.info('Making tfidf vectors...')
+        tfidf = get_tfidf_matrix(count_matrix)
 
-    logger.info('Getting word-doc frequencies...')
-    freqs = get_doc_freqs(count_matrix)
+        logger.info('Getting word-doc frequencies...')
+        freqs = get_doc_freqs(count_matrix)
 
-    basename = os.path.splitext(os.path.basename(args.db_path))[0]
-    basename += ('-tfidf-ngram=%d-hash=%d-tokenizer=%s' %
-                 (args.ngram, args.hash_size,'corenlp'))
-    filename = os.path.join(args.out_dir, basename)
+        basename = os.path.splitext(os.path.basename(f"data-dir/theme_wise/{theme.casefold()}/sqlite_para.db"))[0]
+        basename += ('-tfidf-ngram=%d-hash=%d-tokenizer=%s' %
+                     (args.ngram, args.hash_size, 'corenlp'))
+        filename = os.path.join(f"data-dir/theme_wise/{theme.casefold()}/", basename)
 
-    logger.info('Saving to %s.npz' % filename)
-    metadata = {
-        'doc_freqs': freqs,
-        'tokenizer': 'corenlp',
-        'hash_size': args.hash_size,
-        'ngram': args.ngram,
-        'doc_dict': doc_dict
-    }
-    save_sparse_csr(filename, tfidf, metadata)
+        logger.info('Saving to %s.npz' % filename)
+        metadata = {
+            'doc_freqs': freqs,
+            'tokenizer': 'corenlp',
+            'hash_size': args.hash_size,
+            'ngram': args.ngram,
+            'doc_dict': doc_dict
+        }
+        save_sparse_csr(filename, tfidf, metadata)
+        print(f"{theme} done")
+        # break
