@@ -9,6 +9,7 @@ from transformers import AutoTokenizer
 from config import Config
 from utils import set_seed
 from data import SQuAD_Dataset
+from data import SQuAD_Dataset_fewshot
 from src import AutoModel_Classifier_QA, FewShotQA_Model
 
 from torch.utils.data import DataLoader
@@ -37,27 +38,36 @@ if __name__ == "__main__":
 
 	mask_token = tokenizer.mask_token
 
-	train_ds = SQuAD_Dataset(config, df_train, tokenizer, mask_token)
-	val_ds = SQuAD_Dataset(config, df_val, tokenizer, mask_token)
-	test_ds = SQuAD_Dataset(config, df_test, tokenizer, mask_token)
-
-	train_dataloader = DataLoader(train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
-	val_dataloader = DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
-	test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
-
 	if config.fewshot_qa:
+		train_ds = SQuAD_Dataset_fewshot(config, df_train, tokenizer, mask_token)
+		val_ds = SQuAD_Dataset_fewshot(config, df_val, tokenizer, mask_token)
+		test_ds = SQuAD_Dataset_fewshot(config, df_test, tokenizer, mask_token)
+
+		train_dataloader = DataLoader(train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
+		val_dataloader = DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
+		test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
+
 		model = FewShotQA_Model(config, tokenizer=tokenizer)
 
-	else:
-		model = AutoModel_Classifier_QA(config, tokenizer=tokenizer)
-
-	model.__train__(train_dataloader, val_dataloader)
-	model.__inference__(test_dataloader)
+		model.__train__(train_dataloader)
+		model.__inference__(test_dataloader)
 	
-	if config.fewshot_qa:
-		qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
+		qa_f1, ttime_per_example = model.few_shot_calculate_metrics(test_dataloader)
 		print(f"QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
 	
 	else:
+		train_ds = SQuAD_Dataset(config, df_train, tokenizer, mask_token)
+		val_ds = SQuAD_Dataset(config, df_val, tokenizer, mask_token)
+		test_ds = SQuAD_Dataset(config, df_test, tokenizer, mask_token)
+
+		train_dataloader = DataLoader(train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
+		val_dataloader = DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
+		test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
+		
+		model = AutoModel_Classifier_QA(config, tokenizer=tokenizer)
+
+		model.__train__(train_dataloader)
+		model.__inference__(test_dataloader)
+	
 		classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
 		print(f"Classification F1: {classification_f1}, QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
