@@ -69,16 +69,16 @@ train_ds = SQuAD_Dataset(df_train, tokenizer)
 val_ds = SQuAD_Dataset(df_val, tokenizer)
 test_ds = SQuAD_Dataset(df_test, tokenizer)
 
-train_dataloader = DataLoader(train_ds, batch_size=16, collate_fn=train_ds.collate_fn)
-val_dataloader = DataLoader(val_ds, batch_size=16, collate_fn=val_ds.collate_fn)
-test_dataloader = DataLoader(test_ds, batch_size=16, collate_fn=test_ds.collate_fn)
+train_dataloader = DataLoader(train_ds, batch_size=4, collate_fn=train_ds.collate_fn)
+val_dataloader = DataLoader(val_ds, batch_size=4, collate_fn=val_ds.collate_fn)
+test_dataloader = DataLoader(test_ds, batch_size=4, collate_fn=test_ds.collate_fn)
 
 print(len(train_dataloader))
 print(len(val_dataloader))
 
 model = QuestionAnswerGeneration()
 
-trainer = pl.Trainer()
+trainer = pl.Trainer(accelerator='gpu', devices=1, max_epochs=4)
 trainer.fit(model, train_dataloader, val_dataloader)
 
 generated_out = model.generate(test_dataloader)
