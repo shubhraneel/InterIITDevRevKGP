@@ -1,6 +1,7 @@
 task: qa
 seed: 3407
 wandb: v0
+fewshot_qa: False
 
 data:
   data_path: data-dir/df_sample.csv
