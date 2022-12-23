@@ -17,7 +17,7 @@ class AutoModel_Classifier(pl.LightningModule):
 
         self.config = config
         
-        self.classifier_model = AutoModelForSequenceClassification.from_pretrained(config.model.model_path, num_labels=config.model.num_labels)
+        self.classifier_model = AutoModelForSequenceClassification.from_pretrained(self.config.model.model_path, num_labels=self.config.model.num_labels)
         self.train_dataloader = train_dataloader
         self.validation_dataloader = validation_dataloader
         self.test_dataloader = test_dataloader
@@ -43,7 +43,7 @@ class AutoModel_Classifier(pl.LightningModule):
                                     token_type_ids=batch["question_context_token_type_ids"],
                                     labels=batch["answerable"],
                                     )
-        
+        self.log('train_loss_classifier', out.loss)
         return out.loss
 
     def validation_step(self, batch, batch_idx):
@@ -52,7 +52,7 @@ class AutoModel_Classifier(pl.LightningModule):
                                     token_type_ids=batch["question_context_token_type_ids"],
                                     labels=batch["answerable"],
                                     )
-
+        self.log('val_loss_classifier', out.loss)
         return out.loss
 
     def test_step(self, batch, batch_idx):
@@ -61,7 +61,7 @@ class AutoModel_Classifier(pl.LightningModule):
                                     token_type_ids=batch["question_context_token_type_ids"],
                                     labels=batch["answerable"],
                                     )
-
+        self.log('test_loss_classifier', out.loss)
         return out.loss
 
     def configure_optimizers(self):
@@ -75,7 +75,7 @@ class AutoModel_QA(pl.LightningModule):
 
         self.config = config
         
-        self.qa_model = AutoModelForQuestionAnswering.from_pretrained(config.model.model_path)
+        self.qa_model = AutoModelForQuestionAnswering.from_pretrained(self.config.model.model_path)
         self.train_dataloader = train_dataloader
         self.validation_dataloader = validation_dataloader
         self.test_dataloader = test_dataloader
@@ -105,6 +105,7 @@ class AutoModel_QA(pl.LightningModule):
                             start_positions = batch["start_positions"],
                             end_positions = batch["end_positions"],
                             )
+        self.log('train_loss_qa', out.loss)
         
         # TODO: ANSWERS CONVERGING TO 0, 0
         # print("Actual spans")
@@ -122,6 +123,7 @@ class AutoModel_QA(pl.LightningModule):
                             attention_mask = batch["question_context_attention_mask"],
                             token_type_ids = batch["question_context_token_type_ids"],
                             )
+        self.log('val_loss_qa', out.loss)
         return out.loss
 
     def test_step(self, batch, batch_idx):
@@ -129,6 +131,7 @@ class AutoModel_QA(pl.LightningModule):
                             attention_mask = batch["question_context_attention_mask"],
                             token_type_ids = batch["question_context_token_type_ids"],
                             )
+        self.log('test_loss_qa', out.loss)
         return out.loss
 
     def configure_optimizers(self):
@@ -140,12 +143,15 @@ class AutoModel_Classifier_QA(Base_Model):
     """
     DO NOT change the calculate_metrics function
     """
-    def __init__(self, config, tokenizer = None):
-        self.classifier_model = AutoModel_Classifier(config)
-        self.classifier_trainer = pl.Trainer(max_epochs = config.training.epochs, accelerator = "gpu", devices = 1)
+    def __init__(self, config, tokenizer = None, logger=None):
+        self.config = config
+        self.logger = logger
 
-        self.qa_model = AutoModel_QA(config)
-        self.qa_model_trainer = pl.Trainer(max_epochs = config.training.epochs, accelerator = "gpu", devices = 1)
+        self.classifier_trainer = pl.Trainer(max_epochs = self.config.training.epochs, accelerator = "gpu", devices = 1, logger=logger)
+        self.classifier_model = AutoModel_Classifier(self.config)
+
+        self.qa_model_trainer = pl.Trainer(max_epochs = self.config.training.epochs, accelerator = "gpu", devices = 1, logger=logger)
+        self.qa_model = AutoModel_QA(self.config)
 
         self.tokenizer = tokenizer
         

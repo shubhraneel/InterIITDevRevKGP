@@ -11,16 +11,21 @@ from utils import set_seed
 from data import SQuAD_Dataset
 from src import AutoModel_Classifier_QA
 
+from pytorch_lightning.loggers import WandbLogger
+
 from torch.utils.data import DataLoader
 from sklearn.model_selection import GroupShuffleSplit
 
 if __name__ == "__main__":
+
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--config', default="config.yaml", help="Config File")
 
 	args = parser.parse_args()
 	with open(args.config) as f:
 		config = yaml.safe_load(f)
+		wandb_logger = WandbLogger(name=config['wandb'], project='interiit-devrev')
+		wandb_logger.experiment.config.update(config)
 		config = Config(**config)
 
 	set_seed(config.seed)
@@ -51,7 +56,7 @@ if __name__ == "__main__":
 	val_dataloader = DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
 	test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
 
-	model = AutoModel_Classifier_QA(config, tokenizer=tokenizer)
+	model = AutoModel_Classifier_QA(config, tokenizer=tokenizer, logger=wandb_logger)
 	model.__train__(train_dataloader)
 	model.__inference__(test_dataloader)
 	classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
