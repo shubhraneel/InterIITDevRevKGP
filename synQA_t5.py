@@ -22,12 +22,16 @@ class QuestionAnswerGeneration(pl.LightningModule):
             #                         labels=batch["answerable"],
             #                         )
         # else:
+        # print(batch['context_input_ids'].size())
+        labels = torch.zeros_like(batch["question_answer_input_ids"]) 
+        labels[..., :-1] = batch["question_answer_input_ids"][..., 1:]
+        labels[..., -1] = 0
         out = self.model(
             input_ids=batch['context_input_ids'],
             attention_mask=batch['context_attention_mask'],
-            decoder_input_ids=batch['question_input_ids'],
-            decoder_attention_mask=batch['question_attention_mask'],
-            # labels=batch['question_answer_input_ids'],
+            decoder_input_ids=batch['question_answer_input_ids'],
+            decoder_attention_mask=batch['question_answer_attention_mask'],
+            labels=labels,
             output_hidden_states=True
         )
     
