@@ -1,4 +1,6 @@
 
+from DocRanker import DocDB
+from multiprocessing.util import Finalize
 import time
 import pandas as pd
 import logging
@@ -122,7 +124,7 @@ logger.addHandler(console)
 logger.info('Initializing ranker...')
 
 
-##### Theme-wise
+# Theme-wise
 # df_ = pd.read_csv("data-dir/train_data.csv")
 # themes = df_['Theme'].unique()
 # tsince = int(round(time.time()*1000))
@@ -145,7 +147,10 @@ logger.info('Initializing ranker...')
 # print(f'Acc = {num_app/num_T}, {num_app}, {num_T}')
 
 
-ranker = TfidfDocRanker(tfidf_path="data-dir/sqlite_para-tfidf-ngram=2-hash=16777216-tokenizer=corenlp.npz")
+ranker = TfidfDocRanker(
+    tfidf_path="data-dir/sqlite_para-tfidf-ngram=2-hash=16777216-tokenizer=corenlp.npz")
+
+
 def process(query,  k=1):
     doc_names, doc_scores = ranker.closest_docs(query, k)
     # table = prettytable.PrettyTable(
@@ -157,21 +162,41 @@ def process(query,  k=1):
     return doc_names
 
 
-## all at once
+# all at once
 df_q = pd.read_csv("data-dir/questions_only.csv")
 tsince = int(round(time.time()*1000))
 num_app = 0
+top_3_contexts_ids = []
 for idx, row in df_q.iterrows():
-    if str(row['id']) in process(row['Question'], k=10):
+    # print(row)
+    doc_names = process(row['Question'], k=3)
+    top_3_contexts_ids.append(doc_names)
+    if str(row['id']) in doc_names:
         num_app += 1
+    # break
 ttime_elapsed = int(round(time.time()*1000)) - tsince
 ttime_per_example = ttime_elapsed/df_q.shape[0]
 print(f'test time elapsed {ttime_elapsed} ms')
 print(f'test time elapsed per example {ttime_per_example} ms')
 print(f'Acc = {num_app/df_q.shape[0]}')
+top_3_contexts = []
 
+PROCESS_DB = DocDB(db_path="data-dir/sqlite_para.db")
+Finalize(PROCESS_DB, PROCESS_DB.close, exitpriority=100)
 
+def fetch_text(doc_id):
+    global PROCESS_DB
+    return PROCESS_DB.get_doc_text(doc_id)
 
+for id_list in top_3_contexts_ids:
+    para_list=[]
+    for id in id_list:
+        para_list.append(fetch_text(id))
+    top_3_contexts.append(para_list) 
+    # break
+# print(len(top_3_contexts[0]))
+df_q['contexts']=top_3_contexts
+df_q.to_csv("data-dir/top3_contexts.csv")
 
 # # tsince = int(round(time.time()*1000))
 # # ranker.batch_closest_docs(queries=df_q['Question'].tolist(),k=10, num_workers=2)
