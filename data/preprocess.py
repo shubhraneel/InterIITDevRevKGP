@@ -1,7 +1,7 @@
 import pandas as pd
 from ast import literal_eval
 
-def preprocess_fn(df, tokenizer, mask_token):
+def preprocess_fn(df, tokenizer, mask_token='<mask>'):
 	"""
 	No preprocessing in v1
 	"""
