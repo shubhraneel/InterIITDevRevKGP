@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--config', default="config-fewshot-qa.yaml", help="Config File")
+	parser.add_argument('--config', default="config.yaml", help="Config File")
 
 	args = parser.parse_args()
 	with open(args.config) as f:
