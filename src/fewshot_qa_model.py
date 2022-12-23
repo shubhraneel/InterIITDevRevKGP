@@ -19,7 +19,7 @@ class FewShotQA_Model(Base_Model):
     def __init__(self, config, tokenizer):
         self.config = config
 
-        self.model = BartForConditionalGeneration("facebook/bart-large")
+        self.model = BartForConditionalGeneration.from_pretrained("facebook/bart-large")
         self.tokenizer = tokenizer
 
         self.optimizer = torch.optim.Adam(params=self.model.parameters(), lr=self.config.training.lr)
@@ -98,10 +98,11 @@ class FewShotQA_Model(Base_Model):
                 answer = s.split('Answer:')[1]
                 # Strip leading and trailing whitespace
                 answer = answer.strip()
-                return answers
+                answers.append(answer)
             else:
                 # If 'Answer:' is not present, return an empty string
-                return ""
+                answers.append("")
+        return answers
 
     def __train__(self, train_dataloader):
         for epoch in range(self.config.training.epochs):

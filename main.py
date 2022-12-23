@@ -70,10 +70,13 @@ if __name__ == "__main__":
 
 		model.__train__(train_dataloader)
 		model.__inference__(test_dataloader)
+
+		qa_f1, ttime_per_example = model.few_shot_calculate_metrics(test_dataloader)
+		print(f"QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
 	else:
-		train_ds = SQuAD_Dataset(config, df_train_alias, tokenizer, mask_token)
-		val_ds = SQuAD_Dataset(config, df_val, tokenizer, mask_token)
-		test_ds = SQuAD_Dataset(config, df_test, tokenizer, mask_token)
+		train_ds = SQuAD_Dataset(config, df_train_alias, tokenizer)
+		val_ds = SQuAD_Dataset(config, df_val, tokenizer)
+		test_ds = SQuAD_Dataset(config, df_test, tokenizer)
 
 		train_dataloader = DataLoader(train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
 		val_dataloader = DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
