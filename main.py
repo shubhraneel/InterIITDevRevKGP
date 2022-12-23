@@ -8,6 +8,7 @@ from transformers import AutoTokenizer
 
 from config import Config
 from utils import set_seed
+from utils import create_alias
 from data import SQuAD_Dataset
 from src import AutoModel_Classifier_QA
 
@@ -48,7 +49,9 @@ if __name__ == "__main__":
 	
 	tokenizer = AutoTokenizer.from_pretrained(config.model.model_path, TOKENIZERS_PARALLELISM=True, model_max_length=512, padding="max_length") # add local_files_only=local_files_only if using server
 
-	train_ds = SQuAD_Dataset(config, df_train, tokenizer)
+	df_train_alias = create_alias(df_train,config.data.alias_flag)
+
+	train_ds = SQuAD_Dataset(config, df_train_alias, tokenizer)
 	val_ds = SQuAD_Dataset(config, df_val, tokenizer)
 	test_ds = SQuAD_Dataset(config, df_test, tokenizer)
 
