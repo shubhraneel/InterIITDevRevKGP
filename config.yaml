@@ -1,5 +1,6 @@
 task: qa
 seed: 3407
+wandb: v0
 
 data:
   data_path: data-dir/df_sample.csv

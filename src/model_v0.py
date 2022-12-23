@@ -143,24 +143,25 @@ class AutoModel_Classifier_QA(Base_Model):
     """
     DO NOT change the calculate_metrics function
     """
-    def __init__(self, config, tokenizer = None):
+    def __init__(self, config, tokenizer = None, logger=None):
         self.config = config
+        self.logger = logger
 
+        self.classifier_trainer = pl.Trainer(max_epochs = self.config.training.epochs, accelerator = "gpu", devices = 1, logger=logger)
         self.classifier_model = AutoModel_Classifier(self.config)
 
+        self.qa_model_trainer = pl.Trainer(max_epochs = self.config.training.epochs, accelerator = "gpu", devices = 1, logger=logger)
         self.qa_model = AutoModel_QA(self.config)
 
         self.tokenizer = tokenizer
         
-    def __train__(self, dataloader, logger):
+    def __train__(self, dataloader):
         print("Starting training")
 
-        classifier_trainer = pl.Trainer(max_epochs = self.config.training.epochs, accelerator = "gpu", devices = 1, logger=logger)
-        classifier_trainer.fit(model = self.classifier_model, train_dataloaders = dataloader)
-        qa_model_trainer = pl.Trainer(max_epochs = self.config.training.epochs, accelerator = "gpu", devices = 1, logger=logger)
-        qa_model_trainer.fit(model = self.qa_model, train_dataloaders = dataloader)
+        self.classifier_trainer.fit(model = self.classifier_model, train_dataloaders = dataloader)
+        self.qa_model_trainer.fit(model = self.qa_model, train_dataloaders = dataloader)
 
-    def __inference__(self, dataloader, logger):
+    def __inference__(self, dataloader):
 
         all_preds = []
         all_ground = []
