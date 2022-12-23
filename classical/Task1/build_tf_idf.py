@@ -17,9 +17,9 @@ from multiprocessing import Pool as ProcessPool
 from multiprocessing.util import Finalize
 from functools import partial
 from collections import Counter
-from .DocRanker import utils
-from .DocRanker import DocDB
-from .DocRanker import CoreNLPTokenizer
+from DocRanker import utils
+from DocRanker import DocDB
+from DocRanker.tokenizer import CoreNLPTokenizer
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -75,7 +75,7 @@ def count(ngram, hash_size, doc_id):
     )
 
     # Hash ngrams and count occurences
-    counts = Counter([hash(gram, hash_size)
+    counts = Counter([utils.hash(gram, hash_size)
                      for gram in ngrams])
 
     # Return in sparse matrix data format.
@@ -163,6 +163,7 @@ def get_doc_freqs(cnts):
 # ------------------------------------------------------------------------------
 
 if __name__ == '__main__':
+    # print("hi")
     parser = argparse.ArgumentParser()
     parser.add_argument('db_path', type=str, default="data-dir/sqlite_para.db",
                         help='Path to sqlite db holding document texts')
@@ -178,7 +179,7 @@ if __name__ == '__main__':
     parser.add_argument('--theme_wise', action='store_true')
     parser.set_defaults(theme_wise=False)
     args = parser.parse_args()
-
+    # print(args)
     if args.theme_wise:
         df_ = pd.read_csv("data-dir/train_data.csv")
         themes = df_['Theme'].unique()
@@ -213,32 +214,32 @@ if __name__ == '__main__':
             utils.save_sparse_csr(filename, tfidf, metadata)
             print(f"{theme} done")
             # break
-        else:
-            logging.info(f'Counting words...')
-            count_matrix, doc_dict = get_count_matrix(
-                args, 'sqlite', {
-                    'db_path': args.db_path}
-            )
+    else:
+        logging.info(f'Counting words...')
+        count_matrix, doc_dict = get_count_matrix(
+            args, 'sqlite', {
+                'db_path': args.db_path}
+        )
 
-            logger.info('Making tfidf vectors...')
-            tfidf = get_tfidf_matrix(count_matrix)
+        logger.info('Making tfidf vectors...')
+        tfidf = get_tfidf_matrix(count_matrix)
 
-            logger.info('Getting word-doc frequencies...')
-            freqs = get_doc_freqs(count_matrix)
+        logger.info('Getting word-doc frequencies...')
+        freqs = get_doc_freqs(count_matrix)
 
-            basename = os.path.splitext(os.path.basename(
-                args.db_path))[0]
-            basename += ('-tfidf-ngram=%d-hash=%d-tokenizer=%s' %
-                        (args.ngram, args.hash_size, 'corenlp'))
-            filename = os.path.join(
-                args.out_dir, basename)
+        basename = os.path.splitext(os.path.basename(
+            args.db_path))[0]
+        basename += ('-tfidf-ngram=%d-hash=%d-tokenizer=%s' %
+                    (args.ngram, args.hash_size, 'corenlp'))
+        filename = os.path.join(
+            args.out_dir, basename)
 
-            logger.info('Saving to %s.npz' % filename)
-            metadata = {
-                'doc_freqs': freqs,
-                'tokenizer': 'corenlp',
-                'hash_size': args.hash_size,
-                'ngram': args.ngram,
-                'doc_dict': doc_dict
-            }
-            utils.save_sparse_csr(filename, tfidf, metadata)
+        logger.info('Saving to %s.npz' % filename)
+        metadata = {
+            'doc_freqs': freqs,
+            'tokenizer': 'corenlp',
+            'hash_size': args.hash_size,
+            'ngram': args.ngram,
+            'doc_dict': doc_dict
+        }
+        utils.save_sparse_csr(filename, tfidf, metadata)
