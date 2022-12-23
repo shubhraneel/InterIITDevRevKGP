@@ -126,19 +126,27 @@ def store_contents(data_path, save_path, preprocess, num_workers=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    # parser.add_argument('data_path', type=str, help='/path/to/data')
-    # parser.add_argument('save_path', type=str, help='/path/to/saved/db.db')
+    parser.add_argument('data_path', type=str, help='/path/to/data',
+                        default=f"data-dir/paragraphs.json")
+    parser.add_argument('save_path', type=str, help='/path/to/saved/db.db',
+                        default=f"data-dir/paragraphs.json")
     parser.add_argument('--preprocess', type=str, default=None,
                         help=('File path to a python module that defines '
                               'a `preprocess` function'))
     parser.add_argument('--num-workers', type=int, default=1,
                         help='Number of CPU processes (for tokenizing, etc)')
+    parser.add_argument('--theme_wise', action='store_true')
+    parser.set_defaults(theme_wise=False)
     args = parser.parse_args()
-    df_ = pd.read_csv("data-dir/train_data.csv")
-    themes = df_['Theme'].unique()
-    for theme in themes:
+    
+    if args.theme_wise:
+        df_ = pd.read_csv("data-dir/train_data.csv")
+        themes = df_['Theme'].unique()
+        for theme in themes:
+            store_contents(
+                f"data-dir/theme_wise/{theme.casefold()}/paragraphs.json", f"data-dir/theme_wise/{theme.casefold()}/sqlite_para.db", args.preprocess, args.num_workers
+            )
+    else:
         store_contents(
-            f"data-dir/theme_wise/{theme.casefold()}/paragraphs.json", f"data-dir/theme_wise/{theme.casefold()}/sqlite_para.db", args.preprocess, args.num_workers
+            args.data_path, args.save_path, args.preprocess, args.num_workers
         )
-        # print(f"{theme} done")
-        # break
