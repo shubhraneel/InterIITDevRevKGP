@@ -17,7 +17,7 @@ class AutoModel_Classifier(pl.LightningModule):
 
         self.config = config
         
-        self.classifier_model = AutoModelForSequenceClassification.from_pretrained(config.model.model_path, num_labels=config.model.num_labels)
+        self.classifier_model = AutoModelForSequenceClassification.from_pretrained(self.config.model.model_path, num_labels=self.config.model.num_labels)
         self.train_dataloader = train_dataloader
         self.validation_dataloader = validation_dataloader
         self.test_dataloader = test_dataloader
@@ -75,7 +75,7 @@ class AutoModel_QA(pl.LightningModule):
 
         self.config = config
         
-        self.qa_model = AutoModelForQuestionAnswering.from_pretrained(config.model.model_path)
+        self.qa_model = AutoModelForQuestionAnswering.from_pretrained(self.config.model.model_path)
         self.train_dataloader = train_dataloader
         self.validation_dataloader = validation_dataloader
         self.test_dataloader = test_dataloader
@@ -144,18 +144,20 @@ class AutoModel_Classifier_QA(Base_Model):
     DO NOT change the calculate_metrics function
     """
     def __init__(self, config, tokenizer = None):
-        self.classifier_model = AutoModel_Classifier(config)
+        self.config = config
 
-        self.qa_model = AutoModel_QA(config)
+        self.classifier_model = AutoModel_Classifier(self.config)
+
+        self.qa_model = AutoModel_QA(self.config)
 
         self.tokenizer = tokenizer
         
     def __train__(self, dataloader, logger):
         print("Starting training")
 
-        classifier_trainer = pl.Trainer(max_epochs = config.training.epochs, accelerator = "gpu", devices = 1, logger=logger)
+        classifier_trainer = pl.Trainer(max_epochs = self.config.training.epochs, accelerator = "gpu", devices = 1, logger=logger)
         classifier_trainer.fit(model = self.classifier_model, train_dataloaders = dataloader)
-        qa_model_trainer = pl.Trainer(max_epochs = config.training.epochs, accelerator = "gpu", devices = 1, logger=logger)
+        qa_model_trainer = pl.Trainer(max_epochs = self.config.training.epochs, accelerator = "gpu", devices = 1, logger=logger)
         qa_model_trainer.fit(model = self.qa_model, train_dataloaders = dataloader)
 
     def __inference__(self, dataloader, logger):
