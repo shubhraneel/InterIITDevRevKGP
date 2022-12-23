@@ -51,6 +51,7 @@ class SQuAD_Dataset(Dataset):
 			return_offsets_mapping=True,
 			padding="max_length",
 			return_tensors="pt",
+			return_token_type_ids=True
 		)
 
 		offset_mapping = inputs.pop("offset_mapping")
@@ -107,17 +108,17 @@ class SQuAD_Dataset(Dataset):
 		inputs["question_context_attention_mask"] = inputs.pop("attention_mask")
 		inputs["question_context_token_type_ids"] = inputs.pop("token_type_ids")
 
-		title_tokenized = self.tokenizer(examples["title"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")
+		title_tokenized = self.tokenizer(examples["title"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt", return_token_type_ids=True)
 		inputs["title_input_ids"] = title_tokenized["input_ids"]
 		inputs["title_attention_mask"] = title_tokenized["attention_mask"]
 		inputs["title_token_type_ids"] = title_tokenized["token_type_ids"]
 
-		context_tokenized = self.tokenizer(examples["context"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
+		context_tokenized = self.tokenizer(examples["context"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt", return_token_type_ids=True)    
 		inputs["context_input_ids"] = context_tokenized["input_ids"]
 		inputs["context_attention_mask"] = context_tokenized["attention_mask"]
 		inputs["context_token_type_ids"] = context_tokenized["token_type_ids"]
 
-		question_tokenized = self.tokenizer(examples["question"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
+		question_tokenized = self.tokenizer(examples["question"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt", return_token_type_ids=True)    
 		inputs["question_input_ids"] = question_tokenized["input_ids"]
 		inputs["question_attention_mask"] = question_tokenized["attention_mask"]
 		inputs["question_token_type_ids"] = question_tokenized["token_type_ids"]
