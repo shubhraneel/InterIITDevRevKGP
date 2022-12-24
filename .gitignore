@@ -133,4 +133,4 @@ lightning_logs
 *.xlsx*
 
 data-dir/
-wandb/
+*wandb*
