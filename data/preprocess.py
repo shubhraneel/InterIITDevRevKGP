@@ -15,8 +15,17 @@ def preprocess_fn(df, tokenizer):
 
     # TODO: this is inefficient, we should tokenize everything at once
     for i in range(len(df)):
-        answer_start = literal_eval(df.iloc[i]["Answer_start"])
-        answer_text = literal_eval(df.iloc[i]["Answer_text"])
+
+        if isinstance(df.iloc[i]["Answer_start"], str):
+            answer_start = literal_eval(df.iloc[i]["Answer_start"])
+        else:
+            answer_start = df.iloc[i]["Answer_start"]
+        
+        if isinstance(df.iloc[i]["Answer_text"], str):
+            answer_text = literal_eval(df.iloc[i]["Answer_text"])
+        else: 
+            answer_text = df.iloc[i]["Answer_text"]
+
         context = df.iloc[i]["Paragraph"]
         id = df.iloc[i]["Unnamed: 0"]
         question = df.iloc[i]["Question"]

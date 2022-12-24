@@ -23,7 +23,7 @@ class Base_Model():
     def __inference__(self):
         raise NotImplementedError("No inference method implemented")
 
-    def calculate_metrics(self, dataloader):
+    def calculate_metrics(self, dataset, dataloader, logger):
 
         """
             1. Run the inference script
@@ -34,7 +34,7 @@ class Base_Model():
 
         torch.cuda.synchronize()
         tsince = int(round(time.time() * 1000))
-        results = self.__inference__(dataloader)
+        results = self.__inference__(dataset, dataloader, logger)
         torch.cuda.synchronize()
         ttime_elapsed = int(round(time.time() * 1000)) - tsince
         # print ('test time elapsed {}ms'.format(ttime_elapsed))

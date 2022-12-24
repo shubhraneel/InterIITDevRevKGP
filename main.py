@@ -50,9 +50,10 @@ if __name__ == "__main__":
 	val_dataloader = DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
 	test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
 
-	model = AutoModel_Classifier_QA(config, tokenizer=tokenizer)
-	model.__train__(train_dataloader, logger=wandb_logger)
-	model.__inference__(test_dataloader, logger=wandb_logger)
-	classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
+	model = AutoModel_Classifier_QA(config, tokenizer = tokenizer)
+	# model.__train__(train_dataloader, logger = wandb_logger)
+	model.__inference__(test_ds, test_dataloader, logger = wandb_logger)
+
+	classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_ds, test_dataloader, logger = wandb_logger)
 
 	print(f"Classification F1: {classification_f1}, QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
