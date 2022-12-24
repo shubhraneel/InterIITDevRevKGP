@@ -3,16 +3,16 @@ seed: 3407
 wandb: v0
 
 data:
-  data_path: ../data-dir/train_data.csv
+  data_path: ../data-dir/df_sample.csv
   test_size: 0.2
   train_batch_size: 4
-  val_batch_size: 1
+  val_batch_size: 2
   pad_on_right: True
   max_length: 512
   doc_stride: 128
 
 training:
-  epochs: 3
+  epochs: 1
   optimizer: adam
   lr: 0.00002
   sched_function: none

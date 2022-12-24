@@ -100,6 +100,9 @@ class Trainer():
 
     def inference(self, dataset, dataloader):
         # TODO: use only dataset (applying transforms as done in collate_fn here itself)
+        self.model.cpu()
+        self.device = "cpu"
+        self.model.device = "cpu"
 
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
         tepoch.set_description("Inference Step")
