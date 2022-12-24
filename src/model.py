@@ -2,10 +2,7 @@ import torch
 import torch.nn as nn
 from transformers import AutoModelForQuestionAnswering
 
-
-
 class BaselineQA(nn.Module):
-
     def __init__(self, config, device):
         super(BaselineQA, self).__init__()
 
@@ -13,8 +10,11 @@ class BaselineQA(nn.Module):
         self.model = AutoModelForQuestionAnswering.from_pretrained(self.config.model.model_path)
         self.device = device
 
-
     def forward(self, batch):
+        if (len(batch["question_context_input_ids"].shape) == 1):
+            batch["question_context_input_ids"] = batch["question_context_input_ids"].unsqueeze(dim=0)
+            batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
+            batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
 
         out = self.model(input_ids = batch["question_context_input_ids"].to(self.device), 
                         attention_mask = batch["question_context_attention_mask"].to(self.device),
@@ -22,4 +22,4 @@ class BaselineQA(nn.Module):
                         start_positions = batch["start_positions"].to(self.device),
                         end_positions = batch["end_positions"].to(self.device))
 
-        return out
+        return out  
