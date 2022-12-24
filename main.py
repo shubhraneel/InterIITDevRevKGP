@@ -43,11 +43,11 @@ if __name__ == "__main__":
 	tokenizer = AutoTokenizer.from_pretrained(config.model.model_path, TOKENIZERS_PARALLELISM=True, model_max_length=512, padding="max_length") # add local_files_only=local_files_only if using server
 
 	train_ds = SQuAD_Dataset(config, df_train, tokenizer, train = True)
-	# val_ds = SQuAD_Dataset(config, df_val, tokenizer, train = False)
+	val_ds = SQuAD_Dataset(config, df_val, tokenizer, train = False)
 	# test_ds = SQuAD_Dataset(config, df_test, tokenizer, train = False)
 
 	train_dataloader = DataLoader(train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
-	# val_dataloader = DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
+	val_dataloader = DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
 	# test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
 
 	if torch.cuda.is_available():
@@ -60,7 +60,23 @@ if __name__ == "__main__":
 	optimizer = torch.optim.Adam(model.parameters(), lr = config.training.lr)
 	trainer = Trainer(config, model, optimizer, device)
 
-	trainer.train(train_dataloader)
+	example = val_ds.__getitem__(1)
+	# print(example)
+	print(example.keys())
+	print(example["answers"])
+	start_index = example["start_positions"].item()
+	end_index = example["end_positions"].item()
+	offset_mapping = example["question_context_offset_mapping"]
+	context = example["context"]
+
+	start_char = offset_mapping[start_index][0]
+	end_char = offset_mapping[end_index][1]
+
+	print(context[start_char:end_char])
+
+	# print(tokenizer.decode(example["context_input_ids"][]))
+
+	# trainer.train(train_dataloader)
 
 	# model.__train__(train_dataloader, logger = wandb_logger)
 	# model.__inference__(test_ds, test_dataloader, logger = wandb_logger)

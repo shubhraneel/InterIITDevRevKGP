@@ -14,9 +14,12 @@ class Custom_Model(Base_Model):
 
     def __init__(self):
         # TODO
+        pass
         
     def __train__(self):
         # TODO
+        pass
 
     def __evaluate__(self):
         # TODO
+        pass

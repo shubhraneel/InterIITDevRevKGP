@@ -39,7 +39,7 @@ class Trainer():
         for epoch in range(self.config.training.epochs):
             self._train_step(dataloader, epoch)
             
-            if (epoch + 1) % self.evaluate_every:
+            if (epoch + 1) % self.config.training.evaluate_every:
                 self.evaluate(dataloader)
 
 

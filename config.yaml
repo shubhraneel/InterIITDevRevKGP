@@ -3,9 +3,9 @@ seed: 3407
 wandb: v0
 
 data:
-  data_path: data-dir/df_sample.csv
+  data_path: ../data-dir/df_sample.csv
   test_size: 0.2
-  train_batch_size: 8
+  train_batch_size: 4
   val_batch_size: 2
   pad_on_right: True
   max_length: 512
