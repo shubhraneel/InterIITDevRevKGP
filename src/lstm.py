@@ -37,7 +37,7 @@ class LSTMModel(nn.Module):
         for epoch in range(num_epochs):
             running_loss = 0.0
             for i, data in enumerate(dataloader, 0):
-                # Get the inputs and labels
+                #TODO: Get the inputs and labels
                 inputs, labels = data
 
                 # Zero the parameter gradients
