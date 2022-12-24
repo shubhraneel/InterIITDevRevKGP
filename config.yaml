@@ -1,6 +1,7 @@
 task: qa
 seed: 3407
 wandb: v0
+inference_device: cuda
 
 data:
   data_path: ../data-dir/df_sample.csv

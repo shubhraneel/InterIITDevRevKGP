@@ -100,9 +100,9 @@ class Trainer():
 
     def inference(self, dataset, dataloader):
         # TODO: use only dataset (applying transforms as done in collate_fn here itself)
-        self.model.cpu()
-        self.device = "cpu"
-        self.model.device = "cpu"
+        self.model.to(self.config.inference_device)
+        self.device = self.config.inference_device
+        self.model.device = self.config.inference_device
 
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
         tepoch.set_description("Inference Step")
@@ -111,6 +111,7 @@ class Trainer():
         predicted_answers = []
         gold_answers = []
 
+        # TODO: is this time calculation correct?
         for batch_idx, batch in enumerate(tepoch):
             
             # list of titles in the batch 
@@ -176,6 +177,8 @@ class Trainer():
                     # TODO: remove offset_mapping etc. lookup from inference time (current calculation is the absolute worst case time)
                     total_time_per_question += (time.time() - start_time)
                     total_time_per_question_list.append(total_time_per_question)
+
+        print(total_time_per_question_list)
 
         results = {
                     "mean_time_per_question": np.mean(np.array(total_time_per_question_list)),
