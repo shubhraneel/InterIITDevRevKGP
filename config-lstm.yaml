@@ -1,6 +1,8 @@
 task: qa
 seed: 3407
 wandb: NA
+lstm: True
+automodel: False
 fewshot_qa: False
 
 data:
@@ -25,6 +27,6 @@ model:
   model_path: bert-base-uncased
   num_labels: 2
   save_path: models/exp_bert/
-  params: {input_size: 1, hidden_size: 128, num_layers: 2, num_classes: 2}
+  params: {input_size: 128, hidden_size: 128, num_layers: 2, num_classes: 2, embedding_size: 128}
   reader_path: null
   retriever_path: null

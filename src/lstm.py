@@ -5,18 +5,24 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import pytorch_lightning as pl
-
 from . import Base_Model
 from tqdm import tqdm
 
 class LSTM(pl.LightningModule):
-    def __init__(self, config, train_dataloader = None, validation_dataloader = None, test_dataloader = None):
+    def __init__(self, vocab_size, config, train_dataloader = None, validation_dataloader = None, test_dataloader = None):
         super().__init__()
 
         self.config = config
 
         self.hidden_size = config.model.params.hidden_size
+        self.num_classes = config.model.params.num_classes
         self.num_layers = config.model.params.num_layers
+        self.vocab_size = vocab_size
+        self.embedding_size = config.model.params.embedding_size
+
+        # Define the embedding layer
+        self.embedding = nn.Embedding(vocab_size, self.embedding_size)
+
         self.lstm = nn.LSTM(config.model.params.input_size, self.hidden_size, self.num_layers, batch_first=True)
         self.fc = nn.Linear(self.hidden_size, config.model.params.num_classes)
         
@@ -29,6 +35,8 @@ class LSTM(pl.LightningModule):
         start_logits, end_logits = output.split(1, dim=-1)
         start_logits = start_logits.squeeze(-1)
         end_logits = end_logits.squeeze(-1)
+        start_positions = start_positions.view(-1)
+        end_positions = end_positions.view(-1)
 
         criterion = nn.CrossEntropyLoss()
         start_loss = criterion(start_logits, start_positions)
@@ -37,27 +45,24 @@ class LSTM(pl.LightningModule):
         return total_loss
 
     def forward(self, batch):
-        input_ids = batch["question_context_input_ids"].to(torch.float)
+        input_ids = batch["question_context_input_ids"].to(torch.long)
+        x = self.embedding(input_ids)
+       
         sequence_length = input_ids.shape[1]
-        input_size = self.config.model.params.input_size
-        input = input_ids.view(batch["question_context_input_ids"].shape[0], sequence_length, input_size)
-
-        h0 = torch.zeros(self.num_layers, batch["question_context_input_ids"].shape[0], self.hidden_size).to(input_ids.device)
-        c0 = torch.zeros(self.num_layers, batch["question_context_input_ids"].shape[0], self.hidden_size).to(input_ids.device)
-        out, (h_n, c_n) = self.lstm(input, (h0.to(torch.float), c0.to(torch.float)))
-        out = self.fc(out[:, -1, :])
+        out, _ = self.lstm(x)
+        out = self.fc(out)
 
         if "start_positions" in batch.keys():
             # Compute the loss using the start_positions and end_positions here
-            start_positions = batch["start_positions"].to(torch.float)
-            end_positions = batch["end_positions"].to(torch.float)
+            start_positions = nn.functional.one_hot(batch["start_positions"], sequence_length).to(torch.float)
+            #print(start_positions)
+            end_positions = nn.functional.one_hot(batch["end_positions"], sequence_length).to(torch.float)
+            #print(end_positions)
             loss = self.compute_loss(out, start_positions, end_positions)
         else:
             loss = None
         
         return out, loss
-
-
 
     def training_step(self, batch, batch_idx):
         _, loss = self.forward(batch)
@@ -78,18 +83,18 @@ class LSTM(pl.LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.config.training.lr)
         return optimizer
 
-
 # Define the input and output layers of the model
 class LSTMModel(Base_Model):
     def __init__(self, config, tokenizer = None, logger=None):
         self.config = config
         self.logger = logger
-
-        self.qa_model_trainer = pl.Trainer(max_epochs = self.config.training.epochs, accelerator = "gpu", devices = 1, logger=logger)
-        self.lstm = LSTM(self.config)
-
-        self.tokenizer = tokenizer
         
+        self.tokenizer = tokenizer
+        self.vocab_size = tokenizer.vocab_size
+        
+        self.qa_model_trainer = pl.Trainer(max_epochs = self.config.training.epochs, accelerator = "gpu", devices = 1, logger=logger)
+        self.lstm = LSTM(self.vocab_size, self.config)
+  
     def __train__(self, dataloader):
         print("Starting training")
 
@@ -97,8 +102,10 @@ class LSTMModel(Base_Model):
 
     def __inference__(self, dataloader):
 
+        all_preds = []
         all_ground = []
         for batch_idx, batch in tqdm(enumerate(dataloader), position = 0, leave = True):
+            all_preds.extend(batch["answerable"].detach().cpu().numpy())
             all_ground.extend(batch["answerable"].detach().cpu().numpy())
 
         all_start_preds = []
@@ -109,7 +116,7 @@ class LSTMModel(Base_Model):
 
         for batch_idx, batch in tqdm(enumerate(dataloader), position = 0, leave = True):
             output, _ = self.lstm.predict_step(batch, batch_idx)
-            output = output.view(-1, 2)
+            #output = output.view(-1, 2)
             start_logits, end_logits = output.split(1, dim=-1)
             start_logits = start_logits.squeeze(-1)
             end_logits = end_logits.squeeze(-1)
@@ -131,7 +138,8 @@ class LSTMModel(Base_Model):
             predicted_spans.append(predicted_span)
             gold_spans.append(gold_span)
 
-        result = {"ground": all_ground,
+        result = {"preds": all_preds,
+                "ground": all_ground,
                 "all_start_preds": all_start_preds,
                 "all_end_preds": all_end_preds,
                 "all_start_ground": all_start_ground,
@@ -141,10 +149,3 @@ class LSTMModel(Base_Model):
                 "gold_spans": gold_spans}
             
         return result
-
-    def __evaluate__(self, dataloader):
-        # TODO
-        print("Running on Test")
-        test_qa = self.qa_model_trainer.test(model = self.lstm, dataloaders = dataloader)
-        
-        return test_qa

@@ -1,7 +1,9 @@
 task: qa
 seed: 3407
 wandb: v0
+automodel: True
 fewshot_qa: False
+lstm: False
 
 data:
   data_path: data-dir/df_sample.csv
