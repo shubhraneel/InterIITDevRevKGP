@@ -218,8 +218,10 @@ class Trainer():
         classification_prediction = [1 if (len(results["predicted_answers"][i]) != 0) else 0 for i in range(len(results["predicted_answers"])) ] 
         classification_actual = [1 if (len(results["gold_answers"][i]) != 0) else 0 for i in range(len(results["gold_answers"])) ] 
         classification_f1 = sklearn.metrics.f1_score(classification_actual, classification_prediction)
+        classification_accuracy = sklearn.metrics.accuracy_score(classification_actual, classification_prediction)
 
         metrics = {
+            "classification_accuracy": classification_accuracy,
             "classification_f1": classification_f1,
             "mean_squad_f1": mean_squad_f1,
             "mean_time_per_question (ms)": results["mean_time_per_question"]*1000,
