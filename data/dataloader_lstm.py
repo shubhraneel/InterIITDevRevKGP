@@ -25,7 +25,7 @@ class SQuAD_Dataset_lstm(Dataset):
 						"title_input_ids", 
 						"context_input_ids", 
 						"question_input_ids", 
-						"start_positions", 
+						"start_positions", "end_positions", "answerable"
 						]
 
 		for key in tokenized_keys:
@@ -101,6 +101,8 @@ class SQuAD_Dataset_lstm(Dataset):
 				end_positions.append(idx + 1)
 
 		inputs["start_positions"] = torch.tensor(start_positions)
+		inputs["end_positions"] = torch.tensor(end_positions)
+		inputs["answerable"] = torch.tensor(answerable)
 
 		inputs["question_context_input_ids"] = inputs.pop("input_ids")
 
@@ -132,7 +134,9 @@ class SQuAD_Dataset_lstm(Dataset):
 	        # TODO: eliminate this here, use torch to concatenate q and p in model forward function
 			"question_context_input_ids":           torch.stack([x["question_context_input_ids"] for x in items], dim=0).squeeze(),
 
+			"answerable":                           torch.stack([x["answerable"] for x in items], dim=0),
 			"start_positions":                      torch.stack([x["start_positions"] for x in items], dim=0),
+			"end_positions":                        torch.stack([x["end_positions"] for x in items], dim=0),
 			# "answer_input_ids":                   torch.stack([x["answer"]["input_ids"] for x in items], dim=0),
 			# "answer_attention_mask":              torch.stack([x["answer"]["attention_mask"] for x in items], dim=0),
 			# "answer_token_type_ids":              torch.stack([x["answer"]["token_type_ids"] for x in items], dim=0),

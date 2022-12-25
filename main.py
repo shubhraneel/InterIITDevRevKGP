@@ -64,9 +64,9 @@ if __name__ == "__main__":
 	test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
 
 	# Define the model
-	model = LSTMModel(input_size=768, hidden_size=128, num_layers=2, num_classes=2)
-	model.__train__(model, train_dataloader)
-	model.__inference__(model, test_dataloader)
+	model = LSTMModel(config, tokenizer=tokenizer, logger=wandb_logger)
+	model.__train__(train_dataloader)
+	model.__inference__(test_dataloader)
 #	if config.fewshot_qa:
 #		train_ds = SQuAD_Dataset_fewshot(config, df_train_alias, tokenizer, mask_token)
 #		val_ds = SQuAD_Dataset_fewshot(config, df_val, tokenizer, mask_token)

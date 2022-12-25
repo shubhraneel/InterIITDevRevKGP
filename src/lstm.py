@@ -3,80 +3,143 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
+
 import pytorch_lightning as pl
-from . import base_model
+
+from . import Base_Model
+from tqdm import tqdm
+
+class LSTM(pl.LightningModule):
+    def __init__(self, config, train_dataloader = None, validation_dataloader = None, test_dataloader = None):
+        super().__init__()
+
+        self.config = config
+
+        self.hidden_size = config.model.params.hidden_size
+        self.num_layers = config.model.params.num_layers
+        self.lstm = nn.LSTM(config.model.params.input_size, self.hidden_size, self.num_layers, batch_first=True)
+        self.fc = nn.Linear(self.hidden_size, config.model.params.num_classes)
+        
+        self.train_dataloader = train_dataloader
+        self.validation_dataloader = validation_dataloader
+        self.test_dataloader = test_dataloader
+
+    def compute_loss(self, output, start_positions, end_positions):
+        output = output.view(-1, 2)
+        start_logits, end_logits = output.split(1, dim=-1)
+        start_logits = start_logits.squeeze(-1)
+        end_logits = end_logits.squeeze(-1)
+
+        criterion = nn.CrossEntropyLoss()
+        start_loss = criterion(start_logits, start_positions)
+        end_loss = criterion(end_logits, end_positions)
+        total_loss = (start_loss + end_loss) / 2
+        return total_loss
+
+    def forward(self, batch):
+        input_ids = batch["question_context_input_ids"]
+        sequence_length = input_ids.shape[1]
+        input = input_ids.view(batch["question_context_input_ids"].shape[0], sequence_length, -1)
+
+        h0 = torch.zeros(self.num_layers, batch["question_context_input_ids"].shape[0], self.hidden_size).to(input_ids.device)
+        c0 = torch.zeros(self.num_layers, batch["question_context_input_ids"].shape[0], self.hidden_size).to(input_ids.device)
+        out, _ = self.lstm((input, (h0, c0)))
+        out = self.fc(out[:, -1, :])
+
+        if "start_positions" in batch.keys():
+            # Compute the loss using the start_positions and end_positions here
+            start_positions = batch["start_positions"]
+            end_positions = batch["end_positions"]
+            loss = self.compute_loss(out, start_positions, end_positions)
+        else:
+            loss = None
+
+        return out, loss
+
+
+
+    def training_step(self, batch, batch_idx):
+        out = self.forward(batch)
+        self.log('train_loss_qa', out.loss)
+        return out.loss
+    
+    def validation_step(self, batch, batch_idx):
+        out = self.forward(batch)
+        self.log('val_loss_qa', out.loss)
+        return out.loss
+
+    def test_step(self, batch, batch_idx):
+        out = self.forward(batch)
+        self.log('test_loss_qa', out.loss)
+        return out.loss
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.config.training.lr)
+        return optimizer
+
 
 # Define the input and output layers of the model
-class LSTMModel(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, num_classes):
-        super().__init__()
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
-        self.fc1 = nn.Linear(hidden_size, num_classes)
-        self.fc2 = nn.Linear(hidden_size, num_classes)
+class LSTMModel(Base_Model):
+    def __init__(self, config, tokenizer = None, logger=None):
+        self.config = config
+        self.logger = logger
 
-# Define the LSTM layers of the model
-    def forward(self, x):
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-        out, _ = self.lstm(x, (h0, c0))
-        out = out[:, -1, :]
-        start_index = self.fc1(out)
-        end_index = self.fc2(out)
-        return start_index, end_index
+        self.qa_model_trainer = pl.Trainer(max_epochs = self.config.training.epochs, accelerator = "gpu", devices = 1, logger=logger)
+        self.lstm = LSTM(self.config)
 
-    def __train__(self, model, dataloader):
-        # Define the loss function and optimizer for the model
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(model.parameters())
+        self.tokenizer = tokenizer
+        
+    def __train__(self, dataloader):
         print("Starting training")
-        # Train the model
-        num_epochs=1
-        for epoch in range(num_epochs):
-            running_loss = 0.0
-            for i, data in enumerate(dataloader, 0):
-                #TODO: Get the inputs and labels
-                inputs, labels = data
 
-                # Zero the parameter gradients
-                optimizer.zero_grad()
+        self.qa_model_trainer.fit(model = self.lstm, train_dataloaders = dataloader)
 
-                # Forward pass
-                start_index, end_index = model(inputs)
-                loss = criterion(start_index, labels[:, 0]) + criterion(end_index, labels[:, 1])
+    def __inference__(self, dataloader):
 
-                # Backward pass and optimize
-                loss.backward()
-                optimizer.step()
+        all_ground = []
+        for batch_idx, batch in tqdm(enumerate(dataloader), position = 0, leave = True):
+            all_ground.extend(batch["answerable"].detach().cpu().numpy())
 
-                # Print the statistics
-                running_loss += loss.item()
-                if i % 2000 == 1999:    # print every 2000 mini-batches
-                    print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 2000))
-                    running_loss = 0.0
+        all_start_preds = []
+        all_end_preds = []
+        all_start_ground = []
+        all_end_ground = []
+        all_input_words = []
 
-        print('Finished Training')
+        for batch_idx, batch in tqdm(enumerate(dataloader), position = 0, leave = True):
+            pred = self.qa_model.predict_step(batch, batch_idx)
+            all_start_preds.extend(torch.argmax(pred.start_logits, axis = 1).tolist())
+            all_end_preds.extend(torch.argmax(pred.end_logits, axis = 1).tolist())
+            all_start_ground.extend(batch["start_positions"].detach().cpu().numpy())
+            all_end_ground.extend(batch["end_positions"].detach().cpu().numpy())
+            
+            all_input_words.extend(self.tokenizer.batch_decode(sequences = batch["context_input_ids"]))
 
-    def __inference__(self, model, dataloader):
-        # Test the model
-        with torch.no_grad():
-            correct = 0
-            total = 0
-            for data in dataloader:
-                # Get the inputs and labels
-                inputs, labels = data
+        predicted_spans = []
+        gold_spans = []
 
-                # Forward pass
-                start_index, end_index = model(inputs)
-                _, predicted_start = torch.max(start_index.data, 1)
-                _, predicted_end = torch.max(end_index.data, 1)
+        for idx, sentence in enumerate(all_input_words):
+            sentence = sentence.split(" ")
+            predicted_span = " ".join(sentence[all_start_preds[idx]: all_end_preds[idx]])
+            gold_span = " ".join(sentence[all_start_ground[idx]: all_end_ground[idx]])
 
-                # Calculate the performance metrics
-                total += labels.size(0)
-                correct += (predicted_start == labels[:, 0]).sum().item()
-                correct += (predicted_end == labels[:, 1]).sum().item()
+            predicted_spans.append(predicted_span)
+            gold_spans.append(gold_span)
 
-        print('Accuracy of the model on the test set: %d %%' % (100 * correct / total))
+        result = {"ground": all_ground,
+                "all_start_preds": all_start_preds,
+                "all_end_preds": all_end_preds,
+                "all_start_ground": all_start_ground,
+                "all_end_ground": all_end_ground,
+                "all_input_words": all_input_words,
+                "predicted_spans": predicted_spans,
+                "gold_spans": gold_spans}
+            
+        return result
 
+    def __evaluate__(self, dataloader):
+        # TODO
+        print("Running on Test")
+        test_qa = self.qa_model_trainer.test(model = self.lstm, dataloaders = dataloader)
+        
+        return test_qa
