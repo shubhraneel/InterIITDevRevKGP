@@ -39,11 +39,12 @@ class LSTM(pl.LightningModule):
     def forward(self, batch):
         input_ids = batch["question_context_input_ids"]
         sequence_length = input_ids.shape[1]
-        input = input_ids.view(batch["question_context_input_ids"].shape[0], sequence_length, -1)
+        input_size = self.config.model.params.input_size
+        input = input_ids.view(batch["question_context_input_ids"].shape[0], sequence_length, input_size)
 
         h0 = torch.zeros(self.num_layers, batch["question_context_input_ids"].shape[0], self.hidden_size).to(input_ids.device)
         c0 = torch.zeros(self.num_layers, batch["question_context_input_ids"].shape[0], self.hidden_size).to(input_ids.device)
-        out, _ = self.lstm((input, (h0, c0)))
+        out, (h_n, c_n) = self.lstm(input, (h0, c0))
         out = self.fc(out[:, -1, :])
 
         if "start_positions" in batch.keys():
