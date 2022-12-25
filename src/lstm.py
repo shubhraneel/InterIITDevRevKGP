@@ -37,42 +37,42 @@ class LSTM(pl.LightningModule):
         return total_loss
 
     def forward(self, batch):
-        input_ids = batch["question_context_input_ids"]
+        input_ids = batch["question_context_input_ids"].to(torch.float)
         sequence_length = input_ids.shape[1]
         input_size = self.config.model.params.input_size
         input = input_ids.view(batch["question_context_input_ids"].shape[0], sequence_length, input_size)
 
         h0 = torch.zeros(self.num_layers, batch["question_context_input_ids"].shape[0], self.hidden_size).to(input_ids.device)
         c0 = torch.zeros(self.num_layers, batch["question_context_input_ids"].shape[0], self.hidden_size).to(input_ids.device)
-        out, (h_n, c_n) = self.lstm(input, (h0, c0))
+        out, (h_n, c_n) = self.lstm(input, (h0.to(torch.float), c0.to(torch.float)))
         out = self.fc(out[:, -1, :])
 
         if "start_positions" in batch.keys():
             # Compute the loss using the start_positions and end_positions here
-            start_positions = batch["start_positions"]
-            end_positions = batch["end_positions"]
+            start_positions = batch["start_positions"].to(torch.float)
+            end_positions = batch["end_positions"].to(torch.float)
             loss = self.compute_loss(out, start_positions, end_positions)
         else:
             loss = None
-
+        
         return out, loss
 
 
 
     def training_step(self, batch, batch_idx):
-        out = self.forward(batch)
-        self.log('train_loss_qa', out.loss)
-        return out.loss
+        _, loss = self.forward(batch)
+        self.log('train_loss_qa', loss)
+        return loss
     
     def validation_step(self, batch, batch_idx):
-        out = self.forward(batch)
-        self.log('val_loss_qa', out.loss)
-        return out.loss
+        _, loss = self.forward(batch)
+        self.log('val_loss_qa', loss)
+        return loss
 
     def test_step(self, batch, batch_idx):
-        out = self.forward(batch)
-        self.log('test_loss_qa', out.loss)
-        return out.loss
+        _, loss = self.forward(batch)
+        self.log('test_loss_qa', loss)
+        return loss
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.config.training.lr)
@@ -108,9 +108,13 @@ class LSTMModel(Base_Model):
         all_input_words = []
 
         for batch_idx, batch in tqdm(enumerate(dataloader), position = 0, leave = True):
-            pred = self.qa_model.predict_step(batch, batch_idx)
-            all_start_preds.extend(torch.argmax(pred.start_logits, axis = 1).tolist())
-            all_end_preds.extend(torch.argmax(pred.end_logits, axis = 1).tolist())
+            output, _ = self.lstm.predict_step(batch, batch_idx)
+            output = output.view(-1, 2)
+            start_logits, end_logits = output.split(1, dim=-1)
+            start_logits = start_logits.squeeze(-1)
+            end_logits = end_logits.squeeze(-1)
+            all_start_preds.extend(torch.argmax(start_logits, axis=1).tolist())
+            all_end_preds.extend(torch.argmax(end_logits, axis=1).tolist())
             all_start_ground.extend(batch["start_positions"].detach().cpu().numpy())
             all_end_ground.extend(batch["end_positions"].detach().cpu().numpy())
             
