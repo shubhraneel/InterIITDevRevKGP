@@ -66,7 +66,7 @@ if __name__ == "__main__":
 		val_dataloader = DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
 		test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
 
-		model = FewShotQA_Model(config, tokenizer=tokenizer)
+		model = FewShotQA_Model(config, tokenizer=tokenizer, logger=wandb_logger)
 
 		model.__train__(train_dataloader)
 		model.__inference__(test_dataloader)

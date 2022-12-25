@@ -10,17 +10,23 @@ from . import Base_Model
 from utils import compute_f1
 from transformers import BartForConditionalGeneration
 from tqdm import tqdm
+import wandb
 
+wandb.init(project="FewshotQA")
 class FewShotQA_Model(Base_Model):
     """
     DO NOT change the calculate_metrics function
     """
 
-    def __init__(self, config, tokenizer):
+    def __init__(self, config, tokenizer, logger=None):
         self.config = config
+        self.logger = logger
 
         self.model = BartForConditionalGeneration.from_pretrained("facebook/bart-large")
         self.tokenizer = tokenizer
+
+        # Log model and tokenizer to wandb
+        wandb.watch((self.model, self.tokenizer))
 
         self.optimizer = torch.optim.Adam(params=self.model.parameters(), lr=self.config.training.lr)
 
@@ -49,8 +55,11 @@ class FewShotQA_Model(Base_Model):
                 labels=target,
             )
             
-            loss = outputs[0]
-            total_loss += loss.item()            
+            loss = outputs[0] 
+            total_loss += loss.item()  
+
+            # Log training loss to wandb
+            wandb.log({"training_loss": loss.item()})       
 
             optimizer.zero_grad()
             loss.backward()

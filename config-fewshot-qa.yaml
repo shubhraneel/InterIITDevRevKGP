@@ -1,6 +1,6 @@
 task: qa
 seed: 3407
-wandb: NA
+wandb: FewshotQA
 fewshot_qa: True
 
 data:
