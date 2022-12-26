@@ -24,6 +24,8 @@ class FewShotQA_Model(Base_Model):
         self.model = BartForConditionalGeneration.from_pretrained("facebook/bart-large")
         self.tokenizer = tokenizer
 
+        self.logger.watch((self.model, self.tokenizer))
+
         self.optimizer = torch.optim.Adam(params=self.model.parameters(), lr=self.config.training.lr)
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -53,7 +55,7 @@ class FewShotQA_Model(Base_Model):
             
             loss = outputs[0] 
             total_loss += loss.item()     
-
+            self.logger.log("train/loss", loss.item())
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
