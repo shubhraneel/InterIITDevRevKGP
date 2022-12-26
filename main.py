@@ -11,7 +11,7 @@ from utils import set_seed
 from utils import create_alias
 from data import SQuAD_Dataset, SQuAD_Dataset_fewshot, SQuAD_Dataset_lstm
 from pytorch_lightning.loggers import WandbLogger
-from src import AutoModel_Classifier_QA, FewShotQA_Model, LSTMModel
+from src import AutoModel_Classifier_QA, FewShotQA_Model, LSTMModel, GRUModel, StackedLSTMModel
 from torch.utils.data import DataLoader
 from sklearn.model_selection import GroupShuffleSplit
 
@@ -94,7 +94,9 @@ if __name__ == "__main__":
 		test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
 
 		# Define the model
-		model = LSTMModel(config, tokenizer=tokenizer, logger=wandb_logger)
+		#model = LSTMModel(config, tokenizer=tokenizer, logger=wandb_logger)
+		#model = GRUModel(config, tokenizer=tokenizer, logger=wandb_logger)
+		model = StackedLSTMModel(config, tokenizer=tokenizer, logger=wandb_logger)
 		
 		model.__train__(train_dataloader)
 		model.__inference__(test_dataloader)
