@@ -130,6 +130,7 @@ class Trainer():
         predicted_answers = []
         gold_answers = []
 
+        # TODO: is this time calculation correct?
         for batch_idx, batch in enumerate(tepoch):
             
             # list of titles in the batch 
@@ -202,6 +203,8 @@ class Trainer():
                     # TODO: remove offset_mapping etc. lookup from inference time (current calculation is the absolute worst case time)
                     total_time_per_question += (time.time() - start_time)
                     total_time_per_question_list.append(total_time_per_question)
+
+        print(total_time_per_question_list)
 
         results = {
                     "mean_time_per_question": np.mean(np.array(total_time_per_question_list)),
