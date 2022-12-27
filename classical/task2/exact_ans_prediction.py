@@ -68,8 +68,8 @@ nlp2 = pipeline("ner", model=model1, tokenizer=tokenizer1)
 
 def get_ans(question, sentence):
   question_type = nlp(question)[0]['label']
-  ner_results = nlp2(sentence)
-  ner_results2 = NER(sentence)
+  #ner_results = nlp2(sentence)
+  #ner_results2 = NER(sentence)
 
   per = []
   loc = []
@@ -80,61 +80,66 @@ def get_ans(question, sentence):
   loc_str =""
   misc_str=""
   org_str=""
-  num_str = ""
 
-  for word in ner_results2.ents:
+  if question_type == 'ENTY':
+    ner_results = nlp2(sentence)
+    for i in range(len(ner_results)):
+      if ner_results[i]['entity'] == 'B-PER' or ner_results[i]['entity'] == 'I-PER':
+        per_str = per_str + ner_results[i]['word'] + " "
+        if (i == len(ner_results)-1) or ((i+1)<len(ner_results) and ((ner_results[i+1]['entity'] !='I-PER' and ner_results[i+1]['entity'] != 'B-PER'))):
+          per.append(per_str)
+          per_str = ''
+
+      if ner_results[i]['entity'] == 'B-ORG' or ner_results[i]['entity'] == 'I-ORG':
+        org_str = org_str + ner_results[i]['word'] + " "
+        if (i == len(ner_results)-1) or ((i+1)<len(ner_results) and ((ner_results[i+1]['entity'] !='I-ORG' and ner_results[i+1]['entity'] != 'B-ORG'))):
+          org.append(org_str)
+          org_str = ''
+
+    if len(org) == 0 and len(per)==0:
+      return []
+    return np.concatenate((org, per), axis=None)
+  
+  if question_type == 'LOC':
+    ner_results = nlp2(sentence)
+    for i in range(len(ner_results)):
+      if ner_results[i]['entity'] == 'B-LOC' or ner_results[i]['entity'] == 'I-LOC':
+        loc_str = loc_str + ner_results[i]['word'] + " "
+        if (i == len(ner_results)-1) or ((i+1)<len(ner_results) and ((ner_results[i+1]['entity'] !='I-LOC' and ner_results[i+1]['entity'] != 'B-LOC'))):
+          loc.append(loc_str)
+          loc_str = ''
+  
+    return np.array(loc)
+  
+  if question_type == 'HUM':
+    ner_results = nlp2(sentence)
+    for i in range(len(ner_results)):
+      if ner_results[i]['entity'] == 'B-PER' or ner_results[i]['entity'] == 'I-PER':
+        per_str = per_str + ner_results[i]['word'] + " "
+        if (i == len(ner_results)-1) or ((i+1)<len(ner_results) and ((ner_results[i+1]['entity'] !='I-PER' and ner_results[i+1]['entity'] != 'B-PER'))):
+          per.append(per_str)
+          per_str = ''
+
+    return np.array(per)
+
+  if question_type == 'DESC':
+    ner_results = nlp2(sentence)
+    for i in range(len(ner_results)):
+      if ner_results[i]['entity'] == 'B-MISC' or ner_results[i]['entity'] == 'I-MISC' or ner_results[i]['entity'] == 'O-MISC':
+        misc_str = misc_str + ner_results[i]['word'] + " "
+        if (i == len(ner_results)-1) or ((i+1)<len(ner_results) and ((ner_results[i+1]['entity'] !='I-MISC' and ner_results[i+1]['entity'] != 'B-MISC'))):
+          misc.append(misc_str)
+          misc_str = ''
+
+    return np.array(misc)
+
+  if question_type == 'NUM':
+    ner_results2 = NER(sentence)
+    for word in ner_results2.ents:
       if word.label_ == 'DATE' or word.label_ == 'CARDINAL' or word.label_=='MONEY' or word.label_=='PERCENT' or word.label_=='QUANTITY' or word.label_=='TIME':
         num.append(word.text)
 
-  for i in range(len(ner_results)):
-    if ner_results[i]['entity'] == 'B-LOC' or ner_results[i]['entity'] == 'I-LOC' or ner_results[i]['entity'] == 'O-LOC':
-      loc_str = loc_str + ner_results[i]['word'] + " "
-      if (i == len(ner_results)-1) or ((i+1)<len(ner_results) and ((ner_results[i+1]['entity'] !='I-LOC' and ner_results[i+1]['entity'] != 'O-LOC' and ner_results[i+1]['entity'] != 'B-LOC'))):
-        loc.append(loc_str[:-1])
-        loc_str = ''
-
-    if ner_results[i]['entity'] == 'B-PER' or ner_results[i]['entity'] == 'I-PER' or ner_results[i]['entity'] == 'O-PER':
-      per_str = per_str + ner_results[i]['word'] + " "
-      if (i == len(ner_results)-1) or ((i+1)<len(ner_results) and ((ner_results[i+1]['entity'] !='I-PER' and ner_results[i+1]['entity'] != 'O-PER' and ner_results[i+1]['entity'] != 'B-PER'))):
-        per.append(per_str[:-1])
-        per_str = ''
-      
-    if ner_results[i]['entity'] == 'B-ORG' or ner_results[i]['entity'] == 'I-ORG' or ner_results[i]['entity'] == 'O-ORG':
-      org_str = org_str + ner_results[i]['word'] + " "
-      if (i == len(ner_results)-1) or ((i+1)<len(ner_results) and ((ner_results[i+1]['entity'] !='I-ORG' and ner_results[i+1]['entity'] != 'O-ORG' and ner_results[i+1]['entity'] != 'B-ORG'))):
-        org.append(org_str[:-1])
-        org_str = ''
-
-    if ner_results[i]['entity'] == 'B-MISC' or ner_results[i]['entity'] == 'I-MISC' or ner_results[i]['entity'] == 'O-MISC':
-      misc_str = misc_str + ner_results[i]['word'] + " "
-      if (i == len(ner_results)-1) or ((i+1)<len(ner_results) and ((ner_results[i+1]['entity'] !='I-MISC' and ner_results[i+1]['entity'] != 'O-MISC' and ner_results[i+1]['entity'] != 'B-MISC'))):
-        misc.append(misc_str[:-1])
-        misc_str = ''
-
-  if question_type == 'LOC':
-    if len(loc) == 0:
-      return []
-    return np.array(loc)
-  if question_type == 'HUM':
-    if len(per) == 0:
-      return []
-    return np.array(per)
-  if question_type == 'ENTY':
-    if len(org) == 0 and len(misc)==0 and len(per)==0 and len(loc)==0:
-      return []
-    return np.concatenate((org, misc, per, loc), axis=None)
-  if question_type == 'ABBR':
-    if len(org)==0 and len(misc)==0 and len(loc)==0:
-      return []
-    return np.concatenate((org, misc, loc), axis=None)
-  if question_type == 'NUM':
-    if len(misc)==0 and len(num)==0:
-      return []
-    return np.concatenate((misc, num), axis=None)
-  if question_type == 'DESC':
-    if len(misc)==0:
-      return []
-    return misc
+    return np.array(num)
 
 def ranking(question, ans_list):
   if len(ans_list)==0:
@@ -157,7 +162,7 @@ def ranking(question, ans_list):
   if len(dictionary)!=0:
     sec_max = max(dictionary, key=dictionary.get)
   
-  return [maxim, sec_max]
+  return [maxim[:-1], sec_max[:-1]]
 
 # main end-to-end function to take in the question and the candidate sentence and return two best candidates for exact answer text spans.
 def exact_ans(question, sentence):
