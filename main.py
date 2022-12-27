@@ -9,13 +9,9 @@ from transformers import AutoTokenizer
 from config import Config
 from utils import set_seed
 from utils import create_alias
-from data import SQuAD_Dataset
-from src import AutoModel_Classifier_QA
-
+from data import SQuAD_Dataset, SQuAD_Dataset_fewshot, SQuAD_Dataset_lstm
 from pytorch_lightning.loggers import WandbLogger
-from data import SQuAD_Dataset_fewshot
-from src import AutoModel_Classifier_QA, FewShotQA_Model
-
+from src import AutoModel_Classifier_QA, FewShotQA_Model, LSTMModel, GRUModel, StackedLSTMModel
 from torch.utils.data import DataLoader
 from sklearn.model_selection import GroupShuffleSplit
 
@@ -55,8 +51,6 @@ if __name__ == "__main__":
 
 	mask_token = tokenizer.mask_token
 
-	
-
 	if config.fewshot_qa:
 		train_ds = SQuAD_Dataset_fewshot(config, df_train_alias, tokenizer, mask_token)
 		val_ds = SQuAD_Dataset_fewshot(config, df_val, tokenizer, mask_token)
@@ -73,7 +67,8 @@ if __name__ == "__main__":
 
 		qa_f1, ttime_per_example = model.few_shot_calculate_metrics(test_dataloader)
 		print(f"QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
-	else:
+	
+	elif config.automodel:
 		train_ds = SQuAD_Dataset(config, df_train_alias, tokenizer)
 		val_ds = SQuAD_Dataset(config, df_val, tokenizer)
 		test_ds = SQuAD_Dataset(config, df_test, tokenizer)
@@ -88,6 +83,27 @@ if __name__ == "__main__":
 	
 		classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
 		print(f"Classification F1: {classification_f1}, QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
+	
+	else:
+		train_ds = SQuAD_Dataset_lstm(config, df_train_alias, tokenizer)
+		val_ds = SQuAD_Dataset_lstm(config, df_val, tokenizer)
+		test_ds = SQuAD_Dataset_lstm(config, df_test, tokenizer)
+
+		train_dataloader = DataLoader(train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
+		val_dataloader = DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
+		test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
+
+		# Define the model
+		#model = LSTMModel(config, tokenizer=tokenizer, logger=wandb_logger)
+		#model = GRUModel(config, tokenizer=tokenizer, logger=wandb_logger)
+		model = StackedLSTMModel(config, tokenizer=tokenizer, logger=wandb_logger)
+		
+		model.__train__(train_dataloader)
+		model.__inference__(test_dataloader)
+		
+		classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
+		print(f"Classification F1: {classification_f1}, QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
+
 	
 
 		
