@@ -143,31 +143,53 @@ class SQuAD_Dataset(Dataset):
 					while offsets[token_end_index][1] >= end_char:
 						token_end_index -= 1
 					inputs["end_positions"].append(token_end_index + 1)
+		
+		# We keep the example_id that gave us this feature and we will store the offset mappings.
+		inputs["example_id"] = []
 
-		inputs["start_positions"] = torch.tensor(inputs["start_positions"])
-		inputs["end_positions"] = torch.tensor(inputs["end_positions"])
-		inputs["answerable"] = torch.tensor(inputs["answerable"])
+		for i in range(len(inputs["input_ids"])):
+			# Grab the sequence corresponding to that example (to know what is the context and what is the question).
+			sequence_ids = inputs.sequence_ids(i)
+			context_index = 1 if self.config.data.pad_on_right else 0
 
-		inputs["question_context_input_ids"] = inputs.pop("input_ids")
-		inputs["question_context_attention_mask"] = inputs.pop("attention_mask")
-		inputs["question_context_token_type_ids"] = inputs.pop("token_type_ids")
-		# inputs["question_context_example_id"] = inputs.pop("example_id")
-		inputs["question_context_offset_mapping"] = inputs.pop("offset_mapping")
+			# One example can give several spans, this is the index of the example containing this span of text.
+			sample_index = sample_mapping[i]
+			inputs["example_id"].append(examples["id"][sample_index])
 
-		title_tokenized = self.tokenizer(examples["title"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt", return_token_type_ids=True)
-		inputs["title_input_ids"] = title_tokenized["input_ids"]
-		inputs["title_attention_mask"] = title_tokenized["attention_mask"]
-		inputs["title_token_type_ids"] = title_tokenized["token_type_ids"]
+			# Set to None the offset_mapping that are not part of the context so it's easy to determine if a token
+			# position is part of the context or not.
+			inputs["offset_mapping"][i] = [
+				(o if sequence_ids[k] == context_index else None)
+				for k, o in enumerate(inputs["offset_mapping"][i])
+			]
 
-		context_tokenized = self.tokenizer(examples["context"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt", return_token_type_ids=True)    
-		inputs["context_input_ids"] = context_tokenized["input_ids"]
-		inputs["context_attention_mask"] = context_tokenized["attention_mask"]
-		inputs["context_token_type_ids"] = context_tokenized["token_type_ids"]
+		inputs["start_positions"] 					= torch.tensor(inputs["start_positions"])
+		inputs["end_positions"] 					= torch.tensor(inputs["end_positions"])
+		inputs["answerable"] 						= torch.tensor(inputs["answerable"])
 
-		question_tokenized = self.tokenizer(examples["question"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt", return_token_type_ids=True)    
-		inputs["question_input_ids"] = question_tokenized["input_ids"]
-		inputs["question_attention_mask"] = question_tokenized["attention_mask"]
-		inputs["question_token_type_ids"] = question_tokenized["token_type_ids"]
+		inputs["question_context_input_ids"] 		= inputs.pop("input_ids")
+		inputs["question_context_attention_mask"] 	= inputs.pop("attention_mask")
+		if not self.config.model.non_pooler:
+			inputs["question_context_token_type_ids"] 	= inputs.pop("token_type_ids")
+		inputs["question_context_offset_mapping"] 	= inputs.pop("offset_mapping")
+
+		title_tokenized 							= self.tokenizer(examples["title"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")
+		inputs["title_input_ids"] 					= title_tokenized["input_ids"]
+		inputs["title_attention_mask"] 				= title_tokenized["attention_mask"]
+		if not self.config.model.non_pooler:
+			inputs["title_token_type_ids"] 				= title_tokenized["token_type_ids"]
+
+		context_tokenized							= self.tokenizer(examples["context"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
+		inputs["context_input_ids"] 				= context_tokenized["input_ids"]
+		inputs["context_attention_mask"] 			= context_tokenized["attention_mask"]
+		if not self.config.model.non_pooler:
+			inputs["context_token_type_ids"] 			= context_tokenized["token_type_ids"]
+
+		question_tokenized 							= self.tokenizer(examples["question"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
+		inputs["question_input_ids"] 				= question_tokenized["input_ids"]
+		inputs["question_attention_mask"] 			= question_tokenized["attention_mask"]
+		if not self.config.model.non_pooler:
+			inputs["question_token_type_ids"] 			= question_tokenized["token_type_ids"]
 
 		return inputs
 
