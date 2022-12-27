@@ -4,7 +4,7 @@ wandb: v0
 fewshot_qa: False
 
 data:
-  data_path: ../data-dir/df_sample.csv
+  data_path: ../data-dir/train_data.csv
   test_size: 0.2
   train_batch_size: 4
   val_batch_size: 2
@@ -12,9 +12,10 @@ data:
   pad_on_right: True
   max_length: 512
   doc_stride: 128
+  tokenizer_batch_size: 32
 
 training:
-  epochs: 1
+  epochs: 3
   optimizer: adam
   lr: 0.00002
   sched_function: none
