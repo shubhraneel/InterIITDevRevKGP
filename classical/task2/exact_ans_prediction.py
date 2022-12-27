@@ -137,7 +137,7 @@ def get_ans(question, sentence):
     ner_results2 = NER(sentence)
     for word in ner_results2.ents:
       if word.label_ == 'DATE' or word.label_ == 'CARDINAL' or word.label_=='MONEY' or word.label_=='PERCENT' or word.label_=='QUANTITY' or word.label_=='TIME':
-        num.append(word.text)
+        num.append(word.text+' ')
 
     return np.array(num)
 
