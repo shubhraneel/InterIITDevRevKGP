@@ -30,24 +30,30 @@ if __name__ == "__main__":
 
 	set_seed(config.seed)
 
+	print("Reading data csv")
 	df = pd.read_csv(config.data.data_path)
-	df = df.drop_duplicates(subset=["Unnamed: 0"])
+	df = df.drop_duplicates(subset=["Unnamed: 0"]).drop_duplicates(subset=["Question"]).reset_index(drop=True)
+
 	# df = pd.read_excel(config.data.data_path)
 	# TODO: Split the dataset in a way where training theme question-context pair should not be
 	# split into train/test/val. Keep it only in the train.
 	# Mixup allowed between val and test.
 
+	print("Creating train, val and test data")
 	df_train, df_test 	= train_test_split(df, test_size=config.data.test_size, random_state=config.seed)
 	df_train, df_val 	= train_test_split(df_train, test_size=config.data.test_size, random_state=config.seed)
 	
 	tokenizer 			= AutoTokenizer.from_pretrained(config.model.model_path, TOKENIZERS_PARALLELISM=True, model_max_length=512, padding="max_length") # add local_files_only=local_files_only if using server
 
+	print("Creating pytorch train dataseet")
 	train_ds 			= SQuAD_Dataset(config, df_train, tokenizer)
 	print("length of train dataset: {}".format(train_ds.__len__()))
 
+	print("Creating pytorch val dataseet")
 	val_ds 				= SQuAD_Dataset(config, df_val, tokenizer)
 	print("length of val dataset: {}".format(val_ds.__len__()))
 
+	print("Creating pytorch test dataseet")
 	test_ds 			= SQuAD_Dataset(config, df_test, tokenizer)
 	print("length of test dataset: {}".format(test_ds.__len__()))
 
@@ -67,7 +73,7 @@ if __name__ == "__main__":
 	model = BaselineQA(config, device).to(device)
 	optimizer = torch.optim.Adam(model.parameters(), lr = config.training.lr)
 	trainer = Trainer(config, model, optimizer, device)
-
+	
 	trainer.train(train_dataloader, val_dataloader)
 	# calculate_metrics(test_ds, test_dataloader, wandb_logger)
 	test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)

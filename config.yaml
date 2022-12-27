@@ -1,12 +1,13 @@
 task: qa
 seed: 3407
 wandb: v0
+inference_device: cuda
 
 data:
-  data_path: ../data-dir/train_data.csv
+  data_path: ./data-dir/train_data.csv
   test_size: 0.2
-  train_batch_size: 4
-  val_batch_size: 1
+  train_batch_size: 25
+  val_batch_size: 16
   pad_on_right: True
   max_length: 512
   doc_stride: 128
@@ -24,9 +25,10 @@ training:
   evaluate_every: 1
 
 model:
-  model_path: bert-base-uncased
+  model_path: mvonwyl/distilbert-base-uncased-finetuned-squad2
   num_labels: 2
   save_path: models/exp_bert/
   params: {}
   reader_path: null
   retriever_path: null
+  non_pooler: True

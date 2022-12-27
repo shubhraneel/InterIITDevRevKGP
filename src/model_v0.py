@@ -188,8 +188,14 @@ class AutoModel_Classifier_QA(Base_Model):
             # if (q, p) is already in the df, just return the answer
             df_in_data = dataset.df.loc[(dataset.df["Question"] == question) & (dataset.df["Paragraph"] == p)]
             if (len(df_in_data) != 0):
-                assert len(df_in_data) == 1
-                df_kb = pd.concat([df_kb, df_in_data], axis = 0).reset_index(drop = True)
+                try:
+                    assert len(df_in_data) == 1
+                    df_kb = pd.concat([df_kb, df_in_data], axis = 0).reset_index(drop = True)
+                except:
+                    print(len(df_in_data))
+                    print(type(df_in_data))
+                    print(df_in_data)
+                    raise 
             else:
                 # Unnamed: 0	Theme	Paragraph	Question	Answer_possible	Answer_text	Answer
                 # kb_dict = {"Unnamed: 0": id, "Question": question, ""}
