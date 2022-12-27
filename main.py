@@ -39,15 +39,17 @@ if __name__ == "__main__":
 
 	set_seed(config.seed)
 
+	print("Reading data csv")
 	df = pd.read_csv(config.data.data_path)
-	df = df.drop_duplicates(subset=["Unnamed: 0"])
+	df = df.drop_duplicates(subset=["Unnamed: 0"]).drop_duplicates(subset=["Question"]).reset_index(drop=True)
+
 	# df = pd.read_excel(config.data.data_path)
 	# TODO: Split the dataset in a way where training theme question-context pair should not be
 	# split into train/test/val. Keep it only in the train.
 	# Mixup allowed between val and test.
 	splitter = GroupShuffleSplit(train_size=(1-config.data.test_size)**2,n_splits=1, random_state=config.seed)
 	split = splitter.split(df,groups=df['Theme'])
-	train_inds , val_inds = next(split)
+	train_inds, val_inds = next(split)
 	df_train = df.iloc[train_inds]
 	df_val = df.iloc[val_inds]
 
@@ -84,18 +86,17 @@ if __name__ == "__main__":
 		train_ds 			= SQuAD_Dataset(config, df_train, tokenizer)
 		print("length of train dataset: {}".format(train_ds.__len__()))
 
+		print("Creating pytorch train dataseet")
+		train_ds 			= SQuAD_Dataset(config, df_train, tokenizer)
+		print("length of train dataset: {}".format(train_ds.__len__()))
+
+		print("Creating pytorch val dataseet")
 		val_ds 				= SQuAD_Dataset(config, df_val, tokenizer)
 		print("length of val dataset: {}".format(val_ds.__len__()))
 
+		print("Creating pytorch test dataseet")
 		test_ds 			= SQuAD_Dataset(config, df_test, tokenizer)
 		print("length of test dataset: {}".format(test_ds.__len__()))
-
-		# check if datasets have been encoded properly
-		# train_ds.print_row(15)
-		# val_ds.print_row(3)
-		# test_ds.print_row(69)
-		# example = train_ds.__getitem__(12)
-		# print(example["question_context_offset_mapping"])
 
 		train_dataloader 	= DataLoader(train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
 		val_dataloader 		= DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)

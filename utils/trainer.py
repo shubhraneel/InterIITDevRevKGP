@@ -27,6 +27,11 @@ class Trainer():
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
         for batch_idx, batch in enumerate(tepoch):
             tepoch.set_description(f"Epoch {epoch + 1}")
+            if (len(batch["question_context_input_ids"].shape) == 1):
+                batch["question_context_input_ids"] = batch["question_context_input_ids"].unsqueeze(dim=0)
+                batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
+                if not self.config.model.non_pooler:
+                    batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
 
             out = self.model(batch)
             loss = out.loss
@@ -55,6 +60,12 @@ class Trainer():
         tepoch.set_description("Validation Step")
         with torch.no_grad():
             for batch_idx, batch in enumerate(tepoch):
+                if (len(batch["question_context_input_ids"].shape) == 1):
+                    batch["question_context_input_ids"] = batch["question_context_input_ids"].unsqueeze(dim=0)
+                    batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
+                    if not self.config.model.non_pooler:
+                        batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
+                    
                 out = self.model(batch)
                 loss = out.loss
 
@@ -74,8 +85,16 @@ class Trainer():
             # if (q, p) is already in the df, just return the answer
             df_in_data = dataset.df.loc[(dataset.df["Question"] == question) & (dataset.df["Paragraph"] == p)]
             if (len(df_in_data) != 0):
-                assert len(df_in_data) == 1
-                df_kb = pd.concat([df_kb, df_in_data], axis = 0).reset_index(drop = True)
+                try:
+                    assert len(df_in_data) == 1
+                    df_kb = pd.concat([df_kb, df_in_data], axis = 0).reset_index(drop = True)
+                except:
+                    print(len(df_in_data))
+                    print(type(df_in_data))
+                    print(df_in_data.to_dict())
+                    raise 
+                # assert len(df_in_data) == 1
+                # df_kb = pd.concat([df_kb, df_in_data], axis = 0).reset_index(drop = True)
             else:
                 # Unnamed: 0	Theme	Paragraph	Question	Answer_possible	Answer_text	Answer
                 # kb_dict = {"Unnamed: 0": id, "Question": question, ""}
@@ -100,6 +119,9 @@ class Trainer():
 
     def inference(self, dataset, dataloader):
         # TODO: use only dataset (applying transforms as done in collate_fn here itself)
+        self.model.to(self.config.inference_device)
+        self.device = self.config.inference_device
+        self.model.device = self.config.inference_device
 
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
         tepoch.set_description("Inference Step")
@@ -134,6 +156,7 @@ class Trainer():
                 # print(q_para_ids)
                 # print(len(df_kb))
 
+                # TODO: keep more than 1 question per dataloader for max util
                 temp_ds = SQuAD_Dataset(dataset.config, df_kb, dataset.tokenizer)
                 temp_dataloader = DataLoader(temp_ds, batch_size=dataset.config.data.val_batch_size, collate_fn=temp_ds.collate_fn)
 
@@ -142,6 +165,12 @@ class Trainer():
                 # loop for iterating over question para pairs to extract paras
                 for qp_batch_id, qp_batch in enumerate(temp_dataloader):
                     start_time = time.time()
+                    if (len(qp_batch["question_context_input_ids"].shape) == 1):
+                        qp_batch["question_context_input_ids"] = qp_batch["question_context_input_ids"].unsqueeze(dim=0)
+                        qp_batch["question_context_attention_mask"] = qp_batch["question_context_attention_mask"].unsqueeze(dim=0)
+                        if not self.config.model.non_pooler:
+                            qp_batch["question_context_token_type_ids"] = qp_batch["question_context_token_type_ids"].unsqueeze(dim=0)
+                    
                     pred = self.predict(qp_batch)
 
                     offset_mappings_list = qp_batch["question_context_offset_mapping"]

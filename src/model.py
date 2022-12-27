@@ -11,15 +11,21 @@ class BaselineQA(nn.Module):
         self.device = device
 
     def forward(self, batch):
-        if (len(batch["question_context_input_ids"].shape) == 1):
-            batch["question_context_input_ids"] = batch["question_context_input_ids"].unsqueeze(dim=0)
-            batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
-            batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
+        # if (len(batch["question_context_input_ids"].shape) == 1):
+        #     batch["question_context_input_ids"] = batch["question_context_input_ids"].unsqueeze(dim=0)
+        #     batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
+        #     batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
 
-        out = self.model(input_ids = batch["question_context_input_ids"].to(self.device), 
-                        attention_mask = batch["question_context_attention_mask"].to(self.device),
-                        token_type_ids = batch["question_context_token_type_ids"].to(self.device),
-                        start_positions = batch["start_positions"].to(self.device),
-                        end_positions = batch["end_positions"].to(self.device))
+        if not self.config.model.non_pooler:
+            out = self.model(input_ids = batch["question_context_input_ids"].to(self.device), 
+                            attention_mask = batch["question_context_attention_mask"].to(self.device),
+                            token_type_ids = batch["question_context_token_type_ids"].to(self.device),
+                            start_positions = batch["start_positions"].to(self.device),
+                            end_positions = batch["end_positions"].to(self.device))
+        else:
+            out = self.model(input_ids = batch["question_context_input_ids"].to(self.device), 
+                            attention_mask = batch["question_context_attention_mask"].to(self.device),
+                            start_positions = batch["start_positions"].to(self.device),
+                            end_positions = batch["end_positions"].to(self.device))
 
         return out  
