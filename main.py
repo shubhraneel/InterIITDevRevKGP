@@ -83,11 +83,8 @@ if __name__ == "__main__":
 		print(f"QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
 	
 	else:
-		train_ds 			= SQuAD_Dataset(config, df_train, tokenizer)
-		print("length of train dataset: {}".format(train_ds.__len__()))
-
 		print("Creating pytorch train dataseet")
-		train_ds 			= SQuAD_Dataset(config, df_train, tokenizer)
+		train_ds 			= SQuAD_Dataset(config, df_train_alias, tokenizer)
 		print("length of train dataset: {}".format(train_ds.__len__()))
 
 		print("Creating pytorch val dataseet")
