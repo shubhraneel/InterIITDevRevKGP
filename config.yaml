@@ -13,7 +13,7 @@ data:
   doc_stride: 128
 
 training:
-  epochs: 3
+  epochs: 1
   optimizer: adam
   lr: 0.00002
   sched_function: none

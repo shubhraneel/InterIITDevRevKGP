@@ -130,6 +130,7 @@ class Trainer():
         predicted_answers = []
         gold_answers = []
 
+        # TODO: is this time calculation correct?
         for batch_idx, batch in enumerate(tepoch):
             
             # list of titles in the batch 
@@ -202,6 +203,8 @@ class Trainer():
                     total_time_per_question += (time.time() - start_time)
                     total_time_per_question_list.append(total_time_per_question)
 
+        print(total_time_per_question_list)
+
         results = {
                     "mean_time_per_question": np.mean(np.array(total_time_per_question_list)),
                     "predicted_answers": predicted_answers,
@@ -240,8 +243,10 @@ class Trainer():
         classification_prediction = [1 if (len(results["predicted_answers"][i]) != 0) else 0 for i in range(len(results["predicted_answers"])) ] 
         classification_actual = [1 if (len(results["gold_answers"][i]) != 0) else 0 for i in range(len(results["gold_answers"])) ] 
         classification_f1 = sklearn.metrics.f1_score(classification_actual, classification_prediction)
+        classification_accuracy = sklearn.metrics.accuracy_score(classification_actual, classification_prediction)
 
         metrics = {
+            "classification_accuracy": classification_accuracy,
             "classification_f1": classification_f1,
             "mean_squad_f1": mean_squad_f1,
             "mean_time_per_question (ms)": results["mean_time_per_question"]*1000,
