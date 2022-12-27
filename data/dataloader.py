@@ -50,7 +50,7 @@ class SQuAD_Dataset(Dataset):
 			for key in tokenized_keys:
 				self.data[key].extend(tokenized_inputs[key])
 
-		self.id_data_map = self._get_id_data_mapping()
+		# self.id_data_map = self._get_id_data_mapping()
 
 	# Dataset
 	# Copy of dataset
@@ -66,72 +66,58 @@ class SQuAD_Dataset(Dataset):
 		map = {title: [i for i in range(len(self.data["title"])) if title == self.data["title"][i]] for title in title_list}
 		
 		return map
-		# for title in title_list:
 
+	# def _get_id_data_mapping(self):
 
-		# self.data_dict["title"] = [list of all the titles] == "title"
-
-		# map = {}
-		# for id in range(len(self.df)):
-		# 	title = self.df["Theme"][id]
-		# 	if title not in map.keys():
-		# 		map[title] = [id]
-		# 	else:
-		# 		map[title].append(id)
-
-		# return map
-
-	def _get_id_data_mapping(self):
-
-		map = {id: {"start_positions": None,
-					"end_positions": None,
-					"answerable": None,
-					"question_context_input_ids": None,
-					"question_context_attention_mask": None,
-					"question_context_token_type_ids": None,
-					"title_input_ids": None,
-					"title_attention_mask": None,
-					"title_token_type_ids": None,
-					"context_input_ids": None,
-					"context_attention_mask": None,
-					"context_token_type_ids": None,
-					"question_input_ids": None,
-					"question_attention_mask": None,
-					"question_token_type_ids": None,
-					"answers": None,
-					"context": None,
-					"question": None,
-					"title": None,
-					} for id in range(self.__len__())}
+	# 	map = {id: {"start_positions": None,
+	# 				"end_positions": None,
+	# 				"answerable": None,
+	# 				"question_context_input_ids": None,
+	# 				"question_context_attention_mask": None,
+	# 				"question_context_token_type_ids": None,
+	# 				"title_input_ids": None,
+	# 				"title_attention_mask": None,
+	# 				"title_token_type_ids": None,
+	# 				"context_input_ids": None,
+	# 				"context_attention_mask": None,
+	# 				"context_token_type_ids": None,
+	# 				"question_input_ids": None,
+	# 				"question_attention_mask": None,
+	# 				"question_token_type_ids": None,
+	# 				"answers": None,
+	# 				"context": None,
+	# 				"question": None,
+	# 				"title": None,
+	# 				} for id in range(self.__len__())}
 		
-		for id in tqdm(map):
+	# 	for id in tqdm(map):
 		
-			map[id]["start_positions"] = self.data["start_positions"][id]
-			map[id]["end_positions"] = self.data["end_positions"][id]
-			map[id]["answerable"] = self.data["answerable"][id]
+	# 		map[id]["start_positions"] = self.data["start_positions"][id]
+	# 		map[id]["end_positions"] = self.data["end_positions"][id]
+	# 		map[id]["answerable"] = self.data["answerable"][id]
 
-			map[id]["question_context_input_ids"] = self.data["question_context_input_ids"][id]
-			map[id]["question_context_attention_mask"] = self.data["question_context_attention_mask"][id]
-			map[id]["question_context_token_type_ids"] = self.data["question_context_token_type_ids"][id]
+	# 		map[id]["question_context_input_ids"] = self.data["question_context_input_ids"][id]
+	# 		map[id]["question_context_attention_mask"] = self.data["question_context_attention_mask"][id]
+	# 		map[id]["question_context_token_type_ids"] = self.data["question_context_token_type_ids"][id]
 			
-			map[id]["title_input_ids"] = self.data["title_input_ids"][id]
-			map[id]["title_attention_mask"] = self.data["title_attention_mask"][id]
-			map[id]["title_token_type_ids"] = self.data["title_token_type_ids"][id]
+	# 		map[id]["title_input_ids"] = self.data["title_input_ids"][id]
+	# 		map[id]["title_attention_mask"] = self.data["title_attention_mask"][id]
+	# 		map[id]["title_token_type_ids"] = self.data["title_token_type_ids"][id]
 
-			map[id]["context_input_ids"] = self.data["context_input_ids"][id]
-			map[id]["context_attention_mask"] = self.data["context_attention_mask"][id]
-			map[id]["context_token_type_ids"] = self.data["context_token_type_ids"][id]
+	# 		map[id]["context_input_ids"] = self.data["context_input_ids"][id]
+	# 		map[id]["context_attention_mask"] = self.data["context_attention_mask"][id]
+	# 		map[id]["context_token_type_ids"] = self.data["context_token_type_ids"][id]
 
-			map[id]["question_input_ids"] = self.data["question_input_ids"][id]
-			map[id]["question_attention_mask"] = self.data["question_attention_mask"][id]
-			map[id]["question_token_type_ids"] = self.data["question_token_type_ids"][id]
+	# 		map[id]["question_input_ids"] = self.data["question_input_ids"][id]
+	# 		map[id]["question_attention_mask"] = self.data["question_attention_mask"][id]
+	# 		map[id]["question_token_type_ids"] = self.data["question_token_type_ids"][id]
 
-			map[id]["answers"] = self.data["answers"][id]
-			map[id]["context"] = self.data["context"][id]
-			map[id]["question"] = self.data["question"][id]
-			map[id]["title"] = self.data["title"][id]
+	# 		map[id]["answers"] = self.data["answers"][id]
+	# 		map[id]["context"] = self.data["context"][id]
+	# 		map[id]["question"] = self.data["question"][id]
+	# 		map[id]["title"] = self.data["title"][id]
 			
-		return map
+	# 	return map
 
 	def _tokenize_train(self, examples):
 		# Some of the questions have lots of whitespace on the left, which is not useful and will make the
@@ -165,11 +151,13 @@ class SQuAD_Dataset(Dataset):
 		# Let's label those examples!
 		inputs["start_positions"] = []
 		inputs["end_positions"] = []
+		inputs["answerable"] = []
 
 		for i, offsets in enumerate(offset_mapping):
 			# We will label impossible answers with the index of the CLS token.
 			input_ids = inputs["input_ids"][i]
-			cls_index = input_ids.index(tokenizer.cls_token_id)
+			# cls_index = (input_ids == 2).nonzero(as_tuple = True)[0]
+			cls_index = input_ids.index(self.tokenizer.cls_token_id)
 
 			# Grab the sequence corresponding to that example (to know what is the context and what is the question).
 			sequence_ids = inputs.sequence_ids(i)
@@ -181,19 +169,21 @@ class SQuAD_Dataset(Dataset):
 			if len(answers["answer_start"]) == 0:
 				inputs["start_positions"].append(cls_index)
 				inputs["end_positions"].append(cls_index)
+				inputs["answerable"].append(0)
 			else:
+				inputs["answerable"].append(1)
 				# Start/end character index of the answer in the text.
 				start_char = answers["answer_start"][0]
 				end_char = start_char + len(answers["text"][0])
 
 				# Start token index of the current span in the text.
 				token_start_index = 0
-				while sequence_ids[token_start_index] != (1 if pad_on_right else 0):
+				while sequence_ids[token_start_index] != (1 if self.config.data.pad_on_right else 0):
 					token_start_index += 1
 
 				# End token index of the current span in the text.
 				token_end_index = len(input_ids) - 1
-				while sequence_ids[token_end_index] != (1 if pad_on_right else 0):
+				while sequence_ids[token_end_index] != (1 if self.config.data.pad_on_right else 0):
 					token_end_index -= 1
 
 				# Detect if the answer is out of the span (in which case this feature is labeled with the CLS index).
@@ -244,6 +234,9 @@ class SQuAD_Dataset(Dataset):
 					Create this in the init method and store as soon as we get the dataframe 
 	"""
 
+	def _tokenize_test(self, examples):
+		pass
+
 	def __len__(self):
 		return len(self.data["question"])
 
@@ -269,9 +262,9 @@ class SQuAD_Dataset(Dataset):
 			"question_token_type_ids":              torch.stack([x["question_token_type_ids"] for x in items], dim=0).squeeze(),
 
 	        # TODO: eliminate this here, use torch to concatenate q and p in model forward function
-			"question_context_input_ids":           torch.stack([x["question_context_input_ids"] for x in items], dim=0).squeeze(),
-			"question_context_attention_mask":      torch.stack([x["question_context_attention_mask"] for x in items], dim=0).squeeze(),
-			"question_context_token_type_ids":      torch.stack([x["question_context_token_type_ids"] for x in items], dim=0).squeeze(),
+			"question_context_input_ids":           torch.stack([torch.tensor(x["question_context_input_ids"]) for x in items], dim=0).squeeze(),
+			"question_context_attention_mask":      torch.stack([torch.tensor(x["question_context_attention_mask"]) for x in items], dim=0).squeeze(),
+			"question_context_token_type_ids":      torch.stack([torch.tensor(x["question_context_token_type_ids"]) for x in items], dim=0).squeeze(),
 
 			"answerable":                           torch.stack([x["answerable"] for x in items], dim=0),
 			"start_positions":                      torch.stack([x["start_positions"] for x in items], dim=0),

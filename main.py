@@ -10,7 +10,9 @@ from config import Config
 from utils import set_seed
 from utils import create_alias
 from data import SQuAD_Dataset
-from src import AutoModel_Classifier_QA
+from src import BaselineQA
+from utils import Trainer
+import torch
 
 from pytorch_lightning.loggers import WandbLogger
 from data import SQuAD_Dataset_fewshot
@@ -27,8 +29,8 @@ if __name__ == "__main__":
 	args = parser.parse_args()
 	with open(args.config) as f:
 		config = yaml.safe_load(f)
-		wandb_logger = WandbLogger(name=config['wandb'], project='interiit-devrev')
-		wandb_logger.experiment.config.update(config)
+		# wandb_logger = WandbLogger(name=config['wandb'], project='interiit-devrev')
+		# wandb_logger.experiment.config.update(config)
 		config = Config(**config)
 
 	set_seed(config.seed)
@@ -51,6 +53,8 @@ if __name__ == "__main__":
 	
 	tokenizer = AutoTokenizer.from_pretrained(config.model.model_path, TOKENIZERS_PARALLELISM=True, model_max_length=512, padding="max_length") # add local_files_only=local_files_only if using server
 
+	device = "cuda" if torch.cuda.is_available() else "cpu"
+
 	df_train_alias = create_alias(df_train,config.data.alias_flag)
 
 	mask_token = tokenizer.mask_token
@@ -71,6 +75,7 @@ if __name__ == "__main__":
 
 		qa_f1, ttime_per_example = model.few_shot_calculate_metrics(test_dataloader)
 		print(f"QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
+	
 	else:
 		train_ds = SQuAD_Dataset(config, df_train_alias, tokenizer)
 		val_ds = SQuAD_Dataset(config, df_val, tokenizer)
@@ -79,13 +84,21 @@ if __name__ == "__main__":
 		train_dataloader = DataLoader(train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
 		val_dataloader = DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
 		test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
-		model = AutoModel_Classifier_QA(config, tokenizer=tokenizer, logger=wandb_logger)
+		
+		model = BaselineQA(config, device).to(device)
+		model.to(device)
 
-		model.__train__(train_dataloader)
-		model.__inference__(test_dataloader)
+		optimizer = torch.optim.Adam(model.parameters(), lr = config.training.lr)
+		trainer = Trainer(config, model, optimizer, device)
+
+		trainer.train(train_dataloader)
+
+		# model = AutoModel_Classifier_QA(config, tokenizer=tokenizer, logger=wandb_logger)
+		# model.__train__(train_dataloader)	
+		# model.__inference__(test_dataloader)
 	
-		classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
-		print(f"Classification F1: {classification_f1}, QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
+		# classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
+		# print(f"Classification F1: {classification_f1}, QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
 	
 
 		
