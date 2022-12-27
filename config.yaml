@@ -4,9 +4,9 @@ wandb: v0
 fewshot_qa: False
 
 data:
-  data_path: data-dir/df_sample.csv
+  data_path: ../data-dir/df_sample.csv
   test_size: 0.2
-  train_batch_size: 8
+  train_batch_size: 4
   val_batch_size: 2
   alias_flag: 0
   pad_on_right: True
