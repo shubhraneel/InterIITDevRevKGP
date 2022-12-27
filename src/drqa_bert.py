@@ -25,7 +25,7 @@ class CustomDataset(Dataset):
         batch = {key: torch.stack([x[key] for x in items], dim=0) for key in keys}
         return batch
 
-def evaluate_endtoend(retriever, qa, dataset, tokenized_paragraphs, tokenizer, k=3):
+def evaluate_endtoend(retriever, qa, dataset, paragraphs, tokenizer, k=3):
     
     paragraph_ids_all = retriever.predict(dataset["question"], dataset["theme_id"], k=k)
     dataset["question_id"] = dataset.index
@@ -39,6 +39,15 @@ def evaluate_endtoend(retriever, qa, dataset, tokenized_paragraphs, tokenizer, k
             return_tensors="pt",
             return_token_type_ids=True
         )
+    tokenized_paragraphs = {key: tokenizer(
+        paragraph,
+        max_length=512,
+        truncation="only_second",
+        return_offsets_mapping=True,
+        padding="max_length",
+        return_tensors="pt",
+        return_token_type_ids=True
+    ) for key, paragraph in paragraphs.items()}
     dataset["question_input_ids"] = questions_tokenized.pop("input_ids")
     dataset["question_attention_mask"] = questions_tokenized.pop("attention_mask")
 
@@ -61,20 +70,45 @@ def evaluate_endtoend(retriever, qa, dataset, tokenized_paragraphs, tokenizer, k
     qp_dataset = CustomDataset(new_dataset)
     qp_dataloader = DataLoader(qp_dataset, batch_size=16)
     dataset["preds"] = [[] for _ in range(len(dataset))]
+    tot_len = 0
     for batch_idx, batch in enumerate(qp_dataloader):
+        start_time = time.time()
         preds = qa.predict(batch)
         pred_start_index = torch.argmax(preds.start_logits, axis=1)
         pred_end_index = torch.argmax(preds.end_logits, axis=1)
         for idx in range(len(batch)):
+            start_char = batch["context_offset_mapping"][idx][pred_start_index[idx]][0]
+            end_char = batch["context_offset_mapping"][idx][pred_end_index[idx]][1]
+            pred_answer = paragraphs[batch["paragraph_id"][idx]][start_char:end_char]
             dataset["preds"][batch["question_id"][idx]].append(
                 {
                     "pred_start_index": pred_start_index[idx],
                     "pred_end_index": pred_end_index[idx],
                     "pred_start_logit": preds.start_logits[idx][pred_start_index[idx]],
                     "pred_end_logit": preds.end_logits[idx][pred_end_index[idx]],
-                    "paragraph_id": batch["paragraph_id"][idx]
+                    "paragraph_id": batch["paragraph_id"][idx],
+                    "pred_answer": pred_answer
                 }
             )
+        time_spent = time.time() - start_time
+        tot_len += len(batch["question_id"])
+        time_total += time_spent
+
+    mean_time = time_total/tot_len
+    
+    def choose_best(list_preds):
+        id_max = argmax([pred["pred_start_logit"] + pred["pred_end_logit"] for pred in list_preds])
+        pred_answer = list_preds[id_max]["pred_answer"]
+        return pred_answer
+
+    dataset["pred_answer"] = dataset["preds"].map(choose_best)
+
+    return {
+        "mean_time_per_question": mean_time,
+        "gold_answers": list(dataset["answer"]),
+        "predicted_answers": list(dataset["pred_answer"])
+    }
+
 
 
     
