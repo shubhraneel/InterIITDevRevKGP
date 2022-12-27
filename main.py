@@ -55,8 +55,6 @@ if __name__ == "__main__":
 
 	mask_token = tokenizer.mask_token
 
-	
-
 	if config.fewshot_qa:
 		train_ds = SQuAD_Dataset_fewshot(config, df_train_alias, tokenizer, mask_token)
 		val_ds = SQuAD_Dataset_fewshot(config, df_val, tokenizer, mask_token)
