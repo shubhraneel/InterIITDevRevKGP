@@ -71,16 +71,15 @@ class SQuAD_Dataset(Dataset):
 		# Tokenize our examples with truncation and padding, but keep the overflows using a stride. This results
 		# in one example possible giving several features when a context is long, each of those features having a
 		# context that overlaps a bit the context of the previous feature.
-		inputs = tokenizer(
-			examples["question" if pad_on_right else "context"],
-			examples["context" if pad_on_right else "question"],
-			truncation="only_second" if pad_on_right else "only_first",
-			max_length=max_length,
-			stride=doc_stride,
+		inputs = self.tokenizer(
+			examples["question" if self.config.data.pad_on_right else "context"],
+			examples["context" if self.config.data.pad_on_right else "question"],
+			truncation="only_second" if self.config.data.pad_on_right else "only_first",
+			max_length=self.config.data.max_length,
+			stride=self.config.data.doc_stride,
 			return_overflowing_tokens=True,
 			return_offsets_mapping=True,
 			padding="max_length",
-			return_tensors="pt",
 			return_token_type_ids=True
 		)
 
@@ -173,19 +172,19 @@ class SQuAD_Dataset(Dataset):
 			inputs["question_context_token_type_ids"] 	= inputs.pop("token_type_ids")
 		inputs["question_context_offset_mapping"] 	= inputs.pop("offset_mapping")
 
-		title_tokenized 							= self.tokenizer(examples["title"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")
+		title_tokenized 							= self.tokenizer(examples["title"], max_length=self.config.data.max_length, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")
 		inputs["title_input_ids"] 					= title_tokenized["input_ids"]
 		inputs["title_attention_mask"] 				= title_tokenized["attention_mask"]
 		if not self.config.model.non_pooler:
 			inputs["title_token_type_ids"] 				= title_tokenized["token_type_ids"]
 
-		context_tokenized							= self.tokenizer(examples["context"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
+		context_tokenized							= self.tokenizer(examples["context"], max_length=self.config.data.max_length, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
 		inputs["context_input_ids"] 				= context_tokenized["input_ids"]
 		inputs["context_attention_mask"] 			= context_tokenized["attention_mask"]
 		if not self.config.model.non_pooler:
 			inputs["context_token_type_ids"] 			= context_tokenized["token_type_ids"]
 
-		question_tokenized 							= self.tokenizer(examples["question"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
+		question_tokenized 							= self.tokenizer(examples["question"], max_length=self.config.data.max_length, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
 		inputs["question_input_ids"] 				= question_tokenized["input_ids"]
 		inputs["question_attention_mask"] 			= question_tokenized["attention_mask"]
 		if not self.config.model.non_pooler:
@@ -201,83 +200,6 @@ class SQuAD_Dataset(Dataset):
 					May be create a list of paragraphs corresponding to each theme, if we get a theme, just call that list. (efficient)
 					Create this in the init method and store as soon as we get the dataframe 
 	"""
-
-	def _tokenize_test(self, examples):
-		# Some of the questions have lots of whitespace on the left, which is not useful and will make the
-		# truncation of the context fail (the tokenized question will take a lots of space). So we remove that
-		# left whitespace
-		examples["question"] = [q.lstrip() for q in examples["question"]]
-
-		# Tokenize our examples with truncation and maybe padding, but keep the overflows using a stride. This results
-		# in one example possible giving several features when a context is long, each of those features having a
-		# context that overlaps a bit the context of the previous feature.
-		inputs = self.tokenizer(
-			examples["question" if self.config.data.pad_on_right else "context"],
-			examples["context" if self.config.data.pad_on_right else "question"],
-			truncation="only_second" if self.config.data.pad_on_right else "only_first",
-			max_length=self.config.data.max_length,
-			stride=self.config.data.doc_stride,
-			return_overflowing_tokens=True,
-			return_offsets_mapping=True,
-			padding="max_length",
-		)
-
-		# Since one example might give us several features if it has a long context, we need a map from a feature to
-		# its corresponding example. This key gives us just that.
-		sample_mapping = inputs.pop("overflow_to_sample_mapping")
-
-		# The offset mappings will give us a map from token to character position in the original context. This will
-		# help us compute the start_positions and end_positions.
-		offset_mapping = inputs["offset_mapping"]
-		
-		# We keep the example_id that gave us this feature and we will store the offset mappings.
-		inputs["example_id"] = []
-
-		for i in range(len(inputs["input_ids"])):
-			# Grab the sequence corresponding to that example (to know what is the context and what is the question).
-			sequence_ids = inputs.sequence_ids(i)
-			context_index = 1 if self.config.data.pad_on_right else 0
-
-			# One example can give several spans, this is the index of the example containing this span of text.
-			sample_index = sample_mapping[i]
-			inputs["example_id"].append(examples["id"][sample_index])
-
-			# Set to None the offset_mapping that are not part of the context so it's easy to determine if a token
-			# position is part of the context or not.
-			inputs["offset_mapping"][i] = [
-				(o if sequence_ids[k] == context_index else None)
-				for k, o in enumerate(inputs["offset_mapping"][i])
-			]
-
-		inputs["start_positions"] 					= torch.tensor(inputs["start_positions"])
-		inputs["end_positions"] 					= torch.tensor(inputs["end_positions"])
-		inputs["answerable"] 						= torch.tensor(inputs["answerable"])
-
-		inputs["question_context_input_ids"] 		= inputs.pop("input_ids")
-		inputs["question_context_attention_mask"] 	= inputs.pop("attention_mask")
-		if not self.config.model.non_pooler:
-			inputs["question_context_token_type_ids"] 	= inputs.pop("token_type_ids")
-		inputs["question_context_offset_mapping"] 	= inputs.pop("offset_mapping")
-
-		title_tokenized 							= self.tokenizer(examples["title"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")
-		inputs["title_input_ids"] 					= title_tokenized["input_ids"]
-		inputs["title_attention_mask"] 				= title_tokenized["attention_mask"]
-		if not self.config.model.non_pooler:
-			inputs["title_token_type_ids"] 				= title_tokenized["token_type_ids"]
-
-		context_tokenized							= self.tokenizer(examples["context"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
-		inputs["context_input_ids"] 				= context_tokenized["input_ids"]
-		inputs["context_attention_mask"] 			= context_tokenized["attention_mask"]
-		if not self.config.model.non_pooler:
-			inputs["context_token_type_ids"] 			= context_tokenized["token_type_ids"]
-
-		question_tokenized 							= self.tokenizer(examples["question"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
-		inputs["question_input_ids"] 				= question_tokenized["input_ids"]
-		inputs["question_attention_mask"] 			= question_tokenized["attention_mask"]
-		if not self.config.model.non_pooler:
-			inputs["question_token_type_ids"] 			= question_tokenized["token_type_ids"]
-
-		return inputs
 
 	def __len__(self):
 		return len(self.data["question"])
@@ -303,7 +225,6 @@ class SQuAD_Dataset(Dataset):
 				"question_attention_mask":              torch.stack([x["question_attention_mask"] for x in items], dim=0).squeeze(),
 				"question_token_type_ids":              torch.stack([x["question_token_type_ids"] for x in items], dim=0).squeeze(),
 
-				# TODO: eliminate this here, use torch to concatenate q and p in model forward function
 				"question_context_input_ids":           torch.stack([torch.tensor(x["question_context_input_ids"]) for x in items], dim=0).squeeze(),
 				"question_context_attention_mask":      torch.stack([torch.tensor(x["question_context_attention_mask"]) for x in items], dim=0).squeeze(),
 				"question_context_token_type_ids":      torch.stack([torch.tensor(x["question_context_token_type_ids"]) for x in items], dim=0).squeeze(),
@@ -331,7 +252,6 @@ class SQuAD_Dataset(Dataset):
 				"question_input_ids":                   torch.stack([x["question_input_ids"] for x in items], dim=0).squeeze(),
 				"question_attention_mask":              torch.stack([x["question_attention_mask"] for x in items], dim=0).squeeze(),
 
-				# TODO: eliminate this here, use torch to concatenate q and p in model forward function
 				"question_context_input_ids":           torch.stack([torch.tensor(x["question_context_input_ids"]) for x in items], dim=0).squeeze(),
 				"question_context_attention_mask":      torch.stack([torch.tensor(x["question_context_attention_mask"]) for x in items], dim=0).squeeze(),
 				"question_context_offset_mapping":      [x["question_context_offset_mapping"] for x in items],

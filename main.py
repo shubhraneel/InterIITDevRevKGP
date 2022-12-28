@@ -12,7 +12,6 @@ from pytorch_lightning.loggers import WandbLogger
 
 from config import Config
 from utils import set_seed
-from utils import create_alias
 from data import SQuAD_Dataset
 from src import BaselineQA
 from utils import Trainer
@@ -61,15 +60,13 @@ if __name__ == "__main__":
 
 	device = "cuda" if torch.cuda.is_available() else "cpu"
 
-	df_train_alias = create_alias(df_train,config.data.alias_flag)
-
-	# trainer.train(train_dataloader, val_dataloader)
-	# calculate_metrics(test_ds, test_dataloader, wandb_logger)
-	test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
-	print(test_metrics)
+	if (config.data.apply_aliasing):
+		print("Applying aliasing on train data")
+		from utils.aliasing import create_alias
+		df_train = create_alias(df_train)
 
 	if config.fewshot_qa:
-		train_ds = SQuAD_Dataset_fewshot(config, df_train_alias, tokenizer, mask_token)
+		train_ds = SQuAD_Dataset_fewshot(config, df_train, tokenizer, mask_token)
 		val_ds = SQuAD_Dataset_fewshot(config, df_val, tokenizer, mask_token)
 		test_ds = SQuAD_Dataset_fewshot(config, df_test, tokenizer, mask_token)
 
@@ -86,15 +83,15 @@ if __name__ == "__main__":
 		print(f"QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
 	
 	else:
-		print("Creating pytorch train dataseet")
-		train_ds 			= SQuAD_Dataset(config, df_train_alias, tokenizer)
+		print("Creating train dataset")
+		train_ds 			= SQuAD_Dataset(config, df_train, tokenizer)
 		print("length of train dataset: {}".format(train_ds.__len__()))
 
-		print("Creating pytorch val dataseet")
+		print("Creating val dataset")
 		val_ds 				= SQuAD_Dataset(config, df_val, tokenizer)
 		print("length of val dataset: {}".format(val_ds.__len__()))
 
-		print("Creating pytorch test dataseet")
+		print("Creating test dataset")
 		test_ds 			= SQuAD_Dataset(config, df_test, tokenizer)
 		print("length of test dataset: {}".format(test_ds.__len__()))
 
@@ -102,21 +99,15 @@ if __name__ == "__main__":
 		val_dataloader 		= DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
 		test_dataloader 	= DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
 
-		device = "cuda" if torch.cuda.is_available() else "cpu"
-
 		model = BaselineQA(config, device).to(device)
 		optimizer = torch.optim.Adam(model.parameters(), lr = config.training.lr)
 		trainer = Trainer(config, model, optimizer, device)
 
 		trainer.train(train_dataloader, val_dataloader)
+
 		# calculate_metrics(test_ds, test_dataloader, wandb_logger)
 		test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
 		print(test_metrics)
-
-		optimizer = torch.optim.Adam(model.parameters(), lr = config.training.lr)
-		trainer = Trainer(config, model, optimizer, device)
-
-		trainer.train(train_dataloader)
 
 		# model = AutoModel_Classifier_QA(config, tokenizer=tokenizer, logger=wandb_logger)
 		# model.__train__(train_dataloader)	
