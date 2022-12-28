@@ -167,7 +167,7 @@ class Trainer():
                 # create knowledge base dataframe containing all paragraphs of the same theme as q
                 df_kb = self._create_inference_df(question, dataset, paragraphs, q_id)
 
-                # TODO: keep more than 1 question per dataloader for max util
+                # TODO: keep more than 1 question per dataloader for max util (keep stride = k in line 143)
                 temp_ds = SQuAD_Dataset(dataset.config, df_kb, dataset.tokenizer, hide_tqdm=True)
                 temp_dataloader = DataLoader(temp_ds, batch_size=dataset.config.data.val_batch_size, collate_fn=temp_ds.collate_fn)
 

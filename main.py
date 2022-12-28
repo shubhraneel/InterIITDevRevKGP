@@ -75,38 +75,42 @@ if __name__ == "__main__":
 
 		model = FewShotQA_Model(config, tokenizer=tokenizer)
 
-		model.__train__(train_dataloader)
-		model.__inference__(test_dataloader)
+		if (config.train):
+			model.__train__(train_dataloader)
+		
+		if (config.inference):
+			model.__inference__(test_dataloader)
 
 		qa_f1, ttime_per_example = model.few_shot_calculate_metrics(test_dataloader)
 		print(f"QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
 	
 	else:
-		print("Creating train dataset")
-		train_ds 			= SQuAD_Dataset(config, df_train, tokenizer)
-		print("length of train dataset: {}".format(train_ds.__len__()))
-
-		print("Creating val dataset")
-		val_ds 				= SQuAD_Dataset(config, df_val, tokenizer)
-		print("length of val dataset: {}".format(val_ds.__len__()))
-
-		print("Creating test dataset")
-		test_ds 			= SQuAD_Dataset(config, df_test, tokenizer)
-		print("length of test dataset: {}".format(test_ds.__len__()))
-
-		train_dataloader 	= DataLoader(train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
-		val_dataloader 		= DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
-		test_dataloader 	= DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
-
 		model 				= BaselineQA(config, device).to(device)
 		optimizer	 		= torch.optim.Adam(model.parameters(), lr=config.training.lr)
 		trainer 			= Trainer(config=config, model=model, optimizer=optimizer, device=device, tokenizer=tokenizer)
 
-		trainer.train(train_dataloader, val_dataloader)
+		if (config.train):
+			print("Creating train dataset")
+			train_ds 			= SQuAD_Dataset(config, df_train, tokenizer)
+			train_dataloader 	= DataLoader(train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
+			print("length of train dataset: {}".format(train_ds.__len__()))
 
-		# calculate_metrics(test_ds, test_dataloader, wandb_logger)
-		test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
-		print(test_metrics)
+			print("Creating val dataset")
+			val_ds 				= SQuAD_Dataset(config, df_val, tokenizer)
+			val_dataloader 		= DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
+			print("length of val dataset: {}".format(val_ds.__len__()))
+
+			trainer.train(train_dataloader, val_dataloader)
+
+		if (config.inference):
+			print("Creating test dataset")
+			test_ds 			= SQuAD_Dataset(config, df_test, tokenizer)
+			test_dataloader 	= DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
+			print("length of test dataset: {}".format(test_ds.__len__()))
+		
+			# calculate_metrics(test_ds, test_dataloader, wandb_logger)
+			test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
+			print(test_metrics)
 
 		# model = AutoModel_Classifier_QA(config, tokenizer=tokenizer, logger=wandb_logger)
 		# model.__train__(train_dataloader)	

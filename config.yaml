@@ -1,37 +1,39 @@
 task: qa
 seed: 3407
-wandb_path: v1-wandb-test
+wandb_path: v1-wandb-cpu-val-batch-32-full-data-inference-only
 fewshot_qa: False
 inference_device: cpu
+train: False
+inference: True
 
 data:
-  data_path: ../data-dir/df_sample.csv
-  test_size: 0.2
-  train_batch_size: 4
-  val_batch_size: 2
-  apply_aliasing: False
-  pad_on_right: True
-  max_length: 512
-  doc_stride: 128
-  tokenizer_batch_size: 32
+	data_path: ../data-dir/train_data.csv
+	test_size: 0.2
+	train_batch_size: 32
+	val_batch_size: 32
+	apply_aliasing: False
+	pad_on_right: True
+	max_length: 512
+	doc_stride: 128
+	tokenizer_batch_size: 32
 
 training:
-  epochs: 1
-  optimizer: adam
-  lr: 0.00002
-  sched_function: none
-  sched_func_params: {}
-  sched_params:
-    monitor: val_loss
-  train_reader: True
-  train_retriever: True
-  evaluate_every: 1
+	epochs: 1
+	optimizer: adam
+	lr: 0.00002
+	sched_function: none
+	sched_func_params: {}
+	sched_params:
+		monitor: val_loss
+	train_reader: True
+	train_retriever: True
+	evaluate_every: 1
 
 model:
-  model_path: mvonwyl/distilbert-base-uncased-finetuned-squad2
-  num_labels: 2
-  save_path: models/exp_bert/
-  params: {}
-  reader_path: null
-  retriever_path: null
-  non_pooler: True
+	model_path: mvonwyl/distilbert-base-uncased-finetuned-squad2
+	num_labels: 2
+	save_path: models/exp_bert/
+	params: {}
+	reader_path: null
+	retriever_path: null
+	non_pooler: True
