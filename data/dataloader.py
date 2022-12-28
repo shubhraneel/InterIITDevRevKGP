@@ -1,17 +1,15 @@
 import numpy as np
 import pandas as pd
-
-import torch
-from torch.utils.data import Dataset
-
-from data.preprocess import preprocess_fn
 from tqdm import tqdm
 
-from torch.utils.data import DataLoader
+import torch
+from torch.utils.data import Dataset, DataLoader
+
+from data.preprocess import preprocess_fn
 
 # TODO: memory optimization
 class SQuAD_Dataset(Dataset):
-	def __init__(self, config, df, tokenizer):
+	def __init__(self, config, df, tokenizer, hide_tqdm=False):
 		self.config = config
 
 		self.tokenizer = tokenizer
@@ -43,8 +41,7 @@ class SQuAD_Dataset(Dataset):
 		for key in tokenized_keys:
 			self.data[key] = []
 
-		# TODO: Parallelise in batches
-		for idx in tqdm(range(0, len(self.data["question"]), self.config.data.tokenizer_batch_size)):
+		for idx in tqdm(range(0, len(self.data["question"]), self.config.data.tokenizer_batch_size), disable=hide_tqdm):
 			example = {key: self.data[key][idx:idx+self.config.data.tokenizer_batch_size] for key in data_keys}
 
 			tokenized_inputs = self._tokenize(example)

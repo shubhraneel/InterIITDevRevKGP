@@ -1,8 +1,8 @@
 task: qa
 seed: 3407
-wandb: v0
+wandb_path: v1-wandb-test
 fewshot_qa: False
-inference_device: cuda
+inference_device: cpu
 
 data:
   data_path: ../data-dir/df_sample.csv
