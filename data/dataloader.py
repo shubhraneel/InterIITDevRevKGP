@@ -132,6 +132,11 @@ class SQuAD_Dataset(Dataset):
     question_answer_tokenized = self.tokenizer(examples["question_answer"], max_length=512, truncation="longest_first", padding="max_length", return_tensors="pt")
     inputs["question_answer_input_ids"] = question_answer_tokenized["input_ids"]
     inputs["question_answer_attention_mask"] = question_answer_tokenized["attention_mask"]
+
+    examples['answer_context'] = ["answer: " + answer + " context: " + context for answer, context in zip(answers, examples["context"])]
+    answer_context_tokenized = self.tokenizer(examples["answer_context"], max_length=512, truncation="longest_first", padding="max_length", return_tensors="pt")
+    inputs["answer_context_input_ids"] = answer_context_tokenized["input_ids"]
+    inputs["answer_context_attention_mask"] = answer_context_tokenized["attention_mask"]
     # inputs["question_answer_token_type_ids"] = question_answer_tokenized["token_type_ids"]
 
     return inputs
@@ -166,6 +171,8 @@ class SQuAD_Dataset(Dataset):
       # "answer_token_type_ids":              torch.stack([x["answer_token_type_ids"] for x in items], dim=0),
       "question_answer_input_ids":                   torch.stack([x["question_answer_input_ids"] for x in items], dim=0),
       "question_answer_attention_mask":              torch.stack([x["question_answer_attention_mask"] for x in items], dim=0),
+      "answer_context_input_ids":                   torch.stack([x["answer_context_input_ids"] for x in items], dim=0),
+      "answer_context_attention_mask":              torch.stack([x["answer_context_attention_mask"] for x in items], dim=0),
 
       # "answerable":                           torch.stack([x["answerable"] for x in items], dim=0),
       # "start_positions":                      torch.stack([x["start_positions"] for x in items], dim=0),
