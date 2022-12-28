@@ -63,7 +63,10 @@ if __name__ == "__main__":
 
 	df_train_alias = create_alias(df_train,config.data.alias_flag)
 
-	mask_token = tokenizer.mask_token
+	# trainer.train(train_dataloader, val_dataloader)
+	# calculate_metrics(test_ds, test_dataloader, wandb_logger)
+	test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
+	print(test_metrics)
 
 	if config.fewshot_qa:
 		train_ds = SQuAD_Dataset_fewshot(config, df_train_alias, tokenizer, mask_token)

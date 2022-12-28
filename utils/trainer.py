@@ -137,7 +137,7 @@ class Trainer():
             title = batch["title"]  
 
             # list of paragraph indices (in dataset.data) for each question in the batch
-            para_ids_batch = [dataset.theme_para_id_mapping[t] for t in title]    # List of para ids for each question in the batch
+            para_ids_batch = [dataset.theme_para_id_mapping[t] for t in title]
 
             # iterate over questions in the batch
             for question_idx in range(len(para_ids_batch)):
@@ -152,10 +152,8 @@ class Trainer():
                 # question id (primary key in df)
                 q_id = batch["id"][question_idx]
 
-                # create kb dataframe
+                # create knowledge base dataframe containing all paragraphs of the same theme as q
                 df_kb = self._create_inference_df(question, dataset, paragraphs, q_id)
-                # print(q_para_ids)
-                # print(len(df_kb))
 
                 # TODO: keep more than 1 question per dataloader for max util
                 temp_ds = SQuAD_Dataset(dataset.config, df_kb, dataset.tokenizer)
