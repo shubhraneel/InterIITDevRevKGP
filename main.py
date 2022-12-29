@@ -89,8 +89,8 @@ if __name__ == "__main__":
 		optimizer	 		= torch.optim.Adam(model.parameters(), lr=config.training.lr)
 
 		if (config.load_model_optimizer):
-			print("loading model and optimizer from checkpoints/{}/model_optimizer.pt".format(config.wandb_path))
-			checkpoint = torch.load("checkpoints/{}/model_optimizer.pt".format(config.wandb_path))
+			print("loading model and optimizer from checkpoints/{}/model_optimizer.pt".format(config.load_path))
+			checkpoint = torch.load("checkpoints/{}/model_optimizer.pt".format(config.load_path))
 			model.load_state_dict(checkpoint['model_state_dict'])
 			optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
@@ -120,12 +120,12 @@ if __name__ == "__main__":
 			print(test_metrics)
 		
 		if (config.save_model_optimizer):
-			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.wandb_path))
-			os.makedirs("checkpoints/{}/".format(config.wandb_path), exist_ok=True)
+			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
+			os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
 			torch.save({
             	'model_state_dict': model.state_dict(),
             	'optimizer_state_dict': optimizer.state_dict(),
-            }, "checkpoints/{}/model_optimizer.pt".format(config.wandb_path))
+            }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
 
 		# model = AutoModel_Classifier_QA(config, tokenizer=tokenizer, logger=wandb_logger)
 		# model.__train__(train_dataloader)	
