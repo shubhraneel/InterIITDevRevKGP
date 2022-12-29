@@ -2,9 +2,9 @@ task: qa
 seed: 3407
 wandb_path: v1-distilbert-squad2
 fewshot_qa: False
-inference_device: cpu
+inference_device: cuda
 train: True
-inference: False
+inference: True
 save_model_optimizer: True
 load_model_optimizer: False
 
@@ -22,7 +22,7 @@ data:
 	tokenizer_batch_size: 32
 
 training:
-	epochs: 3
+	epochs: 1
 	optimizer: adam
 	lr: 0.00002
 	sched_function: none
