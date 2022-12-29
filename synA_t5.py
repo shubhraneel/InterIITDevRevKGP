@@ -62,7 +62,7 @@ class AnswerGeneration(pl.LightningModule):
         return torch.stack(outs)
 
 tokenizer = T5Tokenizer.from_pretrained('t5-base', TOKENIZERS_PARALLELISM=True, model_max_length=512, padding="max_length")
-df = pd.read_csv('data-dir/train_data.csv')
+df = pd.read_json('data-dir/train_data.json', orient='records')
 df_train, df_test = train_test_split(df, test_size=0.2, random_state=3407)
 df_train, df_val = train_test_split(df_train, test_size=0.1, random_state=3407)
 

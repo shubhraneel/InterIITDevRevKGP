@@ -198,8 +198,8 @@ class AllAnswers_Dataset(Dataset):
             "answer_input_ids", "answer_attention_mask"
             ]
 
-    contexts = df.keys()
-    answers = [df[key]['answer'].join(' </s> ') for key in contexts]
+    contexts = list(df['context'])
+    answers = list(df['answers'].map(' </s> '.join))
     print(contexts[0])
     print(answers[0])
 
