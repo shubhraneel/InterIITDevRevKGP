@@ -172,7 +172,7 @@ class CoreNLPTokenizer(Tokenizer):
         self.corenlp = pexpect.spawn('/bin/bash', maxread=100000, timeout=60)
         self.corenlp.setecho(False)
         self.corenlp.sendline('stty -icanon')
-        # logger.info(' '.join(cmd))
+        # print(' '.join(cmd))
         self.corenlp.sendline(' '.join(cmd))
         self.corenlp.delaybeforesend = 0
         self.corenlp.delayafterread = 0
