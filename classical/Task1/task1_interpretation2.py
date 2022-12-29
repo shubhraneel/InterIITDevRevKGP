@@ -163,7 +163,7 @@ class RetrieverFinal(object):
         Finalize(self.PROCESS_DB, self.PROCESS_DB.close, exitpriority=100)
 
     def process(self, query, theme,  k=1):
-        doc_names, doc_scores = self.ranker.closest_docs(query,100000)
+        doc_names, doc_scores = self.ranker.closest_docs(query, 100000)
 
         # table = prettytable.PrettyTable(
         #     ['Rank', 'Doc Id', 'Doc Score']
@@ -171,13 +171,10 @@ class RetrieverFinal(object):
         # for i in range(len(doc_names)):
         #     table.add_row([i + 1, doc_names[i], '%.5g' % doc_scores[i]])
         # print(table)
+
+        doc_names_filtered = [doc for doc in doc_names if self.para_theme_id_dict[doc] == theme]
         
-        doc_names_filtered=[doc for doc in doc_names if str(self.para_theme_id_dict[doc])==theme]
-        # doc_names_filtered=[]
-        # for doc in doc_names:
-        #     if self.para_theme_id_dict[doc]==str(theme):
-        #         print(theme)
-        if len(doc_names_filtered)>k:
+        if len(doc_names_filtered) > k:
             return doc_names_filtered[0:k]
         return doc_names_filtered
         # return doc_names
@@ -189,7 +186,8 @@ class RetrieverFinal(object):
         num_answerable = 0
         top_3_contexts_ids = []
         for idx, row in self.df_q.iterrows():
-            doc_names = self.process(row['Question'], theme=str(row['theme_id']), k=3)
+            doc_names = self.process(
+                row['Question'], theme=str(row['theme_id']), k=3)
             top_3_contexts_ids.append(doc_names)
 
             if str(row['id']) in doc_names:
