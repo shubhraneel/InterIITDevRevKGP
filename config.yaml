@@ -14,7 +14,7 @@ data:
 	val_frac: 0.1
 	test_frac: 0.1
 	train_batch_size: 32
-	val_batch_size: 2
+	val_batch_size: 32
 	apply_aliasing: False
 	pad_on_right: True
 	max_length: 512
