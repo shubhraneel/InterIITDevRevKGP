@@ -187,3 +187,49 @@ class SQuAD_Dataset(Dataset):
     }
 
     return batch
+
+
+class AllAnswers_Dataset(Dataset):
+  def __init__(self, df, tokenizer):
+
+    self.tokenizer = tokenizer
+
+    self.tokenized_keys = ["context_input_ids", "context_attention_mask",
+            "answer_input_ids", "answer_attention_mask"
+            ]
+
+    contexts = df.keys()
+    answers = [df[key]['answer'].join(' </s> ') for key in contexts]
+    print(contexts[0])
+    print(answers[0])
+
+    self.inputs = {}
+    contexts_tokenized = self.tokenizer(contexts, max_length=512, truncation="longest_first", padding="max_length", return_tensors="pt")
+    self.inputs['context_input_ids'] = contexts_tokenized.pop('input_ids')
+    self.inputs['context_attention_mask'] = contexts_tokenized.pop('attention_mask')
+    answers_tokenized = self.tokenizer(answers, max_length=512, truncation="longest_first", padding="max_length", return_tensors="pt")
+    self.inputs['answer_input_ids'] = answers_tokenized.pop('input_ids')
+    self.inputs['answer_attention_mask'] = answers_tokenized.pop('attention_mask')
+
+
+  def __len__(self):
+    return len(self.inputs["context_input_ids"])
+
+  def __getitem__(self, idx):
+    return {key: self.inputs[key][idx] for key in self.inputs.keys()}
+
+  def collate_fn(self, items):
+    batch = {key: torch.stack([x[key] for x in items], dim=0) for key in self.tokenized_keys}
+
+      # "answerable":                           torch.stack([x["answerable"] for x in items], dim=0),
+      # "start_positions":                      torch.stack([x["start_positions"] for x in items], dim=0),
+      # "end_positions":                        torch.stack([x["end_positions"] for x in items], dim=0),
+
+      # "answer_input_ids":                   torch.stack([x["answer"]["input_ids"] for x in items], dim=0),
+      # "answer_attention_mask":              torch.stack([x["answer"]["attention_mask"] for x in items], dim=0),
+      # "answer_token_type_ids":              torch.stack([x["answer"]["token_type_ids"] for x in items], dim=0),
+
+      # "answer_start_idx":                   torch.stack([x["answer_start_idx"] for x in items], dim=0),
+      # "answer_encoded_start_idx":           torch.stack([x["answer_encoded_start_idx"] for x in items], dim=0),
+
+    return batch
