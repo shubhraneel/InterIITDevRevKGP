@@ -61,9 +61,11 @@ class Trainer():
             
             if ((val_dataloader is not None) and (((epoch + 1) % self.config.training.evaluate_every)) == 0):
                 self.evaluate(val_dataloader)
+                self.model.train()
 
 
     def evaluate(self, dataloader):
+        self.model.eval()
         total_loss = 0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
         tepoch.set_description("Validation Step")
@@ -213,6 +215,7 @@ class Trainer():
                     # TODO: remove offset_mapping etc. lookup from inference time (current calculation is the absolute worst case time)
                     total_time_per_question += (time.time() - start_time)
                     total_time_per_question_list.append(total_time_per_question)
+                    wandb.log({"inference_time_per_question": total_time_per_question})
 
         # print(total_time_per_question_list)
 

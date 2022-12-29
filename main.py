@@ -46,13 +46,13 @@ if __name__ == "__main__":
 	# TODO: Split the dataset in a way where training theme question-context pair should not be
 	# split into train/test/val. Keep it only in the train.
 	# Mixup allowed between val and test.
-	splitter = GroupShuffleSplit(train_size=(1-config.data.test_size)**2, n_splits=1, random_state=config.seed)
+	splitter = GroupShuffleSplit(train_size=config.data.train_frac, n_splits=1, random_state=config.seed)
 	split = splitter.split(df, groups=df['Theme'])
 	train_inds, val_inds = next(split)
 	df_train = df.iloc[train_inds]
 	df_val = df.iloc[val_inds]
 
-	df_val, df_test = train_test_split(df_val, test_size = (config.data.test_size)/(config.data.test_size*(1-config.data.test_size)+config.data.test_size), random_state=config.seed)
+	df_val, df_test = train_test_split(df_val, test_size=(config.data.test_frac/(config.data.test_frac + config.data.val_frac)), random_state=config.seed)
 	#df_train, df_test = train_test_split(df, test_size=config.data.test_size, random_state=config.seed)
 	#df_train, df_val = train_test_split(df_train, test_size=config.data.test_size, random_state=config.seed)
 	tokenizer 			= AutoTokenizer.from_pretrained(config.model.model_path, TOKENIZERS_PARALLELISM=True, model_max_length=512, padding="max_length") # add local_files_only=local_files_only if using server
@@ -87,6 +87,13 @@ if __name__ == "__main__":
 	else:
 		model 				= BaselineQA(config, device).to(device)
 		optimizer	 		= torch.optim.Adam(model.parameters(), lr=config.training.lr)
+
+		if (config.load_model_optimizer):
+			print("loading model and optimizer from checkpoints/{}/model_optimizer.pt".format(config.wandb_path))
+			checkpoint = torch.load("checkpoints/{}/model_optimizer.pt".format(config.wandb_path))
+			model.load_state_dict(checkpoint['model_state_dict'])
+			optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
 		trainer 			= Trainer(config=config, model=model, optimizer=optimizer, device=device, tokenizer=tokenizer)
 
 		if (config.train):
@@ -111,6 +118,14 @@ if __name__ == "__main__":
 			# calculate_metrics(test_ds, test_dataloader, wandb_logger)
 			test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
 			print(test_metrics)
+		
+		if (config.save_model_optimizer):
+			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.wandb_path))
+			os.makedirs("checkpoints/{}/".format(config.wandb_path), exist_ok=True)
+			torch.save({
+            	'model_state_dict': model.state_dict(),
+            	'optimizer_state_dict': optimizer.state_dict(),
+            }, "checkpoints/{}/model_optimizer.pt".format(config.wandb_path))
 
 		# model = AutoModel_Classifier_QA(config, tokenizer=tokenizer, logger=wandb_logger)
 		# model.__train__(train_dataloader)	
