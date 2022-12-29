@@ -16,8 +16,15 @@ def preprocess_fn(df, tokenizer, mask_token='<mask>'):
 	data_dict["fewshot_qa_answer"] = []
 
 	for index, row in df.iterrows():
-		answer_start = literal_eval(row["Answer_start"])
-		answer_text = literal_eval(row["Answer_text"])
+		if isinstance(row["Answer_start"], str):
+			answer_start = literal_eval(row["Answer_start"])
+		else:
+			answer_start = row["Answer_start"]
+		
+		if isinstance(row["Answer_text"], str):
+			answer_text = literal_eval(row["Answer_text"])
+		else: 
+			answer_text = row["Answer_text"]
 		
 		context = row["Paragraph"]
 		id = row["Unnamed: 0"]

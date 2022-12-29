@@ -131,9 +131,6 @@ dmypy.json
 *.DS_Store*
 lightning_logs
 *.xlsx*
-data-dir/*
-.vscode*
-data-dir/corenlp/*
-data-dir/*
-data-dir/*
-.vscode/*
+*data-dir*
+*wandb*
+*vscode*
