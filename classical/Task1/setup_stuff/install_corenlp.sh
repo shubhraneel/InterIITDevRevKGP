@@ -8,8 +8,8 @@
 set -e
 
 # By default download to the data directory I guess
-read -p "Specify download path or enter to use default (data/corenlp): " path
-DOWNLOAD_PATH="${path:-data/corenlp}"
+read -p "Specify download path or enter to use default (data-dir/corenlp): " path
+DOWNLOAD_PATH="${path:-data-dir/corenlp}"
 echo $DOWNLOAD_PATH
 echo "Will download to: $DOWNLOAD_PATH"
 
