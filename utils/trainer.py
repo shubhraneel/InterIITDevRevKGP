@@ -215,7 +215,7 @@ class Trainer():
                 temp_dataloader = DataLoader(temp_ds, batch_size=dataset.config.data.val_batch_size, collate_fn=temp_ds.collate_fn)
 
                 # print(question)
-                print(len(temp_ds))
+                # print(len(temp_ds))
                 
                 # loop for iterating over question para pairs to extract paras
                 for qp_batch_id, qp_batch in enumerate(temp_dataloader):

@@ -1,8 +1,8 @@
 task: qa
 seed: 3407
-wandb_path: v2-inference-testing
+wandb_path: v2-inference-testing-cpu
 fewshot_qa: False
-inference_device: cuda
+inference_device: cpu
 train: False
 inference: True
 save_model_optimizer: False
