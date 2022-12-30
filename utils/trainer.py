@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -158,17 +159,44 @@ class Trainer():
                 start_time = time.time()
 
                 question = batch["question"][question_idx]
-                theme_id = batch["theme_id"][question_idx]
+                theme_id = str(batch["theme_id"][question_idx])
                 
                 # create knowledge base dataframe containing all paragraphs of the same theme as q
                 if (self.config.use_drqa):
-                    doc_names_filtered = self.retriever.retrieve_top_k(question, theme_id, k=self.config.drqa_top_k)
-                    
-                    # TODO: Optimize
-                    # TODO: THIS IS COMPLETELY WRONG
-                    df_kb = dataset.df.loc[dataset.df["paragraph_id"].astype(str).isin(doc_names_filtered)]
+                    doc_names_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, theme_id, k=self.config.drqa_top_k)
 
-                    print(df_kb)
+                    df_kb = pd.DataFrame()
+                    df_kb["Paragraph"] = doc_text_filtered
+                    df_kb["paragraph_id"] = doc_names_filtered
+
+                    df_kb["Question"] = question
+                    df_kb["question_id"] = batch["question_id"][question_idx]
+
+                    df_kb["Theme"] = batch["title"][question_idx]
+                    df_kb["theme_id"] = batch["theme_id"][question_idx]
+
+                    df_kb["Answer_possible"] = False
+                    df_kb["Answer_start"] = "[]"#*len(doc_names_filtered)
+                    df_kb["Answer_text"] = "[]"#*len(doc_names_filtered)    
+
+                    row_in_data = dataset.df.loc[dataset.df["question_id"] == batch["question_id"][question_idx]]
+
+                    # print(df_kb["paragraph_id"])
+                    # print(row_in_data["paragraph_id"])
+
+                    try:
+                        assert (len(row_in_data) == 1)
+                    except:
+                        print(row_in_data)
+                        raise  
+
+                    # TODO: Optimize
+                    row_in_data_idx = df_kb.loc[df_kb["paragraph_id"].astype(str) == str(row_in_data["paragraph_id"].values[0])].index
+                    # print(row_in_data, row_in_data_idx)
+                    # print("row_in_data['paragraph_id'].values[0]", row_in_data["paragraph_id"].values[0])
+                    df_kb.loc[row_in_data_idx, "Answer_possible"] = row_in_data["Answer_possible"].values[0]
+                    df_kb.loc[row_in_data_idx, "Answer_start"] = row_in_data["Answer_start"].values[0]
+                    df_kb.loc[row_in_data_idx, "Answer_text"] = row_in_data["Answer_text"].values[0]
 
                 else:
                     # list of paragraph ids in the same theme as q
@@ -186,7 +214,7 @@ class Trainer():
                 temp_ds = SQuAD_Dataset(dataset.config, df_kb, dataset.tokenizer, hide_tqdm=True)
                 temp_dataloader = DataLoader(temp_ds, batch_size=dataset.config.data.val_batch_size, collate_fn=temp_ds.collate_fn)
 
-                print(question)
+                # print(question)
                 print(len(temp_ds))
                 
                 # loop for iterating over question para pairs to extract paras

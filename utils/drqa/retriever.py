@@ -162,14 +162,18 @@ class Retriever(object):
 
     def retrieve_top_k(self, question, theme, k=1):
         doc_names, doc_scores = self.ranker.closest_docs(question, 100000)
+        # print("doc_names", doc_names)
+        # print("theme", theme)
+        # print("type(theme)", type(theme))
+        # print([self.para_theme_id_dict[doc] for doc in doc_names])
         doc_names_filtered = [doc for doc in doc_names if self.para_theme_id_dict[doc] == theme]
         
         if (len(doc_names_filtered) > k):
             doc_names_filtered = doc_names_filtered[0:k]
 
-        # doc_text_filtered = [fetch_text(idx) for idx in doc_names_filtered]
+        doc_text_filtered = [self.fetch_text(idx) for idx in doc_names_filtered]
 
-        return doc_names_filtered#, doc_text_filtered
+        return doc_names_filtered, doc_text_filtered
 
     def predict_all(self, k=3):
         self.top_3_contexts_ids = []
@@ -180,7 +184,7 @@ class Retriever(object):
         
         return self.top_3_contexts_ids
 
-    def fetch_text(doc_id):
+    def fetch_text(self, doc_id):
         return self.PROCESS_DB.get_doc_text(doc_id)
 
     # def top3_docs_all(self):
