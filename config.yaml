@@ -1,38 +1,41 @@
 task: qa
 seed: 3407
-wandb_path: v1-distilbert-squad2
+wandb_path: v2-inference-testing-cpu
 fewshot_qa: False
-inference_device: cuda
-train: True
+inference_device: cpu
+train: False
 inference: True
-save_model_optimizer: True
+save_model_optimizer: False
 load_model_optimizer: False
-load_path: v1-distilbert-squad2
+load_path: v2-inference-testing-cpu
+use_drqa: True
+create_drqa_tfidf: True
+drqa_top_k: 5
 
 data:
-	data_path: ../data-dir/train_data.csv
-	train_frac: 0.8
-	val_frac: 0.1
-	test_frac: 0.1
-	train_batch_size: 32
-	val_batch_size: 32
-	apply_aliasing: False
-	pad_on_right: True
-	max_length: 512
-	doc_stride: 128
-	tokenizer_batch_size: 32
+  data_path: data-dir/train_data_prepared.csv
+  train_frac: 0.8
+  val_frac: 0.1
+  test_frac: 0.1
+  train_batch_size: 32
+  val_batch_size: 32
+  apply_aliasing: False
+  pad_on_right: True
+  max_length: 512
+  doc_stride: 128
+  tokenizer_batch_size: 32
 
 training:
-	epochs: 1
-	optimizer: adam
-	lr: 0.00002
-	sched_function: none
-	sched_func_params: {}
-	sched_params:
-		monitor: val_loss
-	evaluate_every: 1
+  epochs: 1
+  optimizer: adam
+  lr: 0.00002
+  sched_function: none
+  sched_func_params: {}
+  sched_params:
+    monitor: val_loss
+  evaluate_every: 1
 
 model:
-	model_path: mvonwyl/distilbert-base-uncased-finetuned-squad2
-	params: {}
-	non_pooler: True
+  model_path: google/bert_uncased_L-2_H-128_A-2
+  params: {}
+  non_pooler: True

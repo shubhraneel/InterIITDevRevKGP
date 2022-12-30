@@ -6,14 +6,21 @@ def preprocess_fn(df, tokenizer, mask_token='<mask>'):
 	No preprocessing in v1
 	"""
 
+	# TODO: Fix context and paragraph everywhere (also title, theme)
 	data_dict = {}
 	data_dict["answers"] = []
 	data_dict["context"] = []
-	data_dict["id"] = []
+	data_dict["question_id"] = []
+	data_dict["paragraph_id"] = []
+	data_dict["theme_id"] = []
 	data_dict["question"] = []
 	data_dict["title"] = []
 	data_dict["fewshot_qa_prompt"] = []
 	data_dict["fewshot_qa_answer"] = []
+
+	# question ids 
+	ques2idx = {}
+	idx2ques = {}
 
 	for index, row in df.iterrows():
 		if isinstance(row["Answer_start"], str):
@@ -27,7 +34,9 @@ def preprocess_fn(df, tokenizer, mask_token='<mask>'):
 			answer_text = row["Answer_text"]
 		
 		context = row["Paragraph"]
-		id = row["Unnamed: 0"]
+		question_id = row["question_id"]
+		paragraph_id = row["paragraph_id"]
+		theme_id = row["theme_id"]
 		question = row["Question"]
 		title = row["Theme"]
 		answer = {"answer_start": answer_start, "text": answer_text}
@@ -37,7 +46,9 @@ def preprocess_fn(df, tokenizer, mask_token='<mask>'):
 		
 		data_dict["answers"].append(answer)
 		data_dict["context"].append(context)
-		data_dict["id"].append(id)
+		data_dict["question_id"].append(question_id)
+		data_dict["paragraph_id"].append(paragraph_id)
+		data_dict["theme_id"].append(theme_id)
 		data_dict["question"].append(question)
 		data_dict["title"].append(title)
 		data_dict["fewshot_qa_prompt"].append(fewshot_qa_prompt)
