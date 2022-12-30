@@ -199,7 +199,7 @@ class AllAnswers_Dataset(Dataset):
             ]
 
     contexts = list(df['context'])
-    answers = list(df['answers'].map(' </s> '.join))
+    answers = list(df['answers'].map(' <extra_id_0> '.join))
     print(contexts[0])
     print(answers[0])
 
