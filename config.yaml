@@ -3,10 +3,12 @@ seed: 3407
 wandb_path: v1-bert_uncased_L-2_H-128_A-2
 fewshot_qa: False
 inference_device: cuda
-train: True
-inference: True
-save_model_optimizer: True
+train: False
+inference: False
+save_model_optimizer: False
 load_model_optimizer: False
+use_drqa: True
+create_drqa_tfidf: True
 
 data:
   data_path: data-dir/train_data.csv
