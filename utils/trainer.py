@@ -14,8 +14,7 @@ from utils import compute_f1
 from data import SQuAD_Dataset
 
 class Trainer():
-
-    def __init__(self, config, model, optimizer, device, tokenizer):
+    def __init__(self, config, model, optimizer, device, tokenizer, retriever=None):
         self.config = config
         self.device = device
 
@@ -26,6 +25,7 @@ class Trainer():
 
         wandb.watch(self.model)
 
+        self.retriever = retriever
 
     def _train_step(self, dataloader, epoch):
         total_loss = 0
@@ -148,36 +148,49 @@ class Trainer():
         for batch_idx, batch in enumerate(tepoch):
             
             # list of titles in the batch 
-            title = batch["title"]  
+            title_list = batch["title"]  
 
             # list of paragraph indices (in dataset.data) for each question in the batch
-            para_ids_batch = [dataset.theme_para_id_mapping[t] for t in title]
+            para_ids_batch = [dataset.theme_para_id_mapping[t] for t in title_list]
 
             # iterate over questions in the batch
-            for question_idx in range(len(para_ids_batch)):
+            for question_idx in range(len(batch["question"])):
+                start_time = time.time()
+
                 question = batch["question"][question_idx]
+                theme_id = batch["theme_id"][question_idx]
                 
-                # list of paragraph ids in the same theme as q
-                q_para_ids = para_ids_batch[question_idx]
-
-                # list of paragraphs for in the same theme as q
-                paragraphs = list(set(dataset.df.iloc[q_para_ids]["Paragraph"]))
-
-                # question id (primary key in df)
-                q_id = batch["id"][question_idx]
-
                 # create knowledge base dataframe containing all paragraphs of the same theme as q
-                df_kb = self._create_inference_df(question, dataset, paragraphs, q_id)
+                if (self.config.use_drqa):
+                    doc_names_filtered = self.retriever.retrieve_top_k(question, theme_id, k=self.config.drqa_top_k)
+                    
+                    # TODO: Optimize
+                    # TODO: THIS IS COMPLETELY WRONG
+                    df_kb = dataset.df.loc[dataset.df["paragraph_id"].astype(str).isin(doc_names_filtered)]
+
+                    print(df_kb)
+
+                else:
+                    # list of paragraph ids in the same theme as q
+                    q_para_ids = para_ids_batch[question_idx]
+
+                    # list of paragraphs for in the same theme as q
+                    paragraphs = list(set(dataset.df.iloc[q_para_ids]["Paragraph"]))
+
+                    # question id (primary key in df)
+                    q_id = batch["question_id"][question_idx]
+
+                    df_kb = self._create_inference_df(question, dataset, paragraphs, q_id)
 
                 # TODO: keep more than 1 question per dataloader for max util (keep stride = k in line 143)
                 temp_ds = SQuAD_Dataset(dataset.config, df_kb, dataset.tokenizer, hide_tqdm=True)
                 temp_dataloader = DataLoader(temp_ds, batch_size=dataset.config.data.val_batch_size, collate_fn=temp_ds.collate_fn)
 
-                total_time_per_question = 0
+                print(question)
+                print(len(temp_ds))
                 
                 # loop for iterating over question para pairs to extract paras
                 for qp_batch_id, qp_batch in enumerate(temp_dataloader):
-                    start_time = time.time()
                     if (len(qp_batch["question_context_input_ids"].shape) == 1):
                         qp_batch["question_context_input_ids"] = qp_batch["question_context_input_ids"].unsqueeze(dim=0)
                         qp_batch["question_context_attention_mask"] = qp_batch["question_context_attention_mask"].unsqueeze(dim=0)
@@ -203,7 +216,6 @@ class Trainer():
                             try:
                                 pred_start_char = offset_mappings_list[c_id][pred_start_index[c_id]][0]
                                 pred_end_char = offset_mappings_list[c_id][pred_end_index[c_id]][1]
-                            
                             except:
                                 print(offset_mappings_list[c_id])
                                 raise ValueError
@@ -213,9 +225,10 @@ class Trainer():
                         predicted_answers.append(pred_answer)
                         
                     # TODO: remove offset_mapping etc. lookup from inference time (current calculation is the absolute worst case time)
-                    total_time_per_question += (time.time() - start_time)
-                    total_time_per_question_list.append(total_time_per_question)
-                    wandb.log({"inference_time_per_question": total_time_per_question})
+                    
+                total_time_per_question = (time.time() - start_time)
+                total_time_per_question_list.append(total_time_per_question)
+                wandb.log({"inference_time_per_question": total_time_per_question})
 
         # print(total_time_per_question_list)
 

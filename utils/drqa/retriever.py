@@ -4,7 +4,7 @@ from multiprocessing.util import Finalize
 import time
 import pandas as pd
 import logging
-import prettytable
+# import prettytable
 import numpy as np
 import scipy.sparse as sp
 from .DocRanker import docranker_utils
@@ -140,8 +140,8 @@ class TfidfDocRanker(object):
 # print(f'Acc = {num_app/num_T}, {num_app}, {num_T}')
 
 
-class RetrieverFinal(object):
-    def __init__(self, ):
+class Retriever(object):
+    def __init__(self, tfidf_path, questions_df, para_idx_2_theme_idx, db_path):
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
         fmt = logging.Formatter('%(asctime)s: [ %(message)s ]', '%m/%d/%Y %I:%M:%S %p')
@@ -150,85 +150,59 @@ class RetrieverFinal(object):
         logger.addHandler(console)
         logger.info('Initializing ranker...')
 
-        self.ranker = TfidfDocRanker(
-            tfidf_path="data-dir/sqlite_para-tfidf-ngram=2-hash=16777216-tokenizer=corenlp.npz")
+        self.ranker = TfidfDocRanker(tfidf_path=tfidf_path)
 
         # all at once
-        self.df_q = pd.read_csv("data-dir/questions_only.csv")
+        self.df_q = questions_df
         self.top_3_contexts = []
-        with open('data-dir/para_theme.json') as json_file:
-            self.para_theme_id_dict = json.load(json_file)
+        self.para_theme_id_dict = para_idx_2_theme_idx
 
-        self.PROCESS_DB = DocDB(db_path="data-dir/sqlite_para.db")
+        self.PROCESS_DB = DocDB(db_path=db_path)
         Finalize(self.PROCESS_DB, self.PROCESS_DB.close, exitpriority=100)
 
-    def process(self, query, theme,  k=1):
-        doc_names, doc_scores = self.ranker.closest_docs(query, 100000)
-
-        # table = prettytable.PrettyTable(
-        #     ['Rank', 'Doc Id', 'Doc Score']
-        # )
-        # for i in range(len(doc_names)):
-        #     table.add_row([i + 1, doc_names[i], '%.5g' % doc_scores[i]])
-        # print(table)
-
+    def retrieve_top_k(self, question, theme, k=1):
+        doc_names, doc_scores = self.ranker.closest_docs(question, 100000)
         doc_names_filtered = [doc for doc in doc_names if self.para_theme_id_dict[doc] == theme]
         
-        if len(doc_names_filtered) > k:
-            return doc_names_filtered[0:k]
-        return doc_names_filtered
-        # return doc_names
+        if (len(doc_names_filtered) > k):
+            doc_names_filtered = doc_names_filtered[0:k]
 
-    def predict_all(self):
-        tsince = int(round(time.time()*1000))
-        num_app = 0
-        num_app_answerable = 0
-        num_answerable = 0
-        top_3_contexts_ids = []
+        # doc_text_filtered = [fetch_text(idx) for idx in doc_names_filtered]
+
+        return doc_names_filtered#, doc_text_filtered
+
+    def predict_all(self, k=3):
+        self.top_3_contexts_ids = []
         for idx, row in self.df_q.iterrows():
-            doc_names = self.process(
-                row['Question'], theme=str(row['theme_id']), k=3)
-            top_3_contexts_ids.append(doc_names)
+            doc_names = self.retrieve_top_k(
+                row['Question'], theme=str(row['theme_id']), k=k)
+            self.top_3_contexts_ids.append(doc_names)
+        
+        return self.top_3_contexts_ids
 
-            if str(row['id']) in doc_names:
-                num_app += 1
-                if row['Answer_possible']:
-                    num_answerable += 1
-                    num_app_answerable += 1
-            elif row['Answer_possible']:
-                num_answerable += 1
+    def fetch_text(doc_id):
+        return self.PROCESS_DB.get_doc_text(doc_id)
 
-            # break
-        ttime_elapsed = int(round(time.time()*1000)) - tsince
-        ttime_per_example = ttime_elapsed/self.df_q.shape[0]
-        print(f'test time elapsed {ttime_elapsed} ms')
-        print(f'test time elapsed per example {ttime_per_example} ms')
-        print(f'Acc = {num_app/self.df_q.shape[0]}')
-        print(f'num_answerable = {num_answerable}')
-        print(f'answerable acc= {num_app_answerable/num_answerable}')
+    # def top3_docs_all(self):
+    #     for id_list in self.top_3_contexts_ids:
+    #         para_list = []
+    #         for id in id_list:
+    #             para_list.append(fetch_text(id))
+    #         self.top_3_contexts.append(para_list)
+    #         # break
+    #     # print(len(top_3_contexts[0]))
+    #     self.df_q['contexts'] = self.top_3_contexts
+    #     self.df_q.to_csv("data-dir/top3_contexts.csv")
 
-        def fetch_text(doc_id):
-            return self.PROCESS_DB.get_doc_text(doc_id)
-
-        def top3_docs_all(self):
-            for id_list in self.top_3_contexts_ids:
-                para_list = []
-                for id in id_list:
-                    para_list.append(fetch_text(id))
-                self.top_3_contexts.append(para_list)
-                # break
-            # print(len(top_3_contexts[0]))
-            self.df_q['contexts'] = self.top_3_contexts
-            self.df_q.to_csv("data-dir/top3_contexts.csv")
-
-        def batched_all(self):
-            tsince = int(round(time.time()*1000))
-            self.ranker.batch_closest_docs(
-                queries=self.df_q['Question'].tolist(), k=10, num_workers=2)
-            ttime_elapsed = int(round(time.time()*1000)) - tsince
-            ttime_per_example = ttime_elapsed/self.df_q.shape[0]
-            print(f'Batched test time elapsed {ttime_elapsed} ms')
-            print(
-                f'Batched test time elapsed per example {ttime_per_example} ms')
+    # TODO: Fix
+    # def batched_all(self):
+    #     tsince = int(round(time.time()*1000))
+    #     self.ranker.batch_closest_docs(
+    #         queries=self.df_q['Question'].tolist(), k=10, num_workers=2)
+    #     ttime_elapsed = int(round(time.time()*1000)) - tsince
+    #     ttime_per_example = ttime_elapsed/self.df_q.shape[0]
+    #     print(f'Batched test time elapsed {ttime_elapsed} ms')
+    #     print(
+    #         f'Batched test time elapsed per example {ttime_per_example} ms')
 
 # RetrieverFinal().predict_all()

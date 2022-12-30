@@ -1,4 +1,5 @@
 import os
+import json
 import yaml
 import wandb
 import argparse
@@ -11,10 +12,19 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
 from config import Config
-from utils import Trainer, set_seed
+from src import BaselineQA, FewShotQA_Model
+from utils import Trainer, set_seed, Retriever
 from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
-from src import AutoModel_Classifier_QA, BaselineQA, FewShotQA_Model
-from utils import reformat_data_for_sqlite, build_tf_idf_wrapper, store_contents
+from utils import build_tf_idf_wrapper, store_contents
+
+def reformat_data_for_sqlite(df, split, ques2idx, para2idx, theme2idx):
+	os.makedirs("data-dir/{}/".format(split), exist_ok=True)
+
+	paragraph_doc_id = df[["Paragraph", "paragraph_id"]].rename(columns={"Paragraph": "text", "paragraph_id": "id"})
+	paragraph_doc_id = paragraph_doc_id.drop_duplicates(subset=["text", "id"])
+	paragraph_doc_id["id"] = paragraph_doc_id["id"].astype(str)
+	paragraph_doc_id.to_json("data-dir/{}/paragraphs.json".format(split),
+							orient="records", lines=True)
 
 if __name__ == "__main__":
 
@@ -32,8 +42,27 @@ if __name__ == "__main__":
 
 	print("Reading data csv")
 	df = pd.read_csv(config.data.data_path)
-	df = df.drop_duplicates(subset=["Unnamed: 0"]).drop_duplicates(
-		subset=["Question"]).reset_index(drop=True)
+
+	with open("data-dir/para_idx_2_theme_idx.json", "r") as f:
+		para_idx_2_theme_idx = json.load(f)   
+
+	with open("data-dir/ques2idx.json", "r") as f:
+		ques2idx = json.load(f)
+
+	with open("data-dir/idx2ques.json", "r") as f:
+		idx2ques = json.load(f)
+
+	with open("data-dir/para2idx.json", "r") as f:
+		para2idx = json.load(f)
+
+	with open("data-dir/idx2para.json", "r") as f:
+		idx2para = json.load(f)
+
+	with open("data-dir/theme2idx.json", "r") as f:
+		theme2idx = json.load(f)   
+	
+	with open("data-dir/idx2theme.json", "r") as f:
+		idx2theme = json.load(f)
 
 	# df = pd.read_excel(config.data.data_path)
 	# TODO: Split the dataset in a way where training theme question-context pair should not be
@@ -43,8 +72,8 @@ if __name__ == "__main__":
 		train_size=config.data.train_frac, n_splits=1, random_state=config.seed)
 	split = splitter.split(df, groups=df['Theme'])
 	train_inds, val_inds = next(split)
-	df_train = df.iloc[train_inds]
-	df_val = df.iloc[val_inds]
+	df_train = df.iloc[train_inds].reset_index(drop=True)
+	df_val = df.iloc[val_inds].reset_index(drop=True)
 
 	df_val_c = df_val.copy()
 
@@ -52,8 +81,8 @@ if __name__ == "__main__":
 		config.data.test_frac + config.data.val_frac)), n_splits=1, random_state=config.seed)
 	split_val = splitter_val.split(df_val_c, groups=df_val_c['Theme'])
 	val_inds, test_inds = next(split_val)
-	df_val = df_val_c.iloc[val_inds]
-	df_test = df_val_c.iloc[test_inds]
+	df_val = df_val_c.iloc[val_inds].reset_index(drop=True)
+	df_test = df_val_c.iloc[test_inds].reset_index(drop=True)
 
 	del df, df_val_c
 
@@ -63,31 +92,31 @@ if __name__ == "__main__":
 
 	if (config.create_drqa_tfidf):
 		print("using drqa")
-		reformat_data_for_sqlite(df_train, "train")
-		if (os.path.exists("data-dir/train_sqlite_para.db")):
-			os.remove("data-dir/train_sqlite_para.db")
+		reformat_data_for_sqlite(df_train, "train", ques2idx, para2idx, theme2idx)
+		if (os.path.exists("data-dir/train/sqlite_para.db")):
+			os.remove("data-dir/train/sqlite_para.db")
 		store_contents(
-			data_path="data-dir/train_paragraphs.json", save_path="data-dir/train_sqlite_para.db", preprocess=None, num_workers=2
+			data_path="data-dir/train/paragraphs.json", save_path="data-dir/train/sqlite_para.db", preprocess=None, num_workers=2
 		)
-		build_tf_idf_wrapper(db_path="data-dir/train_sqlite_para.db", out_dir="data-dir/train", ngram=3,
+		build_tf_idf_wrapper(db_path="data-dir/train/sqlite_para.db", out_dir="data-dir/train", ngram=3,
 							 hash_size=(2**25), num_workers=2)
 
-		reformat_data_for_sqlite(df_val, "val")
-		if (os.path.exists("data-dir/val_sqlite_para.db")):
-			os.remove("data-dir/val_sqlite_para.db")
+		reformat_data_for_sqlite(df_val, "val", ques2idx, para2idx, theme2idx)
+		if (os.path.exists("data-dir/val/sqlite_para.db")):
+			os.remove("data-dir/val/sqlite_para.db")
 		store_contents(
-			data_path="data-dir/val_paragraphs.json", save_path="data-dir/val_sqlite_para.db", preprocess=None, num_workers=2
+			data_path="data-dir/val/paragraphs.json", save_path="data-dir/val/sqlite_para.db", preprocess=None, num_workers=2
 		)
-		build_tf_idf_wrapper(db_path="data-dir/val_sqlite_para.db", out_dir="data-dir/val", ngram=3,
+		build_tf_idf_wrapper(db_path="data-dir/val/sqlite_para.db", out_dir="data-dir/val", ngram=3,
 							 hash_size=(2**25), num_workers=2)
 
-		reformat_data_for_sqlite(df_test, "test")
-		if (os.path.exists("data-dir/test_sqlite_para.db")):
-			os.remove("data-dir/test_sqlite_para.db")
+		reformat_data_for_sqlite(df_test, "test", ques2idx, para2idx, theme2idx)
+		if (os.path.exists("data-dir/test/sqlite_para.db")):
+			os.remove("data-dir/test/sqlite_para.db")
 		store_contents(
-			data_path="data-dir/test_paragraphs.json", save_path="data-dir/test_sqlite_para.db", preprocess=None, num_workers=2
+			data_path="data-dir/test/paragraphs.json", save_path="data-dir/test/sqlite_para.db", preprocess=None, num_workers=2
 		)
-		build_tf_idf_wrapper(db_path="data-dir/test_sqlite_para.db", out_dir="data-dir/test", ngram=3,
+		build_tf_idf_wrapper(db_path="data-dir/test/sqlite_para.db", out_dir="data-dir/test", ngram=3,
 							 hash_size=(2**25), num_workers=2)
 
 	# add local_files_only=local_files_only if using server
@@ -139,8 +168,15 @@ if __name__ == "__main__":
 			model.load_state_dict(checkpoint['model_state_dict'])
 			optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
+		retriever = None
+		if (config.use_drqa):
+			tfidf_path = "data-dir/test/sqlite_para-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
+			questions_df = df_test[["Question", "theme_id"]]
+			db_path = "data-dir/test/sqlite_para.db"
+			retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, para_idx_2_theme_idx=para_idx_2_theme_idx, db_path=db_path)
+		
 		trainer = Trainer(config=config, model=model,
-						  optimizer=optimizer, device=device, tokenizer=tokenizer)
+						  optimizer=optimizer, device=device, tokenizer=tokenizer, retriever=retriever)
 
 		if (config.train):
 			print("Creating train dataset")
@@ -184,3 +220,8 @@ if __name__ == "__main__":
 
 		# classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
 		# print(f"Classification F1: {classification_f1}, QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
+		# tfidf_path = "data-dir/sqlite_para-tfidf-ngram=2-hash=16777216-tokenizer=corenlp.npz"
+		# questions_path = "data-dir/questions_only.csv"
+		# para2id_path = 'data-dir/para_theme.json'
+		# db_path = "data-dir/sqlite_para.db"
+

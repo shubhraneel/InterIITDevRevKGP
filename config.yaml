@@ -4,14 +4,15 @@ wandb_path: v1-bert_uncased_L-2_H-128_A-2
 fewshot_qa: False
 inference_device: cuda
 train: False
-inference: False
+inference: True
 save_model_optimizer: False
 load_model_optimizer: False
 use_drqa: True
-create_drqa_tfidf: True
+create_drqa_tfidf: False
+drqa_top_k: 100
 
 data:
-  data_path: data-dir/train_data.csv
+  data_path: data-dir/train_data_prepared.csv
   train_frac: 0.8
   val_frac: 0.1
   test_frac: 0.1
