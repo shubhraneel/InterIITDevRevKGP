@@ -1,53 +1,75 @@
 import os
-import json
+import pickle
 import pandas as pd
 from tqdm import tqdm
+from ast import literal_eval
 
 if __name__ == "__main__":
-    df = pd.read_csv("data-dir/train_data.csv")
-    df["Question"] = df["Theme"] + " " + df["Question"]
-    df = df.drop(df.loc[(df.duplicated(subset=["Question"], keep=False)) & (
-        df["Answer_possible"] == False)].index, axis=0).reset_index(drop=True)
+    df = pd.read_csv("data-dir/train_data.csv").drop("Unnamed: 0", axis=1)
+    df = df.rename(columns={"Question": "question",
+                   "Theme": "title",
+                   "Paragraph": "context",
+                   "Answer_possible": "answerable",
+                   "Answer_start": "answer_start", 
+                   "Answer_text": "answer_text", 
+                   })
 
-    ques2idx = {ques: str(idx) for idx, ques in enumerate(df["Question"].unique())}
+    # concatenate title and question to improve better results and reduce duplicates 
+    df["question"] = df["title"] + " " + df["question"]
+
+    df = df.drop(df.loc[(df.duplicated(subset=["question"], keep=False)) & (
+        df["answerable"] == False)].index, axis=0).reset_index(drop=True)
+
+    ques2idx = {ques: idx for idx, ques in enumerate(df["question"].unique())}
     idx2ques = {value: key for key, value in ques2idx.items()}
 
-    para2idx = {para: str(idx) for idx, para in enumerate(df["Paragraph"].unique())}
-    idx2para = {value: key for key, value in para2idx.items()}
+    con2idx  = {con: idx for idx, con in enumerate(df["context"].unique())}
+    idx2con = {value: key for key, value in con2idx.items()}
 
-    theme2idx = {theme: str(idx) for idx, theme in enumerate(df["Theme"].unique())}
-    idx2theme = {value: key for key, value in theme2idx.items()}
+    title2idx = {title: idx for idx, title in enumerate(df["title"].unique())}
+    idx2title = {value: key for key, value in title2idx.items()}
 
-    paragraphs = df['Paragraph']
-    para_idx_2_theme_idx = {}
+    contexts = df['context']
+    con_idx_2_title_idx = {}
     for idx, row in df.iterrows():
-        para_idx_2_theme_idx[para2idx[row['Paragraph']]
-                             ] = theme2idx[row['Theme']]
+        con_idx_2_title_idx[con2idx[row['context']]] = title2idx[row['title']]
 
     for i in tqdm(range(len(df))):
-        df.loc[i, "question_id"] = ques2idx[df.iloc[i]["Question"]]
-        df.loc[i, "paragraph_id"] = para2idx[df.iloc[i]["Paragraph"]]
-        df.loc[i, "theme_id"] = theme2idx[df.iloc[i]["Theme"]]
+        df.loc[i, "question_id"] = ques2idx[df.iloc[i]["question"]]
+        df.loc[i, "context_id"] = con2idx[df.iloc[i]["context"]]
+        df.loc[i, "title_id"] = title2idx[df.iloc[i]["title"]]
 
-    df.to_csv("data-dir/train_data_prepared.csv", index=False)
+    df["answer_start"] = df["answer_start"].apply(lambda x: literal_eval(x))
+    df["answer_start"] = df["answer_start"].apply(lambda x: x[0] if len(x) > 0 else "")
+    
+    df["answer_text"] = df["answer_text"].apply(lambda x: literal_eval(x))
+    df["answer_text"] = df["answer_text"].apply(lambda x: x[0] if len(x) > 0 else "")
 
-    with open("data-dir/para_idx_2_theme_idx.json", "w") as of:
-        json.dump(para_idx_2_theme_idx, of)
+    df["question_id"] = df["question_id"].astype(int)
+    df["context_id"] = df["context_id"].astype(int)
+    df["title_id"] = df["title_id"].astype(int)
 
-    with open("data-dir/ques2idx.json", "w") as f:
-        json.dump(ques2idx, f)
+    df.to_pickle("data-dir/data_prepared.pkl")
 
-    with open("data-dir/idx2ques.json", "w") as f:
-        json.dump(idx2ques, f)
+    with open("data-dir/con_idx_2_title_idx.pkl", "wb") as f:
+        pickle.dump(con_idx_2_title_idx, f)
 
-    with open("data-dir/para2idx.json", "w") as f:
-        json.dump(para2idx, f)
+    with open("data-dir/ques2idx.pkl", "wb") as f:
+        pickle.dump(ques2idx, f)
 
-    with open("data-dir/idx2para.json", "w") as f:
-        json.dump(idx2para, f)
+    with open("data-dir/idx2ques.pkl", "wb") as f:
+        pickle.dump(idx2ques, f)
 
-    with open("data-dir/theme2idx.json", "w") as f:
-        json.dump(theme2idx, f)
+    with open("data-dir/con2idx.pkl", "wb") as f:
+        pickle.dump(con2idx, f)
 
-    with open("data-dir/idx2theme.json", "w") as f:
-        json.dump(idx2theme, f)
+    with open("data-dir/idx2con.pkl", "wb") as f:
+        pickle.dump(idx2con, f)
+
+    with open("data-dir/title2idx.pkl", "wb") as f:
+        pickle.dump(title2idx, f)
+
+    with open("data-dir/idx2title.pkl", "wb") as f:
+        pickle.dump(idx2title, f)
+
+    print(df)

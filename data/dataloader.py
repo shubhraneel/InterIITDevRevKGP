@@ -8,8 +8,6 @@ from torch.utils.data import Dataset, DataLoader
 from data.preprocess import preprocess_fn
 
 # TODO: memory optimization
-
-
 class SQuAD_Dataset(Dataset):
     def __init__(self, config, df, tokenizer, hide_tqdm=False):
         self.config = config
@@ -18,51 +16,41 @@ class SQuAD_Dataset(Dataset):
         self.df = df.reset_index(drop=True)
 
         # preprocess
-        self.data = preprocess_fn(self.df, self.tokenizer)
-        self.theme_para_id_mapping = self._get_theme_para_id_mapping()
+        self.data = preprocess_fn(self.df)
+        # self.theme_para_id_mapping = self._get_theme_para_id_mapping()
 
         data_keys = ["answers", "context", "question",
-                     "title", "question_id", "paragraph_id", "theme_id"]
+                     "title", "question_id", "context_id", "title_id"]
+        
+        tokenized_keys = ["question_context_input_ids", "question_context_attention_mask",
+                    "start_positions", "end_positions", "answerable",
+                    "question_context_offset_mapping"
+                    ]
 
         if not self.config.model.non_pooler:
-            tokenized_keys = ["question_context_input_ids", "question_context_attention_mask", "question_context_token_type_ids",
-                              "title_input_ids", "title_attention_mask", "title_token_type_ids",
-                              "context_input_ids", "context_attention_mask", "context_token_type_ids",
-                              "question_input_ids", "question_attention_mask", "question_token_type_ids",
-                              "start_positions", "end_positions", "answerable",
-                              "question_context_offset_mapping"
-                              ]
-        else:
-            tokenized_keys = ["question_context_input_ids", "question_context_attention_mask",
-                              "title_input_ids", "title_attention_mask",
-                              "context_input_ids", "context_attention_mask",
-                              "question_input_ids", "question_attention_mask",
-                              "start_positions", "end_positions", "answerable",
-                              "question_context_offset_mapping"
-                              ]
+            tokenized_keys.append("question_context_token_type_ids")
 
         for key in tokenized_keys:
             self.data[key] = []
 
         for idx in tqdm(range(0, len(self.data["question"]), self.config.data.tokenizer_batch_size), disable=hide_tqdm):
-            example = {
-                key: self.data[key][idx:idx+self.config.data.tokenizer_batch_size] for key in data_keys}
+            example = {key: self.data[key][idx:idx+self.config.data.tokenizer_batch_size] for key in data_keys}
 
             tokenized_inputs = self._tokenize(example)
 
             for key in tokenized_keys:
                 self.data[key].extend(tokenized_inputs[key])
 
-    def _get_theme_para_id_mapping(self):
-        """
-        Get the indices of all paragraphs of a particular theme  
-        """
-        map_ = {}
-        title_list = list(set(self.data["title"]))
-        map_ = {title: [i for i in range(len(
-            self.data["title"])) if title == self.data["title"][i]] for title in title_list}
+    # def _get_theme_para_id_mapping(self):
+    #     """
+    #     Get the indices of all paragraphs of a particular theme  
+    #     """
+    #     map_ = {}
+    #     title_list = list(set(self.data["title"]))
+    #     map_ = {title: [i for i in range(len(
+    #         self.data["title"])) if title == self.data["title"][i]] for title in title_list}
 
-        return map_
+    #     return map_
 
     def _tokenize(self, examples):
         # Some of the questions have lots of whitespace on the left, which is not useful and will make the
@@ -111,15 +99,15 @@ class SQuAD_Dataset(Dataset):
             sample_index = sample_mapping[i]
             answers = examples["answers"][sample_index]
             # If no answers are given, set the cls_index as answer.
-            if len(answers["answer_start"]) == 0:
+            if (answers["answer_start"] == ""):
                 inputs["start_positions"].append(cls_index)
                 inputs["end_positions"].append(cls_index)
                 inputs["answerable"].append(0)
             else:
                 inputs["answerable"].append(1)
                 # Start/end character index of the answer in the text.
-                start_char = answers["answer_start"][0]
-                end_char = start_char + len(answers["text"][0])
+                start_char = answers["answer_start"]
+                end_char = start_char + len(answers["text"])
 
                 # Start token index of the current span in the text.
                 token_start_index = 0
@@ -177,37 +165,7 @@ class SQuAD_Dataset(Dataset):
         inputs["question_context_offset_mapping"] = inputs.pop(
             "offset_mapping")
 
-        title_tokenized = self.tokenizer(examples["title"], max_length=self.config.data.max_length,
-                                         truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")
-        inputs["title_input_ids"] = title_tokenized["input_ids"]
-        inputs["title_attention_mask"] = title_tokenized["attention_mask"]
-        if not self.config.model.non_pooler:
-            inputs["title_token_type_ids"] = title_tokenized["token_type_ids"]
-
-        context_tokenized = self.tokenizer(examples["context"], max_length=self.config.data.max_length,
-                                           truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")
-        inputs["context_input_ids"] = context_tokenized["input_ids"]
-        inputs["context_attention_mask"] = context_tokenized["attention_mask"]
-        if not self.config.model.non_pooler:
-            inputs["context_token_type_ids"] = context_tokenized["token_type_ids"]
-
-        question_tokenized = self.tokenizer(examples["question"], max_length=self.config.data.max_length,
-                                            truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")
-        inputs["question_input_ids"] = question_tokenized["input_ids"]
-        inputs["question_attention_mask"] = question_tokenized["attention_mask"]
-        if not self.config.model.non_pooler:
-            inputs["question_token_type_ids"] = question_tokenized["token_type_ids"]
-
         return inputs
-
-    """
-	TODO:
-		Write functions for
-			1.	Create an updated data dictionary where each ID contains data corresponding to a data point
-			2. 	To retrieve para ids for a particular theme 
-					May be create a list of paragraphs corresponding to each theme, if we get a theme, just call that list. (efficient)
-					Create this in the init method and store as soon as we get the dataframe 
-	"""
 
     def __len__(self):
         return len(self.data["question"])
@@ -219,15 +177,6 @@ class SQuAD_Dataset(Dataset):
         # batch = {key: torch.stack([x[key] for x in items], dim = 0).squeeze() for key in self.items.keys()}
         # return batch
         batch = {
-            "title_input_ids":                      torch.stack([x["title_input_ids"] for x in items], dim=0).squeeze(),
-            "title_attention_mask":                 torch.stack([x["title_attention_mask"] for x in items], dim=0).squeeze(),
-
-            "context_input_ids":                    torch.stack([x["context_input_ids"] for x in items], dim=0).squeeze(),
-            "context_attention_mask":               torch.stack([x["context_attention_mask"] for x in items], dim=0).squeeze(),
-
-            "question_input_ids":                   torch.stack([x["question_input_ids"] for x in items], dim=0).squeeze(),
-            "question_attention_mask":              torch.stack([x["question_attention_mask"] for x in items], dim=0).squeeze(),
-
             "question_context_input_ids":           torch.stack([torch.tensor(x["question_context_input_ids"]) for x in items], dim=0).squeeze(),
             "question_context_attention_mask":      torch.stack([torch.tensor(x["question_context_attention_mask"]) for x in items], dim=0).squeeze(),
             "question_context_offset_mapping":      [x["question_context_offset_mapping"] for x in items],
@@ -240,18 +189,12 @@ class SQuAD_Dataset(Dataset):
             "question":								[x["question"] for x in items],
             "context":								[x["context"] for x in items],
             "question_id":							[x["question_id"] for x in items],
-            "paragraph_id":							[x["paragraph_id"] for x in items],
-            "theme_id":								[x["theme_id"] for x in items],
+            "context_id":							[x["context_id"] for x in items],
+            "title_id":								[x["title_id"] for x in items],
             "answer":								[x["answers"]["text"] for x in items],
         }
 
         if not self.config.model.non_pooler:
-            batch["title_token_type_ids"] = torch.stack(
-                [x["title_token_type_ids"] for x in items], dim=0).squeeze(),
-            batch["context_token_type_ids"] = torch.stack(
-                [x["context_token_type_ids"] for x in items], dim=0).squeeze(),
-            batch["question_token_type_ids"] = torch.stack(
-                [x["question_token_type_ids"] for x in items], dim=0).squeeze(),
             batch["question_context_token_type_ids"] = torch.stack([torch.tensor(
                 x["question_context_token_type_ids"]) for x in items], dim=0).squeeze(),
 

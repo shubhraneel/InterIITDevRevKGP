@@ -13,7 +13,7 @@ create_drqa_tfidf: False
 drqa_top_k: 5
 
 data:
-  data_path: data-dir/train_data_prepared.csv
+  data_path: data-dir/data_prepared.pkl
   train_frac: 0.8
   val_frac: 0.1
   test_frac: 0.1

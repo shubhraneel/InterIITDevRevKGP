@@ -129,8 +129,10 @@ class Trainer():
 
         return df_kb
 
+
     def predict(self, batch):
         return self.model(batch)
+
 
     def inference(self, dataset, dataloader):
         # TODO: use only dataset (applying transforms as done in collate_fn here itself)
@@ -162,24 +164,24 @@ class Trainer():
                 start_time = time.time()
 
                 question = batch["question"][question_idx]
-                theme_id = str(batch["theme_id"][question_idx])
+                title_id = str(batch["title_id"][question_idx])
                 
                 # create knowledge base dataframe containing all paragraphs of the same theme as q
                 if (self.config.use_drqa):
-                    doc_names_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, theme_id, k=self.config.drqa_top_k)
+                    doc_names_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, title_id, k=self.config.drqa_top_k)
                     
                     df_kb = pd.DataFrame()
 
                     if (len(doc_names_filtered) == 0):
                         print("Ranker retrieved no paragraphs, sampling top k paragraphs randomly")
-                        df_kb = (df_unique_paras.loc[df_unique_paras["theme_id"].astype(str) == str(theme_id)]).sample(n=self.config.drqa_top_k, random_state=self.config.seed)
+                        df_kb = (df_unique_paras.loc[df_unique_paras["title_id"].astype(str) == str(title_id)]).sample(n=self.config.drqa_top_k, random_state=self.config.seed)
 
                     else:
                         df_kb["Paragraph"] = doc_text_filtered
                         df_kb["paragraph_id"] = doc_names_filtered
 
                         df_kb["Theme"] = batch["title"][question_idx]
-                        df_kb["theme_id"] = batch["theme_id"][question_idx]
+                        df_kb["title_id"] = batch["title_id"][question_idx]
 
                     df_kb["Question"] = question
                     df_kb["question_id"] = batch["question_id"][question_idx]
@@ -297,7 +299,7 @@ class Trainer():
                     print("df_kb", df_kb)
                     print("doc_text_filtered", doc_text_filtered)
                     print("question", question)
-                    print("theme_id", theme_id)
+                    print("title_id", title_id)
                     print("row_in_data", row_in_data)
                     raise
 
@@ -324,7 +326,35 @@ class Trainer():
 
         return results, predicted_answers, gold_answers
 
-    def calculate_metrics(self, dataset, dataloader):
+
+    def inference_clean(self, df_test):
+        self.model.to(self.config.inference_device)
+        self.device = self.config.inference_device
+        self.model.device = self.config.inference_device
+
+        title_id_list = df_test["title_id"].unique()
+        gb_title = df_test.groupby("title_id")
+        for title_id in title_id_list:
+            df_temp = gb_title.get_group(title_id)
+            question_list = df_temp["question"].unique()
+            
+            for question in question_list:
+                doc_names_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, str(title_id), k=self.config.drqa_top_k)
+
+                print(doc_names_filtered, doc_text_filtered)
+
+                # top_k_para_idx = dummy_retriever(ques, df_temp, k=3)
+                # print(df_temp.loc[df_temp["paragraph_id"].isin(top_k_para_idx)])
+                
+                break
+            break
+
+        sys.exit(0)
+
+        
+
+
+    def calculate_metrics(self, df_test):
         """
             1. Run the inference script
             2. Calculate the time taken
@@ -336,7 +366,8 @@ class Trainer():
         torch.cuda.synchronize()
         # tsince = int(round(time.time() * 1000))
         # results = self.__inference__(dataset, dataloader, logger)
-        results, predicted_answers, gold_answers = self.inference(dataset, dataloader)
+        # results, predicted_answers, gold_answers = self.inference(dataset, dataloader)
+        results, predicted_answers, gold_answers = self.inference_clean(df_test)
         torch.cuda.synchronize()
         # ttime_elapsed = int(round(time.time() * 1000)) - tsince
         # print ('test time elapsed {}ms'.format(ttime_elapsed))

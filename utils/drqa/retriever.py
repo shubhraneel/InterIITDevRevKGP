@@ -144,7 +144,7 @@ class TfidfDocRanker(object):
 
 
 class Retriever(object):
-    def __init__(self, tfidf_path, questions_df, para_idx_2_theme_idx, db_path):
+    def __init__(self, tfidf_path, questions_df, con_idx_2_title_idx, db_path):
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
         fmt = logging.Formatter('%(asctime)s: [ %(message)s ]', '%m/%d/%Y %I:%M:%S %p')
@@ -158,20 +158,22 @@ class Retriever(object):
         # all at once
         self.df_q = questions_df
         self.top_3_contexts = []
-        self.para_theme_id_dict = para_idx_2_theme_idx
+        self.con_title_id_dict = con_idx_2_title_idx
+        self.con_title_id_dict = {str(key): str(val) for key, val in self.con_title_id_dict.items()}
 
         self.PROCESS_DB = DocDB(db_path=db_path)
         Finalize(self.PROCESS_DB, self.PROCESS_DB.close, exitpriority=100)
 
-    def retrieve_top_k(self, question, theme, k=1):
-        doc_names, doc_scores = self.ranker.closest_docs(question, 1800) # 100000
+    def retrieve_top_k(self, question, title_id, k=1):
+        doc_names, doc_scores = self.ranker.closest_docs(question, 100000)
         # print(f"{self.ranker.doc_mat.shape=}")
-        # print("doc_names", doc_names)
-        # print("len(doc_names)", len(doc_names))
-        # print("theme", theme)
-        # print("type(theme)", type(theme))
-        # print([self.para_theme_id_dict[doc] for doc in doc_names])
-        doc_names_filtered = [doc for doc in doc_names if self.para_theme_id_dict[doc] == theme]
+        # print(f"{doc_names=}")
+        # # print("len(doc_names)", len(doc_names))
+        # print("title_id", title_id)
+        # print("type(title_id)", type(title_id))
+        # print(f"{self.con_title_id_dict['11']=}")
+        # print(f"{[self.con_title_id_dict[doc] for doc in doc_names]=}")
+        doc_names_filtered = [doc for doc in doc_names if self.con_title_id_dict[doc] == title_id]
         
         if (len(doc_names_filtered) > k):
             doc_names_filtered = doc_names_filtered[0:k]
@@ -184,7 +186,7 @@ class Retriever(object):
         self.top_3_contexts_ids = []
         for idx, row in self.df_q.iterrows():
             doc_names = self.retrieve_top_k(
-                row['Question'], theme=str(row['theme_id']), k=k)
+                row['Question'], title=str(row['title_id']), k=k)
             self.top_3_contexts_ids.append(doc_names)
         
         return self.top_3_contexts_ids
