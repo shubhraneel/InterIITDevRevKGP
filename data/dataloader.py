@@ -244,17 +244,16 @@ class AllAnswerContexts_Dataset(Dataset):
                             "answers", "context"
             ]
 
-    print(df['answers'])
-    print(df['context'])
+    # print(df['answers'])
+    # print(df['context'])
     answer_context_tuples = list(set([(answer["answer_start"], answer["text"], context) for answer, context in zip(df['answers'], df["context"])]))
     print(len(df['answers']))
     print(len(answer_context_tuples))
-    for x in answer_context_tuples:
-      print(x)
     self.inputs = {}
     self.inputs['answer_starts'] = [answer for answer, _, _ in answer_context_tuples]
     self.inputs['answers'] = [answer for _, answer, _ in answer_context_tuples]
     self.inputs['context'] = [context for _, _, context in answer_context_tuples]
+    print(len(set(self.inputs['context'])))
     df['answer_context'] = ["answer: " + answer + " context: " + context for _, answer, context in answer_context_tuples]
 
     answer_contexts_tokenized = self.tokenizer(df['answer_context'], max_length=512, truncation="longest_first", padding="max_length", return_tensors="pt")

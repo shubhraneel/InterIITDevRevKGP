@@ -5,9 +5,10 @@ import numpy as np
 import pandas as pd
 from data.preprocess import preprocess_fn_ans
 from data.dataloader import SQuAD_Dataset, AllAnswerContexts_Dataset
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from sklearn.model_selection import train_test_split
 from ast import literal_eval
+from tqdm import tqdm
 
 class QuestionGeneration(pl.LightningModule):
     def __init__(self):
@@ -61,7 +62,7 @@ class QuestionGeneration(pl.LightningModule):
         contexts = []
         answer_starts = []
         num_beams=5
-        for batch in test_dataloader:
+        for batch in tqdm(test_dataloader):
             outputs = self.model.generate(
                 batch['answer_context_input_ids'], 
                 attention_mask = batch['answer_context_attention_mask'],
@@ -70,7 +71,6 @@ class QuestionGeneration(pl.LightningModule):
                 max_new_tokens=50
             )
             outputs = outputs.view((-1, num_beams, outputs.shape[1]))
-            print(outputs.shape)
             outs.extend(list(outputs))
             answers.extend(batch["answers"])
             contexts.extend(batch["context"])
@@ -79,14 +79,14 @@ class QuestionGeneration(pl.LightningModule):
         
 tokenizer = T5Tokenizer.from_pretrained('mrm8488/t5-base-finetuned-question-generation-ap', TOKENIZERS_PARALLELISM=True, model_max_length=512, padding="max_length")
 df = pd.read_csv('data-dir/train_data.csv')
-df = preprocess_fn_ans(df[:5])
+df = preprocess_fn_ans(df)
 df.pop("id")
 df.pop("question")
-# df_generated = pd.read_csv('/content/drive/MyDrive/SyntheticGeneration/AGeneration/generated_a.csv')
-df_generated = pd.read_csv('/content/InterIITDevRevKGP/generated_a.csv')
+df_generated = pd.read_csv('/content/drive/MyDrive/SyntheticGeneration/AGeneration/generated_a.csv')
+# df_generated = pd.read_csv('/content/InterIITDevRevKGP/generated_a.csv')
 df_generated['generated_answers'] = df_generated['generated_answers'].map(literal_eval)
 df_generated['generated_answer_indices'] = df_generated['generated_answer_indices'].map(literal_eval)
-for idx, row in df_generated[:1].iterrows():
+for idx, row in df_generated.iterrows():
     for idx_ans, answer in enumerate(row['generated_answers']):
         df['answers'].append({
           "answer_start": row['generated_answer_indices'][idx_ans],
@@ -96,8 +96,11 @@ for idx, row in df_generated[:1].iterrows():
         # df["title"].append(row["title"])
 
 ds = AllAnswerContexts_Dataset(df, tokenizer)
+print(len(ds))
 
-dataloader = DataLoader(ds, batch_size=4, collate_fn=ds.collate_fn)
+ds_subsets = random_split(ds, [0.1]*10, generator=torch.Generator().manual_seed(42))
+
+dataloader = DataLoader(ds_subsets[0], batch_size=4, collate_fn=ds.collate_fn)
 
 model = QuestionGeneration.load_from_checkpoint("/content/drive/MyDrive/SyntheticGeneration/QGeneration/models/lightning_logs/version_0/checkpoints/epoch=3-step=36112.ckpt")
 
@@ -111,7 +114,7 @@ decoded_out = [
   list(set([process(tokenizer.decode(x)) for x in generated_out_item]))
   for generated_out_item in generated_out
 ]
-print(decoded_out)
+# print(decoded_out)
 df_save = {}
 df_save['context'] = []
 df_save['answer'] = []
@@ -124,4 +127,4 @@ for i, out in enumerate(decoded_out):
         df_save['answer'].append(answers[i])
         df_save['answer_start'].append(answer_starts[i])
 df_save = pd.DataFrame.from_dict(df_save)
-df_save.to_csv("/content/generated_q.csv")
+df_save.to_csv("'/content/drive/MyDrive/SyntheticGeneration/QGeneration/generated_q_0.csv")
