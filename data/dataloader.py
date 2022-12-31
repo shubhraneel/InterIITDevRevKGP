@@ -240,12 +240,23 @@ class AllAnswerContexts_Dataset(Dataset):
 
     self.tokenizer = tokenizer
 
-    self.tokenized_keys = ["answer_context_input_ids", "answer_context_attention_mask"
+    self.tokenized_keys = ["answer_context_input_ids", "answer_context_attention_mask",
+                            "answers", "context"
             ]
 
-    df['answer_context'] = ["answer: " + answer["text"] + " context: " + context for answer, context in zip(df['answers'], df["context"])]
-
+    print(df['answers'])
+    print(df['context'])
+    answer_context_tuples = list(set([(answer["answer_start"], answer["text"], context) for answer, context in zip(df['answers'], df["context"])]))
+    print(len(df['answers']))
+    print(len(answer_context_tuples))
+    for x in answer_context_tuples:
+      print(x)
     self.inputs = {}
+    self.inputs['answer_starts'] = [answer for answer, _, _ in answer_context_tuples]
+    self.inputs['answers'] = [answer for _, answer, _ in answer_context_tuples]
+    self.inputs['context'] = [context for _, _, context in answer_context_tuples]
+    df['answer_context'] = ["answer: " + answer + " context: " + context for _, answer, context in answer_context_tuples]
+
     answer_contexts_tokenized = self.tokenizer(df['answer_context'], max_length=512, truncation="longest_first", padding="max_length", return_tensors="pt")
     self.inputs['answer_context_input_ids'] = answer_contexts_tokenized.pop('input_ids')
     self.inputs['answer_context_attention_mask'] = answer_contexts_tokenized.pop('attention_mask')
@@ -257,7 +268,14 @@ class AllAnswerContexts_Dataset(Dataset):
     return {key: self.inputs[key][idx] for key in self.inputs.keys()}
 
   def collate_fn(self, items):
-    batch = {key: torch.stack([x[key] for x in items], dim=0) for key in self.tokenized_keys}
+    batch = {
+      # key: torch.stack([x[key] for x in items], dim=0) for key in self.tokenized_keys
+      "answer_context_input_ids": torch.stack([x["answer_context_input_ids"] for x in items], dim=0),
+      "answer_context_attention_mask": torch.stack([x["answer_context_attention_mask"] for x in items], dim=0),
+      "answers": [x["answers"] for x in items],
+      "context": [x["context"] for x in items],
+      "answer_starts": [x["answer_starts"] for x in items]
+    }
 
       # "answerable":                           torch.stack([x["answerable"] for x in items], dim=0),
       # "start_positions":                      torch.stack([x["start_positions"] for x in items], dim=0),
