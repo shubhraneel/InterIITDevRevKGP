@@ -218,6 +218,8 @@ class Trainer():
                 # print(len(temp_ds))
                 
                 # loop for iterating over question para pairs to extract paras
+                best_prob = 0
+                best_row = None
                 for qp_batch_id, qp_batch in enumerate(temp_dataloader):
                     if (len(qp_batch["question_context_input_ids"].shape) == 1):
                         qp_batch["question_context_input_ids"] = qp_batch["question_context_input_ids"].unsqueeze(dim=0)
@@ -227,38 +229,79 @@ class Trainer():
                     
                     pred = self.predict(qp_batch)
 
-                    offset_mappings_list = qp_batch["question_context_offset_mapping"]
-                    contexts_list = qp_batch["context"]
+                    # offset_mappings_list = qp_batch["question_context_offset_mapping"]
+                    # contexts_list = qp_batch["context"]
 
-                    gold_answers.extend([answer[0] if (len(answer) != 0) else "" for answer in qp_batch["answer"]])
+                    # gold_answers.extend([answer[0] if (len(answer) != 0) else "" for answer in qp_batch["answer"]])
 
-                    pred_start_index = torch.argmax(pred.start_logits, axis=1)
-                    pred_end_index = torch.argmax(pred.end_logits, axis=1)
+                    pred_start = torch.max(pred.start_logits, axis=1)
+                    pred_start_index = pred_start.indices
+                    pred_start_prob = pred_start.values
 
-                    # iterate over each context
-                    for c_id, context in enumerate(contexts_list):
-                        # TODO: don't take only best pair (see HF tutorial)
+                    pred_end = torch.max(pred.end_logits, axis=1)
+                    pred_end_index = pred_end.indices
+                    pred_end_prob = pred_end.values
 
-                        pred_answer = ""
-                        if (offset_mappings_list[c_id][pred_start_index[c_id]] is not None and offset_mappings_list[c_id][pred_end_index[c_id]]):
-                            try:
-                                pred_start_char = offset_mappings_list[c_id][pred_start_index[c_id]][0]
-                                pred_end_char = offset_mappings_list[c_id][pred_end_index[c_id]][1]
-                            except:
-                                print(offset_mappings_list[c_id])
-                                raise ValueError
+                    # to predict only one answer
+                    batch_best = torch.max(pred_start_prob*pred_end_prob, axis=0)
+                    batch_best_paragraph_idx = batch_best.indices.item()
+                    batch_best_paragraph_prob = batch_best.values.item()
 
-                            pred_answer = context[pred_start_char:pred_end_char]
+                    # print("batch_best_paragraph_idx", batch_best_paragraph_idx)
+                    # print("batch_best_paragraph_prob", batch_best_paragraph_prob)
 
-                        predicted_answers.append(pred_answer)
+                    if (batch_best_paragraph_prob > best_prob):
+                        best_prob = batch_best_paragraph_prob
+                        best_row = {key: qp_batch[key][batch_best_paragraph_idx] for key in ["context", "answer", "question_context_offset_mapping"]}
+                        best_row["pred_start_index"] = pred_start_index[batch_best_paragraph_idx]
+                        best_row["pred_end_index"] = pred_end_index[batch_best_paragraph_idx]
+
+                    # to predict for all paragraphs
+                    # # iterate over each context
+                    # for c_id, context in enumerate(contexts_list):
+                    #     # TODO: don't take only best pair (see HF tutorial)
+
+                    #     pred_answer = ""
+                    #     if (offset_mappings_list[c_id][pred_start_index[c_id]] is not None and offset_mappings_list[c_id][pred_end_index[c_id]] is not None):
+                    #         try:
+                    #             pred_start_char = offset_mappings_list[c_id][pred_start_index[c_id]][0]
+                    #             pred_end_char = offset_mappings_list[c_id][pred_end_index[c_id]][1]
+                    #         except:
+                    #             print(offset_mappings_list[c_id])
+                    #             raise ValueError
+
+                    #         pred_answer = context[pred_start_char:pred_end_char]
+
+                    #     predicted_answers.append(pred_answer)
                         
                     # TODO: remove offset_mapping etc. lookup from inference time (current calculation is the absolute worst case time)
-                    
+
                 total_time_per_question = (time.time() - start_time)
                 total_time_per_question_list.append(total_time_per_question)
                 wandb.log({"inference_time_per_question": total_time_per_question})
 
-        # print(total_time_per_question_list)
+                try:
+                    gold_answers.append(best_row["answer"][0] if (len(best_row["answer"]) != 0) else "") 
+                except:
+                    print("best_row", best_row)
+                    print("df_kb", df_kb)
+                    print("doc_text_filtered", doc_text_filtered)
+                    print("question", question)
+                    print("theme_id", theme_id)
+                    print("row_in_data", row_in_data)
+                    raise
+
+                offset_mappings = best_row["question_context_offset_mapping"]
+                context = best_row["context"]
+
+                pred_answer = ""
+                if (offset_mappings[best_row["pred_start_index"]] is not None and offset_mappings[best_row["pred_end_index"]] is not None):
+                    pred_start_char = offset_mappings[best_row["pred_start_index"]][0]
+                    pred_end_char = offset_mappings[best_row["pred_end_index"]][1]
+
+                    pred_answer = context[pred_start_char:pred_end_char]
+                
+                predicted_answers.append(pred_answer)
 
         results = {
                     "mean_time_per_question": np.mean(np.array(total_time_per_question_list)),
@@ -266,7 +309,7 @@ class Trainer():
                     "gold_answers": gold_answers,
                 }     
 
-        return results
+        return results, predicted_answers, gold_answers
 
     def calculate_metrics(self, dataset, dataloader):
         """
@@ -280,7 +323,7 @@ class Trainer():
         torch.cuda.synchronize()
         # tsince = int(round(time.time() * 1000))
         # results = self.__inference__(dataset, dataloader, logger)
-        results = self.inference(dataset, dataloader)
+        results, predicted_answers, gold_answers = self.inference(dataset, dataloader)
         torch.cuda.synchronize()
         # ttime_elapsed = int(round(time.time() * 1000)) - tsince
         # print ('test time elapsed {}ms'.format(ttime_elapsed))
@@ -308,5 +351,7 @@ class Trainer():
         }
 
         wandb.log({"metrics": metrics})
+        wandb.log({"predicted_answers": predicted_answers})
+        wandb.log({"gold_answers": gold_answers})
 
         return metrics
