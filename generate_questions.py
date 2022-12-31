@@ -58,48 +58,43 @@ class QuestionGeneration(pl.LightningModule):
         self.model.eval()
         outs = []
         for batch in test_dataloader:
-            outputs = self.model.generate(batch['answer_context_input_ids'], attention_mask = batch['answer_context_attention_mask'])
+            outputs = self.model.generate(
+                batch['answer_context_input_ids'], 
+                attention_mask = batch['answer_context_attention_mask'],
+                num_beams=5,
+                num_return_sequences=5
+            )
+            print(outputs.shape)
             outs.append(outputs)
         return torch.stack(outs)
-
+        
 tokenizer = T5Tokenizer.from_pretrained('mrm8488/t5-base-finetuned-question-generation-ap', TOKENIZERS_PARALLELISM=True, model_max_length=512, padding="max_length")
 df = pd.read_csv('data-dir/train_data.csv')
 df = preprocess_fn(df)
+df.pop("id")
+df.pop("question")
 df_generated = pd.read_csv('/content/drive/MyDrive/SyntheticGeneration/AGeneration/generated_a.csv')
-df_generated['generated_answers']	= literal_eval(df_generated['generated_answers'])
+df_generated['generated_answers'] = literal_eval(df_generated['generated_answers'])
 df_generated['generated_answer_indices'] = literal_eval(df_generated['generated_answer_indices'])
-for idx, row in df.iterrows():
+for idx, row in df_generated.iterrows():
     for idx_ans, answer in enumerate(row['generated_answers']):
         df['answers'].append({
           "answer_start": row['generated_answers'][idx_ans],
           "text": answer
         })
         df["context"].append(row["context"])
-        df["title"].append(row[""])
+        df["title"].append(row["title"])
 
-df_train, df_test = train_test_split(df, test_size=0.2, random_state=3407)
-df_train, df_val = train_test_split(df_train, test_size=0.1, random_state=3407)
+ds = SQuAD_Dataset(df, tokenizer)
 
-print(len(df_train))
-print(len(df_val))
-
-train_ds = SQuAD_Dataset(df_train, tokenizer)
-val_ds = SQuAD_Dataset(df_val, tokenizer)
-test_ds = SQuAD_Dataset(df_test, tokenizer)
-
-train_dataloader = DataLoader(train_ds, batch_size=4, collate_fn=train_ds.collate_fn)
-val_dataloader = DataLoader(val_ds, batch_size=4, collate_fn=val_ds.collate_fn)
-test_dataloader = DataLoader(test_ds, batch_size=4, collate_fn=test_ds.collate_fn)
+dataloader = DataLoader(ds, batch_size=4, collate_fn=test_ds.collate_fn)
 
 print(len(train_dataloader))
 print(len(val_dataloader))
 
-model = QuestionGeneration()
+model = QuestionGeneration.load_from_checkpoint("/content/drive/SyntheticGeneration/QGeneration/**")
 
-trainer = pl.Trainer(accelerator='gpu', devices=1, max_epochs=4, default_root_dir="/content/drive/SyntheticGeneration/QGeneration/models/")
-trainer.fit(model, train_dataloader, val_dataloader)
-
-generated_out = model.generate(test_dataloader)
+generated_out = model.generate(dataloader)
 decoded_out = [tokenizer.decode(generated_out_item) for generated_out_item in generated_out]
 df_test['generated'] = decoded_out
 df_test.to_csv("/content/drive/SyntheticGeneration/QGeneration/generated_q.csv")
