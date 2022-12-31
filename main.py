@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import yaml
 import wandb
@@ -83,6 +84,8 @@ if __name__ == "__main__":
 	val_inds, test_inds = next(split_val)
 	df_val = df_val_c.iloc[val_inds].reset_index(drop=True)
 	df_test = df_val_c.iloc[test_inds].reset_index(drop=True)
+
+	print(f"{len(df_test.loc[df_test['Answer_possible'] == True])=}")
 
 	del df, df_val_c
 
@@ -194,8 +197,7 @@ if __name__ == "__main__":
 		if (config.inference):
 			print("Creating test dataset")
 			test_ds = SQuAD_Dataset(config, df_test, tokenizer)
-			test_dataloader = DataLoader(
-				test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
+			test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
 			print("length of test dataset: {}".format(test_ds.__len__()))
 
 			# calculate_metrics(test_ds, test_dataloader, wandb_logger)

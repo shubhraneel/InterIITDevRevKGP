@@ -22,6 +22,9 @@ def preprocess_fn(df, tokenizer, mask_token='<mask>'):
 	ques2idx = {}
 	idx2ques = {}
 
+	# df["Answer_start"] = df["Answer_start"].apply(lambda x: literal_eval(x) if isinstance(x, str) else x)
+	# df["Answer_text"] = df["Answer_text"].apply(lambda x: literal_eval(x) if isinstance(x, str) else x) 
+
 	for index, row in df.iterrows():
 		if isinstance(row["Answer_start"], str):
 			answer_start = literal_eval(row["Answer_start"])

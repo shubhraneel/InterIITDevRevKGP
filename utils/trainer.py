@@ -144,6 +144,8 @@ class Trainer():
         total_time_per_question_list = []
         predicted_answers = []
         gold_answers = []
+        
+        df_unique_paras = dataset.df.drop_duplicates(subset=["Paragraph"])
 
         # TODO: is this time calculation correct?
         for batch_idx, batch in enumerate(tepoch):
@@ -154,6 +156,7 @@ class Trainer():
             # list of paragraph indices (in dataset.data) for each question in the batch
             para_ids_batch = [dataset.theme_para_id_mapping[t] for t in title_list]
 
+            # TODO: use query instead of loc
             # iterate over questions in the batch
             for question_idx in range(len(batch["question"])):
                 start_time = time.time()
@@ -164,16 +167,22 @@ class Trainer():
                 # create knowledge base dataframe containing all paragraphs of the same theme as q
                 if (self.config.use_drqa):
                     doc_names_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, theme_id, k=self.config.drqa_top_k)
-
+                    
                     df_kb = pd.DataFrame()
-                    df_kb["Paragraph"] = doc_text_filtered
-                    df_kb["paragraph_id"] = doc_names_filtered
+
+                    if (len(doc_names_filtered) == 0):
+                        print("Ranker retrieved no paragraphs, sampling top k paragraphs randomly")
+                        df_kb = (df_unique_paras.loc[df_unique_paras["theme_id"].astype(str) == str(theme_id)]).sample(n=self.config.drqa_top_k, random_state=self.config.seed)
+
+                    else:
+                        df_kb["Paragraph"] = doc_text_filtered
+                        df_kb["paragraph_id"] = doc_names_filtered
+
+                        df_kb["Theme"] = batch["title"][question_idx]
+                        df_kb["theme_id"] = batch["theme_id"][question_idx]
 
                     df_kb["Question"] = question
                     df_kb["question_id"] = batch["question_id"][question_idx]
-
-                    df_kb["Theme"] = batch["title"][question_idx]
-                    df_kb["theme_id"] = batch["theme_id"][question_idx]
 
                     df_kb["Answer_possible"] = False
                     df_kb["Answer_start"] = "[]"#*len(doc_names_filtered)
@@ -192,11 +201,12 @@ class Trainer():
 
                     # TODO: Optimize
                     row_in_data_idx = df_kb.loc[df_kb["paragraph_id"].astype(str) == str(row_in_data["paragraph_id"].values[0])].index
-                    # print(row_in_data, row_in_data_idx)
-                    # print("row_in_data['paragraph_id'].values[0]", row_in_data["paragraph_id"].values[0])
-                    df_kb.loc[row_in_data_idx, "Answer_possible"] = row_in_data["Answer_possible"].values[0]
-                    df_kb.loc[row_in_data_idx, "Answer_start"] = row_in_data["Answer_start"].values[0]
-                    df_kb.loc[row_in_data_idx, "Answer_text"] = row_in_data["Answer_text"].values[0]
+                    if (len(row_in_data_idx) != 0):
+                        # print(row_in_data, row_in_data_idx)
+                        # print("row_in_data['paragraph_id'].values[0]", row_in_data["paragraph_id"].values[0])
+                        df_kb.loc[row_in_data_idx, "Answer_possible"] = row_in_data["Answer_possible"].values[0]
+                        df_kb.loc[row_in_data_idx, "Answer_start"] = row_in_data["Answer_start"].values[0]
+                        df_kb.loc[row_in_data_idx, "Answer_text"] = row_in_data["Answer_text"].values[0]
 
                 else:
                     # list of paragraph ids in the same theme as q
@@ -309,6 +319,9 @@ class Trainer():
                     "gold_answers": gold_answers,
                 }     
 
+        print(f"{len(predicted_answers)=}")
+        print(f"{len(gold_answers)=}")
+
         return results, predicted_answers, gold_answers
 
     def calculate_metrics(self, dataset, dataloader):
@@ -334,17 +347,22 @@ class Trainer():
         # TODO/DOUBT: should we add a classification filter first? 
 
         squad_f1_per_span = []
+        results["gold_answers_actual"] = dataset.df["Answer_text"].tolist()
         for i in range(len(results["predicted_answers"])):
-            squad_f1_per_span.append(compute_f1(results["predicted_answers"][i], results["gold_answers"][i])) # For the text
+            squad_f1_per_span.append(compute_f1(results["predicted_answers"][i], results["gold_answers_actual"][i])) # For the text
         mean_squad_f1 = np.mean(squad_f1_per_span)
 
         classification_prediction = [1 if (len(results["predicted_answers"][i]) != 0) else 0 for i in range(len(results["predicted_answers"])) ] 
-        classification_actual = [1 if (len(results["gold_answers"][i]) != 0) else 0 for i in range(len(results["gold_answers"])) ] 
+        # classification_actual = [1 if (len(results["gold_answers"][i]) != 0) else 0 for i in range(len(results["gold_answers"])) ] 
+        classification_actual = dataset.df["Answer_possible"].astype(int)
         classification_f1 = sklearn.metrics.f1_score(classification_actual, classification_prediction)
         classification_accuracy = sklearn.metrics.accuracy_score(classification_actual, classification_prediction)
+        classification_report = sklearn.metrics.classification_report(classification_actual, classification_prediction, output_dict=True)
+        print(pd.DataFrame(classification_report).T)
 
         metrics = {
             "classification_accuracy": classification_accuracy,
+            "classification_report": classification_report,
             "classification_f1": classification_f1,
             "mean_squad_f1": mean_squad_f1,
             "mean_time_per_question (ms)": results["mean_time_per_question"]*1000,
@@ -352,6 +370,6 @@ class Trainer():
 
         wandb.log({"metrics": metrics})
         wandb.log({"predicted_answers": predicted_answers})
-        wandb.log({"gold_answers": gold_answers})
+        wandb.log({"gold_answers": results["gold_answers_actual"]})
 
         return metrics

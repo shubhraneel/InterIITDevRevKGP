@@ -53,6 +53,9 @@ class TfidfDocRanker(object):
         spvec = self.text2spvec(query)
         res = spvec * self.doc_mat
 
+        # print(f"{res.data.shape=}")
+        # print(f"{type(res)=}")
+
         if len(res.data) <= k:
             o_sort = np.argsort(-res.data)
         else:
@@ -161,8 +164,10 @@ class Retriever(object):
         Finalize(self.PROCESS_DB, self.PROCESS_DB.close, exitpriority=100)
 
     def retrieve_top_k(self, question, theme, k=1):
-        doc_names, doc_scores = self.ranker.closest_docs(question, 100000)
+        doc_names, doc_scores = self.ranker.closest_docs(question, 1800) # 100000
+        # print(f"{self.ranker.doc_mat.shape=}")
         # print("doc_names", doc_names)
+        # print("len(doc_names)", len(doc_names))
         # print("theme", theme)
         # print("type(theme)", type(theme))
         # print([self.para_theme_id_dict[doc] for doc in doc_names])
