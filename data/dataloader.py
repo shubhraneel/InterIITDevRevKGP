@@ -246,7 +246,7 @@ class AllAnswerContexts_Dataset(Dataset):
 
     # print(df['answers'])
     # print(df['context'])
-    answer_context_tuples = list(set([(answer["answer_start"], answer["text"], context) for answer, context in zip(df['answers'], df["context"])]))
+    answer_context_tuples = list(dict.fromkeys([(answer["answer_start"], answer["text"], context) for answer, context in zip(df['answers'], df["context"])]).keys())
     print(len(df['answers']))
     print(len(answer_context_tuples))
     self.inputs = {}

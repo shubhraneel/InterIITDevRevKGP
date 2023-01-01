@@ -96,9 +96,10 @@ for idx, row in df_generated.iterrows():
         # df["title"].append(row["title"])
 
 ds = AllAnswerContexts_Dataset(df, tokenizer)
-print(len(ds))
+# for item in ds:
+#     print(item['answers'])
 
-ds_subsets = random_split(ds, [0.1]*10, generator=torch.Generator().manual_seed(42))
+ds_subsets = random_split(ds, [0.2]*5, generator=torch.Generator().manual_seed(42))
 
 dataloader = DataLoader(ds_subsets[0], batch_size=4, collate_fn=ds.collate_fn)
 
@@ -111,7 +112,7 @@ def process(x):
 
 generated_out, answers, contexts, answer_starts = model.generate(dataloader)
 decoded_out = [
-  list(set([process(tokenizer.decode(x)) for x in generated_out_item]))
+  list(dict.fromkeys([process(tokenizer.decode(x)) for x in generated_out_item]).keys())
   for generated_out_item in generated_out
 ]
 # print(decoded_out)
@@ -127,4 +128,4 @@ for i, out in enumerate(decoded_out):
         df_save['answer'].append(answers[i])
         df_save['answer_start'].append(answer_starts[i])
 df_save = pd.DataFrame.from_dict(df_save)
-df_save.to_csv("'/content/drive/MyDrive/SyntheticGeneration/QGeneration/generated_q_0.csv")
+df_save.to_csv("/content/drive/MyDrive/SyntheticGeneration/QGeneration/generated_q_0.csv")
