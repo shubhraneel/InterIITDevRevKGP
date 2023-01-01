@@ -15,7 +15,7 @@ from utils import compute_f1
 from data import SQuAD_Dataset
 
 class Trainer():
-    def __init__(self, config, model, optimizer, device, tokenizer, retriever=None):
+    def __init__(self, config, model, optimizer, device, tokenizer, ques2idx, retriever=None):
         self.config = config
         self.device = device
 
@@ -25,6 +25,8 @@ class Trainer():
         self.model = model
 
         wandb.watch(self.model)
+
+        self.ques2idx = ques2idx
 
         self.retriever = retriever
 
@@ -334,25 +336,49 @@ class Trainer():
 
         title_id_list = df_test["title_id"].unique()
         gb_title = df_test.groupby("title_id")
+        df_test_matched = pd.DataFrame()
+
+        df_unique_con = df_test.drop_duplicates(subset=["context"])
+
         for title_id in title_id_list:
             df_temp = gb_title.get_group(title_id)
-            question_list = df_temp["question"].unique()
+            print(len(df_temp))
+            # question_list = df_temp["question"].unique()
             
-            for question in question_list:
-                doc_names_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, str(title_id), k=self.config.drqa_top_k)
+            for idx, row in df_temp.iterrows():
+                question = row["question"]
+                question_id = row["question_id"]
+                context_id = row["context_id"]
 
-                print(doc_names_filtered, doc_text_filtered)
+                doc_idx_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, str(title_id), k=self.config.drqa_top_k)
 
-                # top_k_para_idx = dummy_retriever(ques, df_temp, k=3)
-                # print(df_temp.loc[df_temp["paragraph_id"].isin(top_k_para_idx)])
+                # print(doc_idx_filtered, doc_text_filtered)
+                df_contexts = df_unique_con.loc[df_unique_con["context_id"].isin([int(doc_idx) for doc_idx in doc_idx_filtered])].copy()
+                # row_in_data = df_contexts.loc[df_contexts["question_id"] == question_id]
+
+                df_contexts.loc[:, "question"] = question
+                df_contexts.loc[:, "question_id"] = question_id
+                df_contexts.loc[:, "answerable"] = False
+                df_contexts.loc[:, "answer_start"] = ""
+                df_contexts.loc[:, "answer_text"] = ""
                 
-                break
+                original_context_idx = df_contexts.loc[df_contexts["context_id"] == context_id]
+                if (len(original_context_idx) == 0):    
+                    print("original paragraph not in top k")
+                    # don't uncomment this
+                    # df_contexts = pd.concat([df_contexts, pd.DataFrame(row)], axis=0, ignore_index=True)
+                else:
+                    row_dict = row.to_dict()
+                    df_contexts.loc[df_contexts["context_id"] == context_id, row_dict.keys()] = row_dict.values()
+                
+                df_test_matched = pd.concat([df_test_matched, df_contexts], axis=0, ignore_index=True)
+
             break
 
+        print(df_test_matched)
+        print(len(df_temp))
+
         sys.exit(0)
-
-        
-
 
     def calculate_metrics(self, df_test):
         """

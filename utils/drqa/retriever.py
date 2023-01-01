@@ -175,10 +175,14 @@ class Retriever(object):
         # print(f"{[self.con_title_id_dict[doc] for doc in doc_names]=}")
         doc_names_filtered = [doc for doc in doc_names if self.con_title_id_dict[doc] == title_id]
         
+        # print(doc_names_filtered)
+
         if (len(doc_names_filtered) > k):
             doc_names_filtered = doc_names_filtered[0:k]
 
         doc_text_filtered = [self.fetch_text(idx) for idx in doc_names_filtered]
+
+        # print(self.con_title_id_dict)
 
         return doc_names_filtered, doc_text_filtered
 

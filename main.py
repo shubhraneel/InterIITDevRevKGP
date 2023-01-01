@@ -57,7 +57,7 @@ def reformat_data_for_sqlite(df, split):
 
 
 def prepare_retriever(df, db_path, split):
-	reformat_data_for_sqlite(df_train, f"{split}")
+	reformat_data_for_sqlite(df, f"{split}")
 	if (os.path.exists(f"data-dir/{split}/{db_path}")):
 		os.remove(f"data-dir/{split}/{db_path}")
 
@@ -111,6 +111,10 @@ if __name__ == "__main__":
 
 	print(f"{len(df_test)=}")
 	print(f"{len(df_test.loc[df_test['answerable'] == True])=}")
+
+	df_train.to_csv("data-dir/train/df_train.csv", index=False)
+	df_val.to_csv("data-dir/val/df_val.csv", index=False)
+	df_test.to_csv("data-dir/test/df_test.csv", index=False)
 
 	del df, df_val_c
 
@@ -180,7 +184,7 @@ if __name__ == "__main__":
 			retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path)
 
 		trainer = Trainer(config=config, model=model,
-						  optimizer=optimizer, device=device, tokenizer=tokenizer, retriever=retriever)
+						  optimizer=optimizer, device=device, tokenizer=tokenizer, ques2idx=ques2idx, retriever=retriever)
 
 		if (config.train):
 			print("Creating train dataset")
