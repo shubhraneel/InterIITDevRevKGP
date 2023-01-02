@@ -450,12 +450,12 @@ class Trainer():
         if self.config.inference_device == 'cuda':
             torch.cuda.synchronize()
         question_pred_dict= self.inference_clean(df_test)
-        predicted_answers=[question_pred_dict[q_id] for q_id in df_test['question_id']]
+        predicted_answers=[question_pred_dict[q_id][1] for q_id in df_test['question_id']]
         gold_answers=df_test['answer_text'].tolist()
         
         # TODO/DOUBT: should we add a classification filter first? 
-
-        squad_f1_per_span = [compute_f1(pred,gold)  for pred,gold in zip(predicted_answers,gold_answers)]
+        assert len(predicted_answers)==len(gold_answers)
+        squad_f1_per_span = [compute_f1(predicted_answers[i],gold_answers[i])  for i in range(len(predicted_answers))]
         mean_squad_f1 = np.mean(squad_f1_per_span)
 
         classification_prediction = [1 if (len(predicted_answers[i]) != 0) else 0 for i in range(len(predicted_answers)) ] 
