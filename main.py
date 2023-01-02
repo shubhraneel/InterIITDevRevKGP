@@ -46,7 +46,6 @@ def load_mappings():
 
 
 def reformat_data_for_sqlite(df, split):
-	os.makedirs("data-dir/{}/".format(split), exist_ok=True)
 
 	context_doc_id = df[["context", "context_id"]].rename(
 		columns={"context": "text", "context_id": "id"})
@@ -111,6 +110,10 @@ if __name__ == "__main__":
 
 	print(f"{len(df_test)=}")
 	print(f"{len(df_test.loc[df_test['answerable'] == True])=}")
+
+	os.makedirs("data-dir/train/".format(split), exist_ok=True)
+	os.makedirs("data-dir/val/".format(split), exist_ok=True)
+	os.makedirs("data-dir/test/".format(split), exist_ok=True)
 
 	df_train.to_csv("data-dir/train/df_train.csv", index=False)
 	df_val.to_csv("data-dir/val/df_val.csv", index=False)
