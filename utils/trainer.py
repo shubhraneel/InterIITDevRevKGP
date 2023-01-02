@@ -451,7 +451,7 @@ class Trainer():
             torch.cuda.synchronize()
         question_pred_dict= self.inference_clean(df_test)
         predicted_answers=[question_pred_dict[q_id] for q_id in df_test['question_id']]
-        gold_answers=df_test['Answer_text'].tolist()
+        gold_answers=df_test['answer_text'].tolist()
         
         # TODO/DOUBT: should we add a classification filter first? 
 
@@ -459,7 +459,7 @@ class Trainer():
         mean_squad_f1 = np.mean(squad_f1_per_span)
 
         classification_prediction = [1 if (len(predicted_answers[i]) != 0) else 0 for i in range(len(predicted_answers)) ] 
-        classification_actual = df_test["Answer_possible"].astype(int)
+        classification_actual = df_test["answerable"].astype(int)
         classification_f1 = sklearn.metrics.f1_score(classification_actual, classification_prediction)
         classification_accuracy = sklearn.metrics.accuracy_score(classification_actual, classification_prediction)
         classification_report = sklearn.metrics.classification_report(classification_actual, classification_prediction, output_dict=True)
