@@ -339,10 +339,10 @@ class Trainer():
         df_test_matched = pd.DataFrame()
 
         df_unique_con = df_test.drop_duplicates(subset=["context"])
-
+        unmatched=0
         for title_id in title_id_list:
             df_temp = gb_title.get_group(title_id)
-            print(len(df_temp))
+            # print(len(df_temp))
             # question_list = df_temp["question"].unique()
             
             for idx, row in df_temp.iterrows():
@@ -351,10 +351,12 @@ class Trainer():
                 context_id = row["context_id"]
 
                 doc_idx_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, str(title_id), k=self.config.drqa_top_k)
-
-                # print(doc_idx_filtered, doc_text_filtered)
-                df_contexts = df_unique_con.loc[df_unique_con["context_id"].isin([int(doc_idx) for doc_idx in doc_idx_filtered])].copy()
+                
+                df_contexts_og = df_unique_con.loc[df_unique_con["context_id"].isin([int(doc_idx) for doc_idx in doc_idx_filtered])].copy()
+                # TODO: we can endup sampling things in doc_idx_filtered again
+                df_contexts_random =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=max(0,self.config.drqa_top_k-len(doc_idx_filtered)))
                 # row_in_data = df_contexts.loc[df_contexts["question_id"] == question_id]
+                df_contexts = pd.concat([df_contexts_og, df_contexts_random], axis=0, ignore_index=True)
 
                 df_contexts.loc[:, "question"] = question
                 df_contexts.loc[:, "question_id"] = question_id
@@ -364,19 +366,23 @@ class Trainer():
                 
                 original_context_idx = df_contexts.loc[df_contexts["context_id"] == context_id]
                 if (len(original_context_idx) == 0):    
-                    print("original paragraph not in top k")
+                    # print(f"original paragraph not in top k {unmatched}")
+                    unmatched+=1
                     # don't uncomment this
                     # df_contexts = pd.concat([df_contexts, pd.DataFrame(row)], axis=0, ignore_index=True)
                 else:
                     row_dict = row.to_dict()
                     df_contexts.loc[df_contexts["context_id"] == context_id, row_dict.keys()] = row_dict.values()
-                
+                if(df_contexts.shape[0]!=self.config.drqa_top_k):
+                  print(df_contexts)
+                  print(df_unique_con.loc[df_unique_con['title_id']==title_id].shape[0])
                 df_test_matched = pd.concat([df_test_matched, df_contexts], axis=0, ignore_index=True)
 
-            break
+            # break
 
-        print(df_test_matched)
-        print(len(df_temp))
+        # print(len(df_test_matched))
+        # print(len(df_temp))
+        # print(f"original paragraph not in top k {unmatched}")
 
         sys.exit(0)
 
