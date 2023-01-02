@@ -11,6 +11,10 @@ load_path: v2-inference-testing-cuda
 use_drqa: True
 create_drqa_tfidf: True
 top_k: 5
+quantize: True
+ONNX: True
+path_to_onnx_model: ''
+path_to_quantized_onnx_model: ''
 
 data:
   train_data_path: data-dir/train/df_train.pkl

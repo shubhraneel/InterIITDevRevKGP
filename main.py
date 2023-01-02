@@ -18,6 +18,9 @@ from utils import Trainer, set_seed, Retriever
 from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
 from utils import build_tf_idf_wrapper, store_contents
 
+from onnxruntime.transformers import optimizer as onnx_optimizer
+import onnxruntime
+import torch.onnx
 
 def load_mappings():
 	with open("data-dir/con_idx_2_title_idx.pkl", "rb") as f:
@@ -78,6 +81,9 @@ if __name__ == "__main__":
 		config = Config(**config)
 
 	set_seed(config.seed)
+
+	# TODO Explore pytorch.quantization also
+	assert not config.quantize or config.ONNX, "Quantizing without ONNX Runtime is not supported"
 
 	print("Reading data csv")
 	df_train = pd.read_pickle(config.data.train_data_path)
@@ -165,6 +171,42 @@ if __name__ == "__main__":
 
 			trainer.train(train_dataloader, val_dataloader)
 
+		if (config.save_model_optimizer):
+			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
+			os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
+			torch.save({
+	        	'model_state_dict': model.state_dict(),
+	        	'optimizer_state_dict': optimizer.state_dict(),
+	        }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
+
+		# if (config.ONNX):
+		# 	# # load config
+		# 	# model_kind, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature='question-answering')
+		# 	# onnx_config = model_onnx_config(model.config)
+
+		# 	# # export
+		# 	# onnx_inputs, onnx_outputs = transformers.onnx.export(
+		# 	# 	preprocessor=tokenizer,
+		# 	# 	model=model,
+		# 	# 	config=onnx_config,
+		# 	# 	opset=13,
+		# 	# 	output=Path("trfs-model.onnx")
+		# 	# )
+
+		# 	# TODO: Export model to ONNX to some file
+		# 	model_onnx_path = None
+
+		# if (config.quantize):
+		# 	# optimized_model = onnx_optimizer.optimize_model(model_onnx_path, model_type=model_type, num_heads=attention_heads, hidden_size=hidden_states)
+		# 	# optimized_model.convert_float_to_float16()
+		# 	# optimized_fp16_model_path_class = "model_classifier_fp16.onnx"
+		# 	# optimized_model.save_model_to_file(optimized_fp16_model_path_class)
+
+		# 	# TODO: Quantize the model and Export to some file
+		# 	model_quantized_onnx_path = None
+
+
+
 		if (config.inference):
 			# print("Creating test dataset")
 			# test_ds = SQuAD_Dataset(config, df_test, tokenizer)
@@ -176,13 +218,6 @@ if __name__ == "__main__":
 			test_metrics = trainer.calculate_metrics(df_test)
 			print(test_metrics)
 
-		if (config.save_model_optimizer):
-			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
-			os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
-			torch.save({
-	        	'model_state_dict': model.state_dict(),
-	        	'optimizer_state_dict': optimizer.state_dict(),
-	        }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
 
 		# model = AutoModel_Classifier_QA(config, tokenizer=tokenizer, logger=wandb_logger)
 		# model.__train__(train_dataloader)
