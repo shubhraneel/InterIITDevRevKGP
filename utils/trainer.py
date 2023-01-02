@@ -340,6 +340,8 @@ class Trainer():
 
         df_unique_con = df_test.drop_duplicates(subset=["context"])
         unmatched=0
+
+        start_time = time.time()
         for title_id in title_id_list:
             df_temp = gb_title.get_group(title_id)
             # print(len(df_temp))
@@ -378,13 +380,63 @@ class Trainer():
                   print(df_unique_con.loc[df_unique_con['title_id']==title_id].shape[0])
                 df_test_matched = pd.concat([df_test_matched, df_contexts], axis=0, ignore_index=True)
 
+        
             # break
-
+        
+        # df_test_matched is k*num_questions with all columns 
         # print(len(df_test_matched))
         # print(len(df_temp))
         # print(f"original paragraph not in top k {unmatched}")
+        # sys.exit(0)
+        
+        test_ds = SQuAD_Dataset(self.config, df_test_matched, self.tokenizer) #, hide_tqdm=True
+        test_dataloader = DataLoader(test_ds, batch_size=self.config.data.val_batch_size, collate_fn=test_ds.collate_fn)
+        time_test_dataloader_generation=1000*(time.time() - start_time)
+        print(time_test_dataloader_generation)
+        print(time_test_dataloader_generation/df_test.shape[0])
+        wandb.log({"time_test_dataloader_generation": time_test_dataloader_generation})
+        wandb.log({"per_q_time_test_dataloader_generation": time_test_dataloader_generation/df_test.shape[0]})
+        # maintain a dict key-> question_id and value -> (best_confidence_till_now, corresponding_pred_answer)
 
-        sys.exit(0)
+        start_time=time.time()
+        question_prediction_dict={q_id:(0,"") for q_id in df_test_matched["question_id"].unique()}
+
+        # TODO: without sequentional batch iteration
+        for qp_batch_id, qp_batch in tqdm(enumerate(test_dataloader),total=len(test_dataloader)):
+            # para, para_id, theme, theme_id, question, question_id
+            pred = self.predict(qp_batch)
+
+            # print(pred.start_logits.shape) -> [32,512] 
+            start_probs=F.softmax(pred.start_logits,dim=1)  # -> [32,512] 
+            end_probs=F.softmax(pred.start_logits,dim=1)    # -> [32,512] 
+
+            max_start_probs=torch.max(start_probs, axis=1)  # -> [32,1] 
+            max_end_probs=torch.max(end_probs,axis=1)       # -> [32,1]
+
+            confidence_scores=max_end_probs.values*max_start_probs.values  # -> [32,1]
+            
+            for batch_idx,q_id in enumerate(qp_batch["question_id"]):
+                if (question_prediction_dict[q_id][0]<confidence_scores[batch_idx]):
+                    # using the context in the qp_pair get extract the span using max_start_prob and max_end_prob                    
+                    context = qp_batch["context"][batch_idx]
+                    offset_mapping = qp_batch["question_context_offset_mapping"][batch_idx]
+                    decoded_answer = ""
+                    
+                    start_index = max_start_probs.indices[batch_idx].item()
+                    end_index = max_end_probs.indices[batch_idx].item()
+
+                    if (offset_mapping[start_index] is not None and offset_mapping[end_index] is not None):
+                        start_char = offset_mapping[start_index][0]
+                        end_char = offset_mapping[end_index][1]
+                        decoded_answer = context[start_char:end_char]
+                    question_prediction_dict[q_id]=(confidence_scores[batch_idx].item(),decoded_answer)
+    
+        time_inference_generation=1000*(time.time()-start_time)
+        print(time_inference_generation)
+        print(time_inference_generation/df_test.shape[0])
+        wandb.log({"time_inference_generation": time_inference_generation})
+        wandb.log({"per_q_time_inference_generation": time_inference_generation/df_test.shape[0]})
+        return question_prediction_dict
 
     def calculate_metrics(self, df_test):
         """
@@ -397,28 +449,17 @@ class Trainer():
         # TODO: check if this way of calculating the time is correct
         if self.config.inference_device == 'cuda':
             torch.cuda.synchronize()
-        # tsince = int(round(time.time() * 1000))
-        # results = self.__inference__(dataset, dataloader, logger)
-        # results, predicted_answers, gold_answers = self.inference(dataset, dataloader)
-        results, predicted_answers, gold_answers = self.inference_clean(df_test)
-        torch.cuda.synchronize()
-        # ttime_elapsed = int(round(time.time() * 1000)) - tsince
-        # print ('test time elapsed {}ms'.format(ttime_elapsed))
-
-        # ttime_per_example = (ttime_elapsed * dataloader.batch_size)/len(results["ground"])
-        # classification_f1 = sklearn.metrics.f1_score(results["preds"], results["ground"]) # For paragraph search task
-
+        question_pred_dict= self.inference_clean(df_test)
+        predicted_answers=[question_pred_dict[q_id] for q_id in df_test['question_id']]
+        gold_answers=df_test['Answer_text'].tolist()
+        
         # TODO/DOUBT: should we add a classification filter first? 
 
-        squad_f1_per_span = []
-        results["gold_answers_actual"] = dataset.df["Answer_text"].tolist()
-        for i in range(len(results["predicted_answers"])):
-            squad_f1_per_span.append(compute_f1(results["predicted_answers"][i], results["gold_answers_actual"][i])) # For the text
+        squad_f1_per_span = [compute_f1(pred,gold)  for pred,gold in zip(predicted_answers,gold_answers)]
         mean_squad_f1 = np.mean(squad_f1_per_span)
 
-        classification_prediction = [1 if (len(results["predicted_answers"][i]) != 0) else 0 for i in range(len(results["predicted_answers"])) ] 
-        # classification_actual = [1 if (len(results["gold_answers"][i]) != 0) else 0 for i in range(len(results["gold_answers"])) ] 
-        classification_actual = dataset.df["Answer_possible"].astype(int)
+        classification_prediction = [1 if (len(predicted_answers[i]) != 0) else 0 for i in range(len(predicted_answers)) ] 
+        classification_actual = df_test["Answer_possible"].astype(int)
         classification_f1 = sklearn.metrics.f1_score(classification_actual, classification_prediction)
         classification_accuracy = sklearn.metrics.accuracy_score(classification_actual, classification_prediction)
         classification_report = sklearn.metrics.classification_report(classification_actual, classification_prediction, output_dict=True)
@@ -429,11 +470,11 @@ class Trainer():
             "classification_report": classification_report,
             "classification_f1": classification_f1,
             "mean_squad_f1": mean_squad_f1,
-            "mean_time_per_question (ms)": results["mean_time_per_question"]*1000,
+            # "mean_time_per_question (ms)": results["mean_time_per_question"]*1000,
         }
 
         wandb.log({"metrics": metrics})
         wandb.log({"predicted_answers": predicted_answers})
-        wandb.log({"gold_answers": results["gold_answers_actual"]})
+        wandb.log({"gold_answers": gold_answers})
 
         return metrics
