@@ -389,7 +389,8 @@ class Trainer():
         """
 
         # TODO: check if this way of calculating the time is correct
-        torch.cuda.synchronize()
+        if self.config.inference_device == 'cuda':
+            torch.cuda.synchronize()
         # tsince = int(round(time.time() * 1000))
         # results = self.__inference__(dataset, dataloader, logger)
         # results, predicted_answers, gold_answers = self.inference(dataset, dataloader)
