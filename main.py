@@ -6,7 +6,6 @@ import wandb
 import pickle
 import argparse
 import pandas as pd
-from sklearn.model_selection import train_test_split, GroupShuffleSplit
 
 import torch
 from torch.utils.data import DataLoader
@@ -81,49 +80,11 @@ if __name__ == "__main__":
 	set_seed(config.seed)
 
 	print("Reading data csv")
-	df = pd.read_pickle(config.data.data_path)
+	df_train = pd.read_pickle(config.data.train_data_path)
+	df_val = pd.read_pickle(config.data.val_data_path)
+	df_test = pd.read_pickle(config.data.test_data_path)
 
 	con_idx_2_title_idx, ques2idx, idx2ques, con2idx, idx2con, title2idx, idx2title = load_mappings()
-
-	# COMPLETED TODO: Split the dataset in a way where training theme question-context pair should not be split into train/test/val.
-	splitter = GroupShuffleSplit(
-		train_size=config.data.train_frac, n_splits=1, random_state=config.seed)
-	split = splitter.split(df, groups=df['title'])
-	train_idx, val_idx = next(split)
-	df_train = df.iloc[train_idx].reset_index(drop=True)
-	df_val = df.iloc[val_idx].reset_index(drop=True)
-
-	df_val_c = df_val.copy()
-
-	splitter_val = GroupShuffleSplit(train_size=(config.data.val_frac/(
-		config.data.test_frac + config.data.val_frac)), n_splits=1, random_state=config.seed)
-	split_val = splitter_val.split(df_val_c, groups=df_val_c['title'])
-	val_idx, test_idx = next(split_val)
-	df_val = df_val_c.iloc[val_idx].reset_index(drop=True)
-	df_test = df_val_c.iloc[test_idx].reset_index(drop=True)
-
-	print(f"{len(df_train)=}")
-	print(f"{len(df_train.loc[df_train['answerable'] == True])=}")
-
-	print(f"{len(df_val)=}")
-	print(f"{len(df_val.loc[df_val['answerable'] == True])=}")
-
-	print(f"{len(df_test)=}")
-	print(f"{len(df_test.loc[df_test['answerable'] == True])=}")
-
-	os.makedirs("data-dir/train/".format(split), exist_ok=True)
-	os.makedirs("data-dir/val/".format(split), exist_ok=True)
-	os.makedirs("data-dir/test/".format(split), exist_ok=True)
-
-	df_train.to_csv("data-dir/train/df_train.csv", index=False)
-	df_val.to_csv("data-dir/val/df_val.csv", index=False)
-	df_test.to_csv("data-dir/test/df_test.csv", index=False)
-
-	del df, df_val_c
-
-	# df_val, df_test = train_test_split(df_val, test_size=(config.data.test_frac/(config.data.test_frac + config.data.val_frac)), random_state=config.seed)
-	# df_train, df_test = train_test_split(df, test_size=config.data.test_size, random_state=config.seed)
-	# df_train, df_val = train_test_split(df_train, test_size=config.data.test_size, random_state=config.seed)
 
 	if (config.create_drqa_tfidf):
 		print("using drqa")
