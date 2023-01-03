@@ -137,200 +137,7 @@ class Trainer():
         return self.model(batch)
 
 
-    def inference(self, dataset, dataloader):
-        # TODO: use only dataset (applying transforms as done in collate_fn here itself)
-        self.model.to(self.config.inference_device)
-        self.device = self.config.inference_device
-        self.model.device = self.config.inference_device
-
-        tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
-        tepoch.set_description("Inference Step")
-
-        total_time_per_question_list = []
-        predicted_answers = []
-        gold_answers = []
-        
-        df_unique_paras = dataset.df.drop_duplicates(subset=["Paragraph"])
-
-        # TODO: is this time calculation correct?
-        for batch_idx, batch in enumerate(tepoch):
-            
-            # list of titles in the batch 
-            title_list = batch["title"]  
-
-            # list of paragraph indices (in dataset.data) for each question in the batch
-            para_ids_batch = [dataset.theme_para_id_mapping[t] for t in title_list]
-
-            # TODO: use query instead of loc
-            # iterate over questions in the batch
-            for question_idx in range(len(batch["question"])):
-                start_time = time.time()
-
-                question = batch["question"][question_idx]
-                title_id = str(batch["title_id"][question_idx])
-                
-                # create knowledge base dataframe containing all paragraphs of the same theme as q
-                if (self.config.use_drqa):
-                    doc_names_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, title_id, k=self.config.drqa_top_k)
-                    
-                    df_kb = pd.DataFrame()
-
-                    if (len(doc_names_filtered) == 0):
-                        print("Ranker retrieved no paragraphs, sampling top k paragraphs randomly")
-                        df_kb = (df_unique_paras.loc[df_unique_paras["title_id"].astype(str) == str(title_id)]).sample(n=self.config.drqa_top_k, random_state=self.config.seed)
-
-                    else:
-                        df_kb["Paragraph"] = doc_text_filtered
-                        df_kb["paragraph_id"] = doc_names_filtered
-
-                        df_kb["Theme"] = batch["title"][question_idx]
-                        df_kb["title_id"] = batch["title_id"][question_idx]
-
-                    df_kb["Question"] = question
-                    df_kb["question_id"] = batch["question_id"][question_idx]
-
-                    df_kb["Answer_possible"] = False
-                    df_kb["Answer_start"] = "[]"#*len(doc_names_filtered)
-                    df_kb["Answer_text"] = "[]"#*len(doc_names_filtered)    
-
-                    row_in_data = dataset.df.loc[dataset.df["question_id"] == batch["question_id"][question_idx]]
-
-                    # print(df_kb["paragraph_id"])
-                    # print(row_in_data["paragraph_id"])
-
-                    try:
-                        assert (len(row_in_data) == 1)
-                    except:
-                        print(row_in_data)
-                        raise  
-
-                    # TODO: Optimize
-                    row_in_data_idx = df_kb.loc[df_kb["paragraph_id"].astype(str) == str(row_in_data["paragraph_id"].values[0])].index
-                    if (len(row_in_data_idx) != 0):
-                        # print(row_in_data, row_in_data_idx)
-                        # print("row_in_data['paragraph_id'].values[0]", row_in_data["paragraph_id"].values[0])
-                        df_kb.loc[row_in_data_idx, "Answer_possible"] = row_in_data["Answer_possible"].values[0]
-                        df_kb.loc[row_in_data_idx, "Answer_start"] = row_in_data["Answer_start"].values[0]
-                        df_kb.loc[row_in_data_idx, "Answer_text"] = row_in_data["Answer_text"].values[0]
-
-                else:
-                    # list of paragraph ids in the same theme as q
-                    q_para_ids = para_ids_batch[question_idx]
-
-                    # list of paragraphs for in the same theme as q
-                    paragraphs = list(set(dataset.df.iloc[q_para_ids]["Paragraph"]))
-
-                    # question id (primary key in df)
-                    q_id = batch["question_id"][question_idx]
-
-                    df_kb = self._create_inference_df(question, dataset, paragraphs, q_id)
-
-                # TODO: keep more than 1 question per dataloader for max util (keep stride = k in line 143)
-                temp_ds = SQuAD_Dataset(dataset.config, df_kb, dataset.tokenizer, hide_tqdm=True)
-                temp_dataloader = DataLoader(temp_ds, batch_size=dataset.config.data.val_batch_size, collate_fn=temp_ds.collate_fn)
-
-                # print(question)
-                # print(len(temp_ds))
-                
-                # loop for iterating over question para pairs to extract paras
-                best_prob = 0
-                best_row = None
-                for qp_batch_id, qp_batch in enumerate(temp_dataloader):
-                    if (len(qp_batch["question_context_input_ids"].shape) == 1):
-                        qp_batch["question_context_input_ids"] = qp_batch["question_context_input_ids"].unsqueeze(dim=0)
-                        qp_batch["question_context_attention_mask"] = qp_batch["question_context_attention_mask"].unsqueeze(dim=0)
-                        if not self.config.model.non_pooler:
-                            qp_batch["question_context_token_type_ids"] = qp_batch["question_context_token_type_ids"].unsqueeze(dim=0)
-                    
-                    pred = self.predict(qp_batch)
-
-                    # offset_mappings_list = qp_batch["question_context_offset_mapping"]
-                    # contexts_list = qp_batch["context"]
-
-                    # gold_answers.extend([answer[0] if (len(answer) != 0) else "" for answer in qp_batch["answer"]])
-
-                    pred_start = torch.max(pred.start_logits, axis=1)
-                    pred_start_index = pred_start.indices
-                    pred_start_prob = pred_start.values
-
-                    pred_end = torch.max(pred.end_logits, axis=1)
-                    pred_end_index = pred_end.indices
-                    pred_end_prob = pred_end.values
-
-                    # to predict only one answer
-                    batch_best = torch.max(pred_start_prob*pred_end_prob, axis=0)
-                    batch_best_paragraph_idx = batch_best.indices.item()
-                    batch_best_paragraph_prob = batch_best.values.item()
-
-                    # print("batch_best_paragraph_idx", batch_best_paragraph_idx)
-                    # print("batch_best_paragraph_prob", batch_best_paragraph_prob)
-
-                    if (batch_best_paragraph_prob > best_prob):
-                        best_prob = batch_best_paragraph_prob
-                        best_row = {key: qp_batch[key][batch_best_paragraph_idx] for key in ["context", "answer", "question_context_offset_mapping"]}
-                        best_row["pred_start_index"] = pred_start_index[batch_best_paragraph_idx]
-                        best_row["pred_end_index"] = pred_end_index[batch_best_paragraph_idx]
-
-                    # to predict for all paragraphs
-                    # # iterate over each context
-                    # for c_id, context in enumerate(contexts_list):
-                    #     # TODO: don't take only best pair (see HF tutorial)
-
-                    #     pred_answer = ""
-                    #     if (offset_mappings_list[c_id][pred_start_index[c_id]] is not None and offset_mappings_list[c_id][pred_end_index[c_id]] is not None):
-                    #         try:
-                    #             pred_start_char = offset_mappings_list[c_id][pred_start_index[c_id]][0]
-                    #             pred_end_char = offset_mappings_list[c_id][pred_end_index[c_id]][1]
-                    #         except:
-                    #             print(offset_mappings_list[c_id])
-                    #             raise ValueError
-
-                    #         pred_answer = context[pred_start_char:pred_end_char]
-
-                    #     predicted_answers.append(pred_answer)
-                        
-                    # TODO: remove offset_mapping etc. lookup from inference time (current calculation is the absolute worst case time)
-
-                total_time_per_question = (time.time() - start_time)
-                total_time_per_question_list.append(total_time_per_question)
-                wandb.log({"inference_time_per_question": total_time_per_question})
-
-                try:
-                    gold_answers.append(best_row["answer"][0] if (len(best_row["answer"]) != 0) else "") 
-                except:
-                    print("best_row", best_row)
-                    print("df_kb", df_kb)
-                    print("doc_text_filtered", doc_text_filtered)
-                    print("question", question)
-                    print("title_id", title_id)
-                    print("row_in_data", row_in_data)
-                    raise
-
-                offset_mappings = best_row["question_context_offset_mapping"]
-                context = best_row["context"]
-
-                pred_answer = ""
-                if (offset_mappings[best_row["pred_start_index"]] is not None and offset_mappings[best_row["pred_end_index"]] is not None):
-                    pred_start_char = offset_mappings[best_row["pred_start_index"]][0]
-                    pred_end_char = offset_mappings[best_row["pred_end_index"]][1]
-
-                    pred_answer = context[pred_start_char:pred_end_char]
-                
-                predicted_answers.append(pred_answer)
-
-        results = {
-                    "mean_time_per_question": np.mean(np.array(total_time_per_question_list)),
-                    "predicted_answers": predicted_answers,
-                    "gold_answers": gold_answers,
-                }     
-
-        print(f"{len(predicted_answers)=}")
-        print(f"{len(gold_answers)=}")
-
-        return results, predicted_answers, gold_answers
-
-
-    def inference_clean(self, df_test):
+    def inference(self, df_test):
         self.model.to(self.config.inference_device)
         self.device = self.config.inference_device
         self.model.device = self.config.inference_device
@@ -346,21 +153,23 @@ class Trainer():
         for title_id in title_id_list:
             df_temp = gb_title.get_group(title_id)
             # print(len(df_temp))
-            # question_list = df_temp["question"].unique()
+            # question_list = df_temp["question"].unique()ess
             
             for idx, row in df_temp.iterrows():
                 question = row["question"]
                 question_id = row["question_id"]
                 context_id = row["context_id"]
 
-                doc_idx_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, str(title_id), k=self.config.drqa_top_k)
-                
-                df_contexts_og = df_unique_con.loc[df_unique_con["context_id"].isin([int(doc_idx) for doc_idx in doc_idx_filtered])].copy()
-                # TODO: we can endup sampling things in doc_idx_filtered again
-                df_contexts_random =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=max(0,self.config.drqa_top_k-len(doc_idx_filtered)))
-                # row_in_data = df_contexts.loc[df_contexts["question_id"] == question_id]
-                df_contexts = pd.concat([df_contexts_og, df_contexts_random], axis=0, ignore_index=True)
-
+                df_contexts=pd.DataFrame()
+                if self.retriever is not None:
+                    doc_idx_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, str(title_id), k=self.config.drqa_top_k)
+                    df_contexts_og = df_unique_con.loc[df_unique_con["context_id"].isin([int(doc_idx) for doc_idx in doc_idx_filtered])].copy()
+                    # TODO: we can endup sampling things in doc_idx_filtered again
+                    df_contexts_random =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=max(0,self.config.drqa_top_k-len(doc_idx_filtered)),random_state=self.config.seede)
+                    # row_in_data = df_contexts.loc[df_contexts["question_id"] == question_id]
+                    df_contexts = pd.concat([df_contexts_og, df_contexts_random], axis=0, ignore_index=True)
+                else:
+                    df_contexts =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(frac=1,random_state=self.config.seed)
                 df_contexts.loc[:, "question"] = question
                 df_contexts.loc[:, "question_id"] = question_id
                 df_contexts.loc[:, "answerable"] = False
@@ -398,9 +207,11 @@ class Trainer():
         wandb.log({"time_test_dataloader_generation": time_test_dataloader_generation})
         wandb.log({"per_q_time_test_dataloader_generation": time_test_dataloader_generation/df_test.shape[0]})
         
+        print(f"{len(df_test_matched)=}")
+        print(f"{len(df_temp)=}")
         # table_0 = wandb.Table(dataframe=df_test_matched)
         # wandb.log({"df_test_matched": table_0})
-        df_test_matched.to_csv("checkpoints/{}/df_test_matched.csv".format(self.config.load_path))
+        # df_test_matched.to_csv("checkpoints/{}/df_test_matched.csv".format(self.config.load_path))
         # wandb.log({"df_test_matched": df_test_matched.to_dict()})
         # maintain a dict key-> question_id and value -> (best_confidence_till_now, corresponding_pred_answer)
 
@@ -447,8 +258,8 @@ class Trainer():
         # table_1 = wandb.Table(dataframe=df_question_pred)
         # wandb.log({"question_prediction_dict": question_prediction_dict})
 
-        with open('checkpoints/{}/question_prediction_dict.json'.format(self.config.load_path), 'w') as fp:
-            json.dump({int(q_k):question_prediction_dict[q_k] for q_k in question_prediction_dict.keys()}, fp)
+        # with open('checkpoints/{}/question_prediction_dict.json'.format(self.config.load_path), 'w') as fp:
+        #     json.dump({int(q_k):question_prediction_dict[q_k] for q_k in question_prediction_dict.keys()}, fp)
 
         return question_prediction_dict
 
@@ -463,7 +274,7 @@ class Trainer():
         # TODO: check if this way of calculating the time is correct
         if self.config.inference_device == 'cuda':
             torch.cuda.synchronize()
-        question_pred_dict= self.inference_clean(df_test)
+        question_pred_dict= self.inference(df_test)
         predicted_answers=[question_pred_dict[q_id][1] for q_id in df_test['question_id']]
         gold_answers=df_test['answer_text'].tolist()
         
