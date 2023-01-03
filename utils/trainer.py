@@ -92,47 +92,6 @@ class Trainer():
         return (total_loss / (batch_idx + 1))
 
 
-    def _create_inference_df(self, question, dataset, paragraphs, id):
-        """
-        Create a dataframe with all paragraphs corresponding to a particular question
-        """
-        
-        # TODO: Optimize by replacing loc with query function 
-        df_kb = pd.DataFrame()
-        for p in paragraphs:
-            # if (q, p) is already in the df, just return the answer
-            df_in_data = dataset.df.loc[(dataset.df["Question"] == question) & (dataset.df["Paragraph"] == p)]
-            if (len(df_in_data) != 0):
-                try:
-                    assert len(df_in_data) == 1
-                    df_kb = pd.concat([df_kb, df_in_data], axis = 0).reset_index(drop = True)
-                except:
-                    print(len(df_in_data))
-                    print(type(df_in_data))
-                    print(df_in_data.to_dict())
-                    raise 
-                # assert len(df_in_data) == 1
-                # df_kb = pd.concat([df_kb, df_in_data], axis = 0).reset_index(drop = True)
-            else:
-                # Unnamed: 0	Theme	Paragraph	Question	Answer_possible	Answer_text	Answer
-                # kb_dict = {"Unnamed: 0": id, "Question": question, ""}
-                kb_row = dataset.df.loc[dataset.df["Unnamed: 0"] == id].to_dict(orient = "records")[0]
-                kb_row["Paragraph"] = p
-                kb_row["Answer_possible"] = False
-                kb_row["Answer_start"] = []
-                kb_row["Answer_text"] = []
-
-                # df_in_data = pd.DataFrame(kb_row, index = False)
-
-                df_kb = pd.concat([df_kb, pd.DataFrame(kb_row)], axis=0)
-
-                # df_kb = pd.concat([df_kb, df_in_data], axis = 0).reset_index(drop = True)
-                # kb_row["Question"] = question
-                # return unanswerable (Answerable_possible = False, Answer_text = [], Answer_start = [])
-
-        return df_kb
-
-
     def predict(self, batch):
         return self.model(batch)
 
@@ -185,9 +144,9 @@ class Trainer():
                 else:
                     row_dict = row.to_dict()
                     df_contexts.loc[df_contexts["context_id"] == context_id, row_dict.keys()] = row_dict.values()
-                if(df_contexts.shape[0]!=self.config.drqa_top_k):
-                  print(df_contexts)
-                  print(df_unique_con.loc[df_unique_con['title_id']==title_id].shape[0])
+                # if(df_contexts.shape[0]!=self.config.drqa_top_k):
+                #   print(df_contexts)
+                #   print(df_unique_con.loc[df_unique_con['title_id']==title_id].shape[0])
                 df_test_matched = pd.concat([df_test_matched, df_contexts], axis=0, ignore_index=True)
 
         
