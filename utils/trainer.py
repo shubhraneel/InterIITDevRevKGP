@@ -165,7 +165,7 @@ class Trainer():
                     doc_idx_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, str(title_id), k=self.config.drqa_top_k)
                     df_contexts_og = df_unique_con.loc[df_unique_con["context_id"].isin([int(doc_idx) for doc_idx in doc_idx_filtered])].copy()
                     # TODO: we can endup sampling things in doc_idx_filtered again
-                    df_contexts_random =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=max(0,self.config.drqa_top_k-len(doc_idx_filtered)),random_state=self.config.seede)
+                    df_contexts_random =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=max(0,self.config.drqa_top_k-len(doc_idx_filtered)),random_state=self.config.seed)
                     # row_in_data = df_contexts.loc[df_contexts["question_id"] == question_id]
                     df_contexts = pd.concat([df_contexts_og, df_contexts_random], axis=0, ignore_index=True)
                 else:
