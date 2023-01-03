@@ -1,4 +1,5 @@
 import time
+import json
 import wandb
 import sklearn
 import numpy as np 
@@ -396,6 +397,11 @@ class Trainer():
         print(time_test_dataloader_generation/df_test.shape[0])
         wandb.log({"time_test_dataloader_generation": time_test_dataloader_generation})
         wandb.log({"per_q_time_test_dataloader_generation": time_test_dataloader_generation/df_test.shape[0]})
+        
+        # table_0 = wandb.Table(dataframe=df_test_matched)
+        # wandb.log({"df_test_matched": table_0})
+        df_test_matched.to_csv("checkpoints/{}/df_test_matched.csv".format(self.config.load_path))
+        # wandb.log({"df_test_matched": df_test_matched.to_dict()})
         # maintain a dict key-> question_id and value -> (best_confidence_till_now, corresponding_pred_answer)
 
         start_time=time.time()
@@ -436,6 +442,14 @@ class Trainer():
         print(time_inference_generation/df_test.shape[0])
         wandb.log({"time_inference_generation": time_inference_generation})
         wandb.log({"per_q_time_inference_generation": time_inference_generation/df_test.shape[0]})
+        
+        # df_question_pred = pd.DataFrame.from_dict(question_prediction_dict)
+        # table_1 = wandb.Table(dataframe=df_question_pred)
+        # wandb.log({"question_prediction_dict": question_prediction_dict})
+
+        with open('checkpoints/{}/question_prediction_dict.json'.format(config.load_path), 'w') as fp:
+            json.dump({int(q_k):question_prediction_dict[q_k] for q_k in question_prediction_dict.keys()}, fp)
+
         return question_prediction_dict
 
     def calculate_metrics(self, df_test):
