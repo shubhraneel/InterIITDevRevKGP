@@ -81,9 +81,9 @@ if __name__ == "__main__":
 	print(f"{len(df_test)=}")
 	print(f"{len(df_test.loc[df_test['answerable'] == True])=}")
 
-	os.makedirs("data-dir/train/".format(split), exist_ok=True)
-	os.makedirs("data-dir/val/".format(split), exist_ok=True)
-	os.makedirs("data-dir/test/".format(split), exist_ok=True)
+	os.makedirs("data-dir/train/", exist_ok=True)
+	os.makedirs("data-dir/val/", exist_ok=True)
+	os.makedirs("data-dir/test/", exist_ok=True)
 
 	df_train.to_pickle("data-dir/train/df_train.pkl")
 	df_val.to_pickle("data-dir/val/df_val.pkl")

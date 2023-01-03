@@ -1,10 +1,10 @@
 import time
 import json
 import wandb
-import sklearn
 import numpy as np 
 import pandas as pd
 from tqdm import tqdm
+from sklearn.metrics import f1_score, accuracy_score, classification_report
 
 import sys
 import torch
@@ -447,7 +447,7 @@ class Trainer():
         # table_1 = wandb.Table(dataframe=df_question_pred)
         # wandb.log({"question_prediction_dict": question_prediction_dict})
 
-        with open('checkpoints/{}/question_prediction_dict.json'.format(config.load_path), 'w') as fp:
+        with open('checkpoints/{}/question_prediction_dict.json'.format(self.config.load_path), 'w') as fp:
             json.dump({int(q_k):question_prediction_dict[q_k] for q_k in question_prediction_dict.keys()}, fp)
 
         return question_prediction_dict
@@ -474,14 +474,14 @@ class Trainer():
 
         classification_prediction = [1 if (len(predicted_answers[i]) != 0) else 0 for i in range(len(predicted_answers)) ] 
         classification_actual = df_test["answerable"].astype(int)
-        classification_f1 = sklearn.metrics.f1_score(classification_actual, classification_prediction)
-        classification_accuracy = sklearn.metrics.accuracy_score(classification_actual, classification_prediction)
-        classification_report = sklearn.metrics.classification_report(classification_actual, classification_prediction, output_dict=True)
-        print(pd.DataFrame(classification_report).T)
+        classification_f1 = f1_score(classification_actual, classification_prediction)
+        classification_accuracy = accuracy_score(classification_actual, classification_prediction)
+        clf_report = classification_report(classification_actual, classification_prediction, output_dict=True)
+        print(pd.DataFrame(clf_report).T)
 
         metrics = {
             "classification_accuracy": classification_accuracy,
-            "classification_report": classification_report,
+            "clf_report": clf_report,
             "classification_f1": classification_f1,
             "mean_squad_f1": mean_squad_f1,
             # "mean_time_per_question (ms)": results["mean_time_per_question"]*1000,
