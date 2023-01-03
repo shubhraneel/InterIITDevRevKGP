@@ -89,6 +89,7 @@ if __name__ == "__main__":
 	df_val.to_pickle("data-dir/val/df_val.pkl")
 	df_test.to_pickle("data-dir/test/df_test.pkl")
 
+	print(df)
 	del df, df_val_c
 
 	with open("data-dir/con_idx_2_title_idx.pkl", "wb") as f:
@@ -111,5 +112,3 @@ if __name__ == "__main__":
 
 	with open("data-dir/idx2title.pkl", "wb") as f:
 		pickle.dump(idx2title, f)
-
-	print(df)
