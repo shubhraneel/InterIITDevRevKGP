@@ -111,8 +111,6 @@ class Trainer():
         start_time = time.time()
         for title_id in title_id_list:
             df_temp = gb_title.get_group(title_id)
-            # print(len(df_temp))
-            # question_list = df_temp["question"].unique()ess
             
             for idx, row in df_temp.iterrows():
                 question = row["question"]
@@ -125,7 +123,6 @@ class Trainer():
                     df_contexts_og = df_unique_con.loc[df_unique_con["context_id"].isin([int(doc_idx) for doc_idx in doc_idx_filtered])].copy()
                     # TODO: we can endup sampling things in doc_idx_filtered again
                     df_contexts_random =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=max(0,self.config.drqa_top_k-len(doc_idx_filtered)),random_state=self.config.seed)
-                    # row_in_data = df_contexts.loc[df_contexts["question_id"] == question_id]
                     df_contexts = pd.concat([df_contexts_og, df_contexts_random], axis=0, ignore_index=True)
                 else:
                     df_contexts =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(frac=1,random_state=self.config.seed)
@@ -144,19 +141,9 @@ class Trainer():
                 else:
                     row_dict = row.to_dict()
                     df_contexts.loc[df_contexts["context_id"] == context_id, row_dict.keys()] = row_dict.values()
-                # if(df_contexts.shape[0]!=self.config.drqa_top_k):
-                #   print(df_contexts)
-                #   print(df_unique_con.loc[df_unique_con['title_id']==title_id].shape[0])
                 df_test_matched = pd.concat([df_test_matched, df_contexts], axis=0, ignore_index=True)
 
-        
-            # break
-        
-        # df_test_matched is k*num_questions with all columns 
-        # print(len(df_test_matched))
-        # print(len(df_temp))
         # print(f"original paragraph not in top k {unmatched}")
-        # sys.exit(0)
         
         test_ds = SQuAD_Dataset(self.config, df_test_matched, self.tokenizer) #, hide_tqdm=True
         test_dataloader = DataLoader(test_ds, batch_size=self.config.data.val_batch_size, collate_fn=test_ds.collate_fn)
@@ -168,12 +155,7 @@ class Trainer():
         
         print(f"{len(df_test_matched)=}")
         print(f"{len(df_temp)=}")
-        # table_0 = wandb.Table(dataframe=df_test_matched)
-        # wandb.log({"df_test_matched": table_0})
-        # df_test_matched.to_csv("checkpoints/{}/df_test_matched.csv".format(self.config.load_path))
-        # wandb.log({"df_test_matched": df_test_matched.to_dict()})
-        # maintain a dict key-> question_id and value -> (best_confidence_till_now, corresponding_pred_answer)
-
+       
         start_time=time.time()
         question_prediction_dict={q_id:(0,"") for q_id in df_test_matched["question_id"].unique()}
 
@@ -213,13 +195,6 @@ class Trainer():
         wandb.log({"time_inference_generation": time_inference_generation})
         wandb.log({"per_q_time_inference_generation": time_inference_generation/df_test.shape[0]})
         
-        # df_question_pred = pd.DataFrame.from_dict(question_prediction_dict)
-        # table_1 = wandb.Table(dataframe=df_question_pred)
-        # wandb.log({"question_prediction_dict": question_prediction_dict})
-
-        # with open('checkpoints/{}/question_prediction_dict.json'.format(self.config.load_path), 'w') as fp:
-        #     json.dump({int(q_k):question_prediction_dict[q_k] for q_k in question_prediction_dict.keys()}, fp)
-
         return question_prediction_dict
 
     def calculate_metrics(self, df_test):
