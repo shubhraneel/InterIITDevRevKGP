@@ -15,7 +15,7 @@ from transformers import AutoTokenizer
 from config import Config
 from src import BaselineQA, FewShotQA_Model
 from utils import Trainer, set_seed, Retriever
-from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
+from data import SQuAD_Dataset, SQuAD_Dataset_fewshot, SQuAD_Dataset_title_label
 from utils import build_tf_idf_wrapper, store_contents
 
 
