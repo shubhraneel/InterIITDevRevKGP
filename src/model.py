@@ -73,7 +73,7 @@ class BaselineQA(nn.Module):
 
 
 
-            outputs = self.model(**inputs)
+            outputs = self.model(*inputs)
 
             torch.onnx.export(
                 self.model,                                               # model being run
