@@ -72,9 +72,6 @@ class BaselineQA(nn.Module):
                 }
 
 
-            # inputs = {'input_ids':      torch.ones(1,128, dtype=torch.int64),
-            #             'attention_mask': torch.ones(1,128, dtype=torch.int64),
-            #             'token_type_ids': torch.ones(1,128, dtype=torch.int64)}
 
             outputs = self.model(**inputs)
 

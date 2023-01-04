@@ -179,33 +179,6 @@ if __name__ == "__main__":
 	        	'optimizer_state_dict': optimizer.state_dict(),
 	        }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
 
-		# if (config.ONNX):
-		# 	# # load config
-		# 	# model_kind, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature='question-answering')
-		# 	# onnx_config = model_onnx_config(model.config)
-
-		# 	# # export
-		# 	# onnx_inputs, onnx_outputs = transformers.onnx.export(
-		# 	# 	preprocessor=tokenizer,
-		# 	# 	model=model,
-		# 	# 	config=onnx_config,
-		# 	# 	opset=13,
-		# 	# 	output=Path("trfs-model.onnx")
-		# 	# )
-
-		# 	# TODO: Export model to ONNX to some file
-		# 	model_onnx_path = None
-
-		# if (config.quantize):
-		# 	# optimized_model = onnx_optimizer.optimize_model(model_onnx_path, model_type=model_type, num_heads=attention_heads, hidden_size=hidden_states)
-		# 	# optimized_model.convert_float_to_float16()
-		# 	# optimized_fp16_model_path_class = "model_classifier_fp16.onnx"
-		# 	# optimized_model.save_model_to_file(optimized_fp16_model_path_class)
-
-		# 	# TODO: Quantize the model and Export to some file
-		# 	model_quantized_onnx_path = None
-
-
 
 		if (config.inference):
 			# print("Creating test dataset")

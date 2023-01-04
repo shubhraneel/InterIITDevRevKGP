@@ -20,6 +20,9 @@ from onnxruntime.quantization import quantize_dynamic
 
 from transformers.modeling_outputs import QuestionAnsweringModelOutput
 
+def to_numpy(tensor):
+        return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
+
 class Trainer():
     def __init__(self, config, model, optimizer, device, tokenizer, ques2idx, retriever=None):
         self.config = config
@@ -118,9 +121,6 @@ class Trainer():
     def predict(self, batch):
 
         if (self.config.ONNX):
-            def to_numpy(tensor):
-                return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
-
             # Set up inputs for the ONNX Runtime Invocation
             ort_inputs = None
             if self.config.model.non_pooler:
