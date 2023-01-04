@@ -15,7 +15,7 @@ class SQuAD_Dataset_title_label(Dataset):
         self.tokenizer = tokenizer
         self.df = df.reset_index(drop=True)
 
-        self.title_list = list(dict.from_keys(self.df['title_id']).keys())
+        self.title_list = list(dict.fromkeys(self.df['title_id']).keys())
         self.title_dict = {x: i for i, x in enumerate(self.title_list)}
 
         # preprocess
@@ -195,7 +195,7 @@ class SQuAD_Dataset_title_label(Dataset):
             "question_id":							[x["question_id"] for x in items],
             "context_id":							[x["context_id"] for x in items],
             "title_id":								[x["title_id"] for x in items],
-            "title_label":                          [x["title_label"] for x in items],
+            "title_label":                          torch.tensor([x["title_label"] for x in items]),
             "answer":								[x["answers"]["text"] for x in items],
         }
 
