@@ -44,7 +44,7 @@ class BaselineQA(nn.Module):
                 token_type_ids = torch.ones(self.config.data.val_batch_size, self.config.data.max_length, dtype = torch.int64)
                 start_positions = torch.ones(self.config.data.val_batch_size)
                 end_positions = torch.ones(self.config.data.val_batch_size)
-                inputs = (input_names, input_ids, attention_mask, token_type_ids, start_positions, end_positions)
+                inputs = (input_ids, attention_mask, token_type_ids, start_positions, end_positions)
                 symbolic_names = {0: 'batch_size', 1: 'max_seq_len'}
                 symbolic_name_positions = {0: 'batch_size'}
                 dynamic_axes_dict = {
@@ -61,7 +61,7 @@ class BaselineQA(nn.Module):
                 attention_mask = torch.ones(self.config.data.val_batch_size, self.config.data.max_length, dtype = torch.int64)
                 start_positions = torch.ones(self.config.data.val_batch_size)
                 end_positions = torch.ones(self.config.data.val_batch_size)
-                inputs = (input_names, input_ids, attention_mask, start_positions, end_positions)
+                inputs = (input_ids, attention_mask, start_positions, end_positions)
                 symbolic_names = {0: 'batch_size', 1: 'max_seq_len'}
                 symbolic_name_positions = {0: 'batch_size'}
                 dynamic_axes_dict = {
