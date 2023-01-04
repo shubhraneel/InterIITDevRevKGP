@@ -24,12 +24,13 @@ class Trainer():
 
         self.optimizer = optimizer
         self.model = model
-
+        
         wandb.watch(self.model)
 
         self.ques2idx = ques2idx
 
         self.retriever = retriever
+
 
     def _train_step(self, dataloader, epoch):
         total_loss = 0
@@ -41,7 +42,7 @@ class Trainer():
                 batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
                 if not self.config.model.non_pooler:
                     batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
-
+            
             out = self.model(batch)
             loss = out.loss
             loss.backward()
@@ -59,6 +60,10 @@ class Trainer():
 
 
     def train(self, train_dataloader, val_dataloader=None):
+        if self.config.model.noise_tuner:
+            for name, para in self.model.named_parameters():
+                self.model.state_dict()[name][:] += (torch.rand(para.size())-0.5).to(device)*noise_lambda*torch.std(para)
+
         self.model.train()
         for epoch in range(self.config.training.epochs):
             self._train_step(train_dataloader, epoch)
