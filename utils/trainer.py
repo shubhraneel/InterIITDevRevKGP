@@ -62,7 +62,7 @@ class Trainer():
     def train(self, train_dataloader, val_dataloader=None):
         if self.config.model.noise_tuner:
             for name, para in self.model.named_parameters():
-                self.model.state_dict()[name][:] += (torch.rand(para.size())-0.5).to(self.device)*noise_lambda*torch.std(para)
+                self.model.state_dict()[name][:] += (torch.rand(para.size())-0.5).to(self.device)*self.config.model.noise_lambda*torch.std(para)
 
         self.model.train()
         for epoch in range(self.config.training.epochs):
