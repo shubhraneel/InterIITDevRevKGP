@@ -103,7 +103,7 @@ if __name__ == "__main__":
 		print("Applying aliasing on train data")
 		from utils.aliasing import create_alias
 		df_train = create_alias(df_train)
-
+	
 	if config.fewshot_qa:
 		train_ds = SQuAD_Dataset_fewshot(
 			config, df_train, tokenizer, mask_token)
@@ -147,12 +147,21 @@ if __name__ == "__main__":
 			db_path = "data-dir/test/sqlite_con.db"
 			retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path)
 
-		trainer = Trainer(config=config, model=model,
-						  optimizer=optimizer, device=device, tokenizer=tokenizer, ques2idx=ques2idx, retriever=retriever)
+		if config.domain_discriminator:
+			num_titles = len(dict.from_keys(df_train['theme_id']))
+			trainer = Trainer(config=config, model=model, optimizer=optimizer, 
+				device=device, tokenizer=tokenizer, ques2idx=ques2idx, retriever=retriever, num_titles=num_titles)
+		else:
+			trainer = Trainer(config=config, model=model, optimizer=optimizer, 
+				device=device, tokenizer=tokenizer, ques2idx=ques2idx, retriever=retriever)
 
 		if (config.train):
 			print("Creating train dataset")
-			train_ds = SQuAD_Dataset(config, df_train, tokenizer)
+
+			if config.domain_discriminator:
+				train_ds = SQuAD_Dataset_title_label(config, df_train, tokenizer)
+			else:
+				train_ds = SQuAD_Dataset(config, df_train, tokenizer)
 			train_dataloader = DataLoader(
 				train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
 			print("length of train dataset: {}".format(train_ds.__len__()))

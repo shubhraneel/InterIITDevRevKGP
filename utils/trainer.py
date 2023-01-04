@@ -16,7 +16,7 @@ from utils import compute_f1
 from data import SQuAD_Dataset
 
 class Trainer():
-    def __init__(self, config, model, optimizer, device, tokenizer, ques2idx, retriever=None):
+    def __init__(self, config, model, optimizer, device, tokenizer, ques2idx, retriever=None, **kwargs):
         self.config = config
         self.device = device
 
@@ -31,27 +31,92 @@ class Trainer():
 
         self.retriever = retriever
 
+        if config.domain_discriminator:
+            self.domain_discriminator = True
+            self.num_titles = kwargs['num_titles']
+            dim = config.model.dim
+            self.discriminator = nn.Sequential(
+                nn.Linear(dim, dim),
+                nn.ReLU(),
+                nn.Linear(dim, dim),
+                nn.ReLU(),
+                nn.Linear(dim, self.num_titles)
+            )
+            self.num_inner_epochs = config.training.inner_epochs
+            self.d_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=config.training.d_lr)
+
     def _train_step(self, dataloader, epoch):
-        total_loss = 0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
-        for batch_idx, batch in enumerate(tepoch):
-            tepoch.set_description(f"Epoch {epoch + 1}")
-            if (len(batch["question_context_input_ids"].shape) == 1):
-                batch["question_context_input_ids"] = batch["question_context_input_ids"].unsqueeze(dim=0)
-                batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
-                if not self.config.model.non_pooler:
-                    batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
 
-            out = self.model(batch)
-            loss = out.loss
-            loss.backward()
+        if self.domain_discriminator:
+            for i_epoch in self.num_inner_epochs:
+                total_loss = 0
+                for batch_idx, batch in enumerate(tepoch):
+                    tepoch.set_description(f"Epoch {epoch + 1}")
+                    if (len(batch["question_context_input_ids"].shape) == 1):
+                        batch["question_context_input_ids"] = batch["question_context_input_ids"].unsqueeze(dim=0)
+                        batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
+                        if not self.config.model.non_pooler:
+                            batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
 
-            total_loss += loss.item()
-            tepoch.set_postfix(loss = total_loss / (batch_idx + 1))
-            wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
-            
-            self.optimizer.step()
-            self.optimizer.zero_grad()
+                    out = self.model(batch)
+                    hidden_states = out.hidden_states
+                    logits = self.discriminator(hidden_states[0][:, 0, :])
+                    d_loss = F.cross_entropy_loss(logits, batch['title_labels'])
+
+                    loss = out.loss - d_loss
+                    loss.backward()
+
+                    total_loss += out.loss.item()
+                    tepoch.set_postfix(loss = total_loss / (batch_idx + 1))
+                    wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
+                    
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
+
+                total_loss = 0
+                for batch_idx, batch in enumerate(tepoch):
+                    tepoch.set_description(f"Epoch {epoch + 1}")
+                    if (len(batch["question_context_input_ids"].shape) == 1):
+                        batch["question_context_input_ids"] = batch["question_context_input_ids"].unsqueeze(dim=0)
+                        batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
+                        if not self.config.model.non_pooler:
+                            batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
+
+                    out = self.model(batch)
+                    hidden_states = out.hidden_states.detach()
+                    logits = self.discriminator(hidden_states[0][:, 0, :])
+                    loss = F.cross_entropy_loss(logits, batch['title_labels'])
+
+                    # loss = out.loss
+                    # loss.backward()
+
+                    total_loss += loss.item()
+                    tepoch.set_postfix(loss = total_loss / (batch_idx + 1))
+                    wandb.log({"train_batch_discriminator_loss": total_loss / (batch_idx + 1)})
+                    
+                    self.d_optimizer.step()
+                    self.d_optimizer.zero_grad()
+
+        else:
+            for batch_idx, batch in enumerate(tepoch):
+                tepoch.set_description(f"Epoch {epoch + 1}")
+                if (len(batch["question_context_input_ids"].shape) == 1):
+                    batch["question_context_input_ids"] = batch["question_context_input_ids"].unsqueeze(dim=0)
+                    batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
+                    if not self.config.model.non_pooler:
+                        batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
+
+                out = self.model(batch)
+                loss = out.loss
+                loss.backward()
+
+                total_loss += loss.item()
+                tepoch.set_postfix(loss = total_loss / (batch_idx + 1))
+                wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
+                
+                self.optimizer.step()
+                self.optimizer.zero_grad()
 
         wandb.log({"train_epoch_loss": total_loss / (batch_idx + 1)})
 
