@@ -161,6 +161,13 @@ class Trainer():
 
         # TODO: without sequentional batch iteration
         for qp_batch_id, qp_batch in tqdm(enumerate(test_dataloader),total=len(test_dataloader)):
+            
+            if (len(qp_batch['question_context_input_ids'].shape) == 1):
+                qp_batch['question_context_input_ids'] = qp_batch['question_context_input_ids'].unsqueeze(dim=0)
+                qp_batch['question_context_attention_mask'] = qp_batch['question_context_attention_mask'].unsqueeze(dim=0)
+                if not self.config.model.non_pooler:
+                    qp_batch['question_context_token_type_ids'] = qp_batch['question_context_token_type_ids'].unsqueeze(dim=0)
+            
             # para, para_id, theme, theme_id, question, question_id
             pred = self.predict(qp_batch)
 
