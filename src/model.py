@@ -85,7 +85,8 @@ class BaselineQA(nn.Module):
                 do_constant_folding=True,                                       # whether to execute constant folding for optimization
                 input_names=input_names,
                 output_names=['loss', 'start_logits', 'end_logits'],            # the model's output names
-                dynamic_axes=dynamic_axes_dict
+                # dynamic_axes=dynamic_axes_dict
+                operator_export_type = torch.onnx.OperatorExportTypes.ONNX_ATEN_FALLBACK
             )
 
         # TODO Using transformers.onnx if this doesn't work
