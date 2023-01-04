@@ -39,11 +39,11 @@ class BaselineQA(nn.Module):
             dynamic_axes_dict = None
             if self.config.model.non_pooler:
                 input_names = ['input_ids', 'attention_mask', 'token_type_ids', 'start_positions', 'end_positions']
-                input_ids = torch.ones(self.config.data.val_batch_size, self.config.data.max_length, dtype = torch.int64)
-                attention_mask = torch.ones(self.config.data.val_batch_size, self.config.data.max_length, dtype = torch.int64)
-                token_type_ids = torch.ones(self.config.data.val_batch_size, self.config.data.max_length, dtype = torch.int64)
-                start_positions = torch.ones(self.config.data.val_batch_size)
-                end_positions = torch.ones(self.config.data.val_batch_size)
+                input_ids = torch.ones(self.config.data.val_batch_size, self.config.data.max_length, dtype = torch.int64).to(self.config.inference_device)
+                attention_mask = torch.ones(self.config.data.val_batch_size, self.config.data.max_length, dtype = torch.int64).to(self.config.inference_device)
+                token_type_ids = torch.ones(self.config.data.val_batch_size, self.config.data.max_length, dtype = torch.int64).to(self.config.inference_device)
+                start_positions = torch.ones(self.config.data.val_batch_size).to(self.config.inference_device)
+                end_positions = torch.ones(self.config.data.val_batch_size).to(self.config.inference_device)
                 inputs = (input_ids, attention_mask, token_type_ids, start_positions, end_positions)
                 symbolic_names = {0: 'batch_size', 1: 'max_seq_len'}
                 symbolic_name_positions = {0: 'batch_size'}
@@ -57,10 +57,10 @@ class BaselineQA(nn.Module):
 
             else:
                 input_names = ['input_ids', 'attention_mask', 'start_positions', 'end_positions']
-                input_ids = torch.ones(self.config.data.val_batch_size, self.config.data.max_length, dtype = torch.int64)
-                attention_mask = torch.ones(self.config.data.val_batch_size, self.config.data.max_length, dtype = torch.int64)
-                start_positions = torch.ones(self.config.data.val_batch_size)
-                end_positions = torch.ones(self.config.data.val_batch_size)
+                input_ids = torch.ones(self.config.data.val_batch_size, self.config.data.max_length, dtype = torch.int64).to(self.config.inference_device)
+                attention_mask = torch.ones(self.config.data.val_batch_size, self.config.data.max_length, dtype = torch.int64).to(self.config.inference_device)
+                start_positions = torch.ones(self.config.data.val_batch_size).to(self.config.inference_device)
+                end_positions = torch.ones(self.config.data.val_batch_size).to(self.config.inference_device)
                 inputs = (input_ids, attention_mask, start_positions, end_positions)
                 symbolic_names = {0: 'batch_size', 1: 'max_seq_len'}
                 symbolic_name_positions = {0: 'batch_size'}
@@ -72,7 +72,7 @@ class BaselineQA(nn.Module):
                 }
 
 
-            inputs.to(self.config.inference_device)
+
             outputs = self.model(*inputs)
 
             torch.onnx.export(
