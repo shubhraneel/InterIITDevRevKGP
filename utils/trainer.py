@@ -119,13 +119,13 @@ class Trainer():
 
                 df_contexts=pd.DataFrame()
                 if self.retriever is not None:
-                    doc_idx_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, str(title_id), k=self.config.drqa_top_k)
+                    doc_idx_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, str(title_id), k=self.config.top_k)
                     df_contexts_og = df_unique_con.loc[df_unique_con["context_id"].isin([int(doc_idx) for doc_idx in doc_idx_filtered])].copy()
                     # TODO: we can endup sampling things in doc_idx_filtered again
-                    df_contexts_random =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=max(0,self.config.drqa_top_k-len(doc_idx_filtered)),random_state=self.config.seed)
+                    df_contexts_random =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=max(0,self.config.top_k-len(doc_idx_filtered)),random_state=self.config.seed)
                     df_contexts = pd.concat([df_contexts_og, df_contexts_random], axis=0, ignore_index=True)
                 else:
-                    df_contexts =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(frac=1,random_state=self.config.seed)
+                    df_contexts =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=self.config.top_k,random_state=self.config.seed)
                 df_contexts.loc[:, "question"] = question
                 df_contexts.loc[:, "question_id"] = question_id
                 df_contexts.loc[:, "answerable"] = False
