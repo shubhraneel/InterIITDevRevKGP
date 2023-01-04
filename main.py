@@ -86,7 +86,7 @@ if __name__ == "__main__":
 
 	con_idx_2_title_idx, ques2idx, idx2ques, con2idx, idx2con, title2idx, idx2title = load_mappings()
 
-	if (config.create_drqa_tfidf):
+	if (config.use_drqa and config.create_drqa_tfidf):
 		print("using drqa")
 
 		prepare_retriever(df_train, "sqlite_con.db", "train")
