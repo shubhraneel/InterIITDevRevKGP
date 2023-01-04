@@ -43,7 +43,7 @@ class Trainer():
         # setup onnx runtime if config.onnx is true
         self.onnx_runtime_session = None
         if (self.config.ONNX):
-            self.model.convert_to_onnx(tokenizer)
+            self.model.export_to_onnx(tokenizer)
 
             # TODO Handle this case when using quantization without ONNX using torch.quantization
         
