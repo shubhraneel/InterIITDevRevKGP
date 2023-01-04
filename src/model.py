@@ -72,7 +72,7 @@ class BaselineQA(nn.Module):
                 }
 
 
-
+            inputs.to(self.config.inference_device)
             outputs = self.model(*inputs)
 
             torch.onnx.export(

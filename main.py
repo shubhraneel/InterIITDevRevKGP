@@ -188,6 +188,7 @@ if __name__ == "__main__":
 
 			# calculate_metrics(test_ds, test_dataloader, wandb_logger)
 			# test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
+			model.to(config.inference_device)
 			test_metrics = trainer.calculate_metrics(df_test)
 			print(test_metrics)
 
