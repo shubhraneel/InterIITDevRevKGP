@@ -128,23 +128,25 @@ class Trainer():
                     self.onnx_runtime_session.get_inputs()[0].name: to_numpy(batch['question_context_input_ids']), 
                     self.onnx_runtime_session.get_inputs()[1].name: to_numpy(batch['question_context_attention_mask']),
                     self.onnx_runtime_session.get_inputs()[2].name: to_numpy(batch['question_context_token_type_ids']),
-                    self.onnx_runtime_session.get_inputs()[3].name: to_numpy(batch['start_positions'].unsqueeze(dim=1)),
-                    self.onnx_runtime_session.get_inputs()[4].name: to_numpy(batch['end_positions'].unsqueeze(dim=1))
+                    # self.onnx_runtime_session.get_inputs()[3].name: to_numpy(batch['start_positions'].unsqueeze(dim=1)),
+                    # self.onnx_runtime_session.get_inputs()[4].name: to_numpy(batch['end_positions'].unsqueeze(dim=1))
                 }
 
             else:
                 ort_inputs = {
                     self.onnx_runtime_session.get_inputs()[0].name: to_numpy(batch['question_context_input_ids']), 
                     self.onnx_runtime_session.get_inputs()[1].name: to_numpy(batch['question_context_attention_mask']),
-                    self.onnx_runtime_session.get_inputs()[2].name: to_numpy(batch['start_positions'].unsqueeze(dim=1)),
-                    self.onnx_runtime_session.get_inputs()[3].name: to_numpy(batch['end_positions'].unsqueeze(dim=1))
+                    # self.onnx_runtime_session.get_inputs()[2].name: to_numpy(batch['start_positions'].unsqueeze(dim=1)),
+                    # self.onnx_runtime_session.get_inputs()[3].name: to_numpy(batch['end_positions'].unsqueeze(dim=1))
                 }
 
             ort_outputs = self.onnx_runtime_session.run(None, ort_inputs)
+
+            print(ort_outputs)
             out = QuestionAnsweringModelOutput(
-                loss = torch.tensor(ort_outputs[0]),
-                start_logits = torch.tensor(ort_outputs[1]),
-                end_logits = torch.tensor(ort_outputs[2])
+                # loss = torch.tensor(ort_outputs[0]),
+                start_logits = torch.tensor(ort_outputs[0]),
+                end_logits = torch.tensor(ort_outputs[1])
             )
 
             return out
