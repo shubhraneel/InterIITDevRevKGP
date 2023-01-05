@@ -178,7 +178,7 @@ class Trainer():
                 confidence_scores=pred[1] # -> [32,1]
                 # pred=pred[0]
             else:
-                print(pred.start_logits.shape) # -> [32,512] 
+                # print(pred.start_logits.shape) # -> [32,512] 
                 start_probs=F.softmax(pred.start_logits,dim=1)  # -> [32,512] 
                 end_probs=F.softmax(pred.end_logits,dim=1)    # -> [32,512] 
 
