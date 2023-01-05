@@ -1,13 +1,13 @@
 task: qa
 seed: 3407
 wandb: v0
-inference_device: cuda
+inference_device: cpu
 
 data:
   data_path: ./data-dir/train_data.csv
   test_size: 0.2
   train_batch_size: 25
-  val_batch_size: 16
+  val_batch_size: 2
   pad_on_right: True
   max_length: 512
   doc_stride: 128

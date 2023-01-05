@@ -46,12 +46,12 @@ if __name__ == "__main__":
 	tokenizer 			= AutoTokenizer.from_pretrained(config.model.model_path, TOKENIZERS_PARALLELISM=True, model_max_length=512, padding="max_length") # add local_files_only=local_files_only if using server
 
 	print("Creating pytorch train dataseet")
-	train_ds 			= SQuAD_Dataset(config, df_train, tokenizer)
-	print("length of train dataset: {}".format(train_ds.__len__()))
+	# train_ds 			= SQuAD_Dataset(config, df_train, tokenizer)
+	# print("length of train dataset: {}".format(train_ds.__len__()))
 
 	print("Creating pytorch val dataseet")
-	val_ds 				= SQuAD_Dataset(config, df_val, tokenizer)
-	print("length of val dataset: {}".format(val_ds.__len__()))
+	# val_ds 				= SQuAD_Dataset(config, df_val, tokenizer)
+	# print("length of val dataset: {}".format(val_ds.__len__()))
 
 	print("Creating pytorch test dataseet")
 	test_ds 			= SQuAD_Dataset(config, df_test, tokenizer)
@@ -64,8 +64,8 @@ if __name__ == "__main__":
 	# example = train_ds.__getitem__(12)
 	# print(example["question_context_offset_mapping"])
 
-	train_dataloader 	= DataLoader(train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
-	val_dataloader 		= DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
+	# train_dataloader 	= DataLoader(train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
+	# val_dataloader 		= DataLoader(val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
 	test_dataloader 	= DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
 
 	device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -74,7 +74,7 @@ if __name__ == "__main__":
 	optimizer = torch.optim.Adam(model.parameters(), lr = config.training.lr)
 	trainer = Trainer(config, model, optimizer, device)
 	
-	trainer.train(train_dataloader, val_dataloader)
+	# trainer.train(train_dataloader, val_dataloader)
 	# calculate_metrics(test_ds, test_dataloader, wandb_logger)
 	test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
 	print(test_metrics)
