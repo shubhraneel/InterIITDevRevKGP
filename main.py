@@ -18,6 +18,9 @@ from utils import Trainer, set_seed, Retriever
 from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
 from utils import build_tf_idf_wrapper, store_contents
 
+from onnxruntime.transformers import optimizer as onnx_optimizer
+import onnxruntime
+import torch.onnx
 
 def load_mappings():
 	with open("data-dir/con_idx_2_title_idx.pkl", "rb") as f:
@@ -78,6 +81,9 @@ if __name__ == "__main__":
 		config = Config(**config)
 
 	set_seed(config.seed)
+
+	# TODO Explore pytorch.quantization also
+	assert not config.quantize or config.ONNX, "Quantizing without ONNX Runtime is not supported"
 
 	print("Reading data csv")
 	df_train = pd.read_pickle(config.data.train_data_path)
@@ -165,6 +171,15 @@ if __name__ == "__main__":
 
 			trainer.train(train_dataloader, val_dataloader)
 
+		if (config.save_model_optimizer):
+			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
+			os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
+			torch.save({
+	        	'model_state_dict': model.state_dict(),
+	        	'optimizer_state_dict': optimizer.state_dict(),
+	        }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
+
+
 		if (config.inference):
 			# print("Creating test dataset")
 			# test_ds = SQuAD_Dataset(config, df_test, tokenizer)
@@ -173,16 +188,10 @@ if __name__ == "__main__":
 
 			# calculate_metrics(test_ds, test_dataloader, wandb_logger)
 			# test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
+			model.to(config.inference_device)
 			test_metrics = trainer.calculate_metrics(df_test)
 			print(test_metrics)
 
-		if (config.save_model_optimizer):
-			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
-			os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
-			torch.save({
-	        	'model_state_dict': model.state_dict(),
-	        	'optimizer_state_dict': optimizer.state_dict(),
-	        }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
 
 		# model = AutoModel_Classifier_QA(config, tokenizer=tokenizer, logger=wandb_logger)
 		# model.__train__(train_dataloader)

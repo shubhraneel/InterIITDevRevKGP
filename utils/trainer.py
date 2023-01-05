@@ -15,6 +15,14 @@ from torch.utils.data import DataLoader
 from utils import compute_f1
 from data import SQuAD_Dataset
 
+import onnxruntime
+from onnxruntime.quantization import quantize_dynamic
+
+from transformers.modeling_outputs import QuestionAnsweringModelOutput
+
+def to_numpy(tensor):
+  return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
+
 class Trainer():
     def __init__(self, config, model, optimizer, device, tokenizer, ques2idx, retriever=None):
         self.config = config
@@ -25,11 +33,29 @@ class Trainer():
         self.optimizer = optimizer
         self.model = model
 
+
         wandb.watch(self.model)
 
         self.ques2idx = ques2idx
 
         self.retriever = retriever
+
+        # setup onnx runtime if config.onnx is true
+        self.onnx_runtime_session = None
+        if (self.config.ONNX):
+            self.model.export_to_onnx(tokenizer)
+
+            # TODO Handle this case when using quantization without ONNX using torch.quantization
+        
+            if (self.config.quantize):
+                quantize_dynamic(self.config.path_to_onnx_model, self.config.path_to_quantized_onnx_model)
+            
+            sess_options = onnxruntime.SessionOptions()
+            # TODO Find if this line helps
+            # sess_options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+            model_path = self.config.path_to_onnx_model if not self.config.quantize else self.config.path_to_quantized_onnx_model
+            self.onnx_runtime_session = onnxruntime.InferenceSession(model_path, sess_options)
+
 
     def _train_step(self, dataloader, epoch):
         total_loss = 0
@@ -97,6 +123,40 @@ class Trainer():
 
 
     def predict(self, batch):
+
+        if (self.config.ONNX):
+            # Set up inputs for the ONNX Runtime Invocation
+            ort_inputs = None
+            if not self.config.model.non_pooler:
+                ort_inputs = {
+                    self.onnx_runtime_session.get_inputs()[0].name: to_numpy(batch['question_context_input_ids']), 
+                    self.onnx_runtime_session.get_inputs()[1].name: to_numpy(batch['question_context_attention_mask']),
+                    self.onnx_runtime_session.get_inputs()[2].name: to_numpy(batch['question_context_token_type_ids']),
+                    # self.onnx_runtime_session.get_inputs()[3].name: to_numpy(batch['start_positions'].unsqueeze(dim=1)),
+                    # self.onnx_runtime_session.get_inputs()[4].name: to_numpy(batch['end_positions'].unsqueeze(dim=1))
+                }
+
+            else:
+                ort_inputs = {
+                    self.onnx_runtime_session.get_inputs()[0].name: to_numpy(batch['question_context_input_ids']), 
+                    self.onnx_runtime_session.get_inputs()[1].name: to_numpy(batch['question_context_attention_mask']),
+                    # self.onnx_runtime_session.get_inputs()[2].name: to_numpy(batch['start_positions'].unsqueeze(dim=1)),
+                    # self.onnx_runtime_session.get_inputs()[3].name: to_numpy(batch['end_positions'].unsqueeze(dim=1))
+                }
+
+            # print(ort_inputs)
+
+            ort_outputs = self.onnx_runtime_session.run(None, ort_inputs)
+
+            # print(ort_outputs)
+            out = QuestionAnsweringModelOutput(
+                # loss = torch.tensor(ort_outputs[0]),
+                start_logits = torch.tensor(ort_outputs[0]),
+                end_logits = torch.tensor(ort_outputs[1])
+            )
+
+            return out
+        
         return self.model(batch)
 
 
@@ -226,7 +286,6 @@ class Trainer():
         predicted_answers=[question_pred_dict[q_id][1] for q_id in df_test['question_id']]
         gold_answers=df_test['answer_text'].tolist()
         
-        # TODO/DOUBT: should we add a classification filter first? 
         assert len(predicted_answers)==len(gold_answers)
         squad_f1_per_span = [compute_f1(predicted_answers[i],gold_answers[i])  for i in range(len(predicted_answers))]
         mean_squad_f1 = np.mean(squad_f1_per_span)
