@@ -28,7 +28,6 @@ class Trainer():
         wandb.watch(self.model)
 
         self.ques2idx = ques2idx
-
         self.retriever = retriever
 
     def guassian_kernel(self, source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None):
@@ -59,7 +58,7 @@ class Trainer():
         loss = torch.mean(XX) + torch.mean(YY) - torch.mean(XY) - torch.mean(YX)
         return loss
 
-    def contrastive_adaptive_loss(self, output, batch):
+    def contrastive_adaptive_loss(self, outputs, batch):
         input_ids = batch["question_context_input_ids"].to(self.device)
         attention_mask = batch["question_context_attention_mask"].to(self.device)
         token_type_ids = batch["question_context_token_type_ids"].to(self.device)
@@ -67,7 +66,7 @@ class Trainer():
         end_positions = batch["end_positions"].to(self.device)
 
         input_type = None
-        if batch["input_type"] != None:
+        if "input_type" in batch.keys() and batch["input_type"] != None:
             input_type = batch['input_type'].to(self.device)
         else:
             input_type = torch.randint(0, 2, (input_ids.shape[0],), dtype=torch.long).to(self.device)
@@ -75,7 +74,7 @@ class Trainer():
         start_logits = outputs["start_logits"]
         end_logits = outputs["end_logits"]
 
-        sequence_outputs = outputs['hidden_states'][-1]
+        sequence_output = outputs['hidden_states'][-1]
 
         a_mask_1 = torch.zeros(token_type_ids.shape[0], token_type_ids.shape[1]+1).to(token_type_ids.device)
         a_mask_1[torch.arange(a_mask_1.shape[0]), start_positions] = 1
@@ -102,7 +101,7 @@ class Trainer():
         cq_mask = ((c_mask + q_mask) > 0) * 1.0
         cq_rep = (sequence_output * cq_mask.unsqueeze(-1)).sum(1) / cq_mask.sum(-1).unsqueeze(-1)
 
-        can_loss = mmd(cq_rep, a_rep)
+        can_loss = -1*self.mmd(cq_rep, a_rep)
 
         if len((input_type==0).nonzero()[:, 0]) != 0 and len((input_type==1).nonzero()[:, 0]) != 0:
             a_rep_source = a_rep[(input_type==0).nonzero()[:, 0]].view(-1, a_rep.size(1))
@@ -110,7 +109,7 @@ class Trainer():
             cq_rep_source = cq_rep[(input_type==0).nonzero()[:, 0]].view(-1, cq_rep.size(1))
             cq_rep_target = cq_rep[(input_type==1).nonzero()[:, 0]].view(-1, cq_rep.size(1))
 
-            can_loss += mmd(a_rep_source, a_rep_target) + mmd(cq_rep_source, cq_rep_target)
+            can_loss += self.mmd(a_rep_source, a_rep_target) + self.mmd(cq_rep_source, cq_rep_target)
         
         return can_loss
 
@@ -124,17 +123,27 @@ class Trainer():
                 batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
                 if not self.config.model.non_pooler:
                     batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
-
+            
+            if not self.config.model.non_pooler:
+              batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"][0]
+            
             out = self.model(batch)
             loss = out.loss
-            if self.config.training.can_loss and self.config.model.non_pooler:
+            if self.config.training.can_loss and not self.config.model.non_pooler:
                 loss += self.contrastive_adaptive_loss(out, batch) * self.config.training.can_loss_beta
+            
             loss.backward()
+
+            if loss.isnan():
+              print("NanSense")
+              self.optimizer.zero_grad()
+              continue
 
             total_loss += loss.item()
             tepoch.set_postfix(loss = total_loss / (batch_idx + 1))
             wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
-            
+
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 0.5)
             self.optimizer.step()
             self.optimizer.zero_grad()
 
@@ -165,7 +174,9 @@ class Trainer():
                     batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
                     if not self.config.model.non_pooler:
                         batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
-                    
+                if not self.config.model.non_pooler:
+                  batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"][0]
+            
                 out = self.model(batch)
                 if self.config.training.can_loss and self.config.model.non_pooler:
                     loss += self.contrastive_adaptive_loss(out, batch) * self.config.training.can_loss_beta
@@ -249,6 +260,8 @@ class Trainer():
         # TODO: without sequentional batch iteration
         for qp_batch_id, qp_batch in tqdm(enumerate(test_dataloader),total=len(test_dataloader)):
             # para, para_id, theme, theme_id, question, question_id
+            if not self.config.model.non_pooler:
+                  qp_batch["question_context_token_type_ids"] = qp_batch["question_context_token_type_ids"][0]
             pred = self.predict(qp_batch)
 
             # print(pred.start_logits.shape) -> [32,512] 
