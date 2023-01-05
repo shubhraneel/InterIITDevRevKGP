@@ -1,17 +1,15 @@
 import numpy as np
 import pandas as pd
-
-import torch
-from torch.utils.data import Dataset
-
-from data.preprocess import preprocess_fn
 from tqdm import tqdm
 
-from torch.utils.data import DataLoader
+import torch
+from torch.utils.data import Dataset, DataLoader
+
+from data.preprocess import preprocess_fn
 
 # TODO: memory optimization
 class SQuAD_Dataset(Dataset):
-	def __init__(self, config, df, tokenizer):
+	def __init__(self, config, df, tokenizer, hide_tqdm=False):
 		self.config = config
 
 		self.tokenizer = tokenizer
@@ -43,10 +41,8 @@ class SQuAD_Dataset(Dataset):
 		for key in tokenized_keys:
 			self.data[key] = []
 
-		# TODO: Parallelise in batches
-		# for idx in tqdm(range(len(self.data["question"]))):
-		for idx in range(len(self.data["question"])):
-			example = {key: [self.data[key][idx]] for key in data_keys}
+		for idx in tqdm(range(0, len(self.data["question"]), self.config.data.tokenizer_batch_size), disable=hide_tqdm):
+			example = {key: self.data[key][idx:idx+self.config.data.tokenizer_batch_size] for key in data_keys}
 
 			tokenized_inputs = self._tokenize(example)
 
@@ -75,12 +71,13 @@ class SQuAD_Dataset(Dataset):
 		inputs = self.tokenizer(
 			examples["question" if self.config.data.pad_on_right else "context"],
 			examples["context" if self.config.data.pad_on_right else "question"],
-			truncation = "only_second" if self.config.data.pad_on_right else "only_first",
-			max_length = self.config.data.max_length,
-			stride = self.config.data.doc_stride,
-			return_overflowing_tokens = True,
-			return_offsets_mapping = True,
-			padding = "max_length",
+			truncation="only_second" if self.config.data.pad_on_right else "only_first",
+			max_length=self.config.data.max_length,
+			stride=self.config.data.doc_stride,
+			return_overflowing_tokens=True,
+			return_offsets_mapping=True,
+			padding="max_length",
+			return_token_type_ids=True
 		)
 
 		# Since one example might give us several features if it has a long context, we need a map from a feature to
@@ -172,25 +169,34 @@ class SQuAD_Dataset(Dataset):
 			inputs["question_context_token_type_ids"] 	= inputs.pop("token_type_ids")
 		inputs["question_context_offset_mapping"] 	= inputs.pop("offset_mapping")
 
-		title_tokenized 							= self.tokenizer(examples["title"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")
+		title_tokenized 							= self.tokenizer(examples["title"], max_length=self.config.data.max_length, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")
 		inputs["title_input_ids"] 					= title_tokenized["input_ids"]
 		inputs["title_attention_mask"] 				= title_tokenized["attention_mask"]
 		if not self.config.model.non_pooler:
 			inputs["title_token_type_ids"] 				= title_tokenized["token_type_ids"]
 
-		context_tokenized							= self.tokenizer(examples["context"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
+		context_tokenized							= self.tokenizer(examples["context"], max_length=self.config.data.max_length, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
 		inputs["context_input_ids"] 				= context_tokenized["input_ids"]
 		inputs["context_attention_mask"] 			= context_tokenized["attention_mask"]
 		if not self.config.model.non_pooler:
 			inputs["context_token_type_ids"] 			= context_tokenized["token_type_ids"]
 
-		question_tokenized 							= self.tokenizer(examples["question"], max_length=512, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
+		question_tokenized 							= self.tokenizer(examples["question"], max_length=self.config.data.max_length, truncation="longest_first", return_offsets_mapping=True, padding="max_length", return_tensors="pt")    
 		inputs["question_input_ids"] 				= question_tokenized["input_ids"]
 		inputs["question_attention_mask"] 			= question_tokenized["attention_mask"]
 		if not self.config.model.non_pooler:
 			inputs["question_token_type_ids"] 			= question_tokenized["token_type_ids"]
 
 		return inputs
+
+	"""
+	TODO:
+		Write functions for
+			1.	Create an updated data dictionary where each ID contains data corresponding to a data point
+			2. 	To retrieve para ids for a particular theme 
+					May be create a list of paragraphs corresponding to each theme, if we get a theme, just call that list. (efficient)
+					Create this in the init method and store as soon as we get the dataframe 
+	"""
 
 	def __len__(self):
 		return len(self.data["question"])
@@ -216,7 +222,6 @@ class SQuAD_Dataset(Dataset):
 				"question_attention_mask":              torch.stack([x["question_attention_mask"] for x in items], dim=0).squeeze(),
 				"question_token_type_ids":              torch.stack([x["question_token_type_ids"] for x in items], dim=0).squeeze(),
 
-				# TODO: eliminate this here, use torch to concatenate q and p in model forward function
 				"question_context_input_ids":           torch.stack([torch.tensor(x["question_context_input_ids"]) for x in items], dim=0).squeeze(),
 				"question_context_attention_mask":      torch.stack([torch.tensor(x["question_context_attention_mask"]) for x in items], dim=0).squeeze(),
 				"question_context_token_type_ids":      torch.stack([torch.tensor(x["question_context_token_type_ids"]) for x in items], dim=0).squeeze(),
@@ -244,7 +249,6 @@ class SQuAD_Dataset(Dataset):
 				"question_input_ids":                   torch.stack([x["question_input_ids"] for x in items], dim=0).squeeze(),
 				"question_attention_mask":              torch.stack([x["question_attention_mask"] for x in items], dim=0).squeeze(),
 
-				# TODO: eliminate this here, use torch to concatenate q and p in model forward function
 				"question_context_input_ids":           torch.stack([torch.tensor(x["question_context_input_ids"]) for x in items], dim=0).squeeze(),
 				"question_context_attention_mask":      torch.stack([torch.tensor(x["question_context_attention_mask"]) for x in items], dim=0).squeeze(),
 				"question_context_offset_mapping":      [x["question_context_offset_mapping"] for x in items],

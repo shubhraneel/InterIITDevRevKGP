@@ -1,4 +1,5 @@
 import time
+import wandb
 import sklearn
 import numpy as np 
 import pandas as pd
@@ -14,13 +15,17 @@ from data import SQuAD_Dataset
 
 class Trainer():
 
-    def __init__(self, config, model, optimizer, device):
+    def __init__(self, config, model, optimizer, device, tokenizer):
         self.config = config
-        self.model = model
         self.device = device
 
+        self.tokenizer = tokenizer
+
         self.optimizer = optimizer
-    
+        self.model = model
+
+        wandb.watch(self.model)
+
 
     def _train_step(self, dataloader, epoch):
         total_loss = 0
@@ -38,12 +43,15 @@ class Trainer():
             loss.backward()
 
             total_loss += loss.item()
-            tepoch.set_postfix(loss = total_loss / (batch_idx+1))
+            tepoch.set_postfix(loss = total_loss / (batch_idx + 1))
+            wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
             
             self.optimizer.step()
             self.optimizer.zero_grad()
 
-        return total_loss / batch_idx
+        wandb.log({"train_epoch_loss": total_loss / (batch_idx + 1)})
+
+        return (total_loss / (batch_idx + 1))
 
 
     def train(self, train_dataloader, val_dataloader=None):
@@ -53,8 +61,11 @@ class Trainer():
             
             if ((val_dataloader is not None) and (((epoch + 1) % self.config.training.evaluate_every)) == 0):
                 self.evaluate(val_dataloader)
+                self.model.train()
+
 
     def evaluate(self, dataloader):
+        self.model.eval()
         total_loss = 0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
         tepoch.set_description("Validation Step")
@@ -71,8 +82,11 @@ class Trainer():
 
                 total_loss += loss.item()
                 tepoch.set_postfix(loss = total_loss / (batch_idx+1))
+                wandb.log({"val_batch_loss": total_loss / (batch_idx + 1)})
 
-        return total_loss / batch_idx
+        wandb.log({"val_epoch_loss": total_loss / (batch_idx + 1)})
+        return (total_loss / (batch_idx + 1))
+
 
     def _create_inference_df(self, question, dataset, paragraphs, id):
         """
@@ -137,7 +151,7 @@ class Trainer():
             title = batch["title"]  
 
             # list of paragraph indices (in dataset.data) for each question in the batch
-            para_ids_batch = [dataset.theme_para_id_mapping[t] for t in title]    # List of para ids for each question in the batch
+            para_ids_batch = [dataset.theme_para_id_mapping[t] for t in title]
 
             # iterate over questions in the batch
             for question_idx in range(len(para_ids_batch)):
@@ -152,12 +166,11 @@ class Trainer():
                 # question id (primary key in df)
                 q_id = batch["id"][question_idx]
 
-                # create kb dataframe
+                # create knowledge base dataframe containing all paragraphs of the same theme as q
                 df_kb = self._create_inference_df(question, dataset, paragraphs, q_id)
-                # print(q_para_ids)
-                # print(len(df_kb))
 
-                temp_ds = SQuAD_Dataset(dataset.config, df_kb, dataset.tokenizer)
+                # TODO: keep more than 1 question per dataloader for max util (keep stride = k in line 143)
+                temp_ds = SQuAD_Dataset(dataset.config, df_kb, dataset.tokenizer, hide_tqdm=True)
                 temp_dataloader = DataLoader(temp_ds, batch_size=dataset.config.data.val_batch_size, collate_fn=temp_ds.collate_fn)
 
                 total_time_per_question = 0
@@ -202,8 +215,9 @@ class Trainer():
                     # TODO: remove offset_mapping etc. lookup from inference time (current calculation is the absolute worst case time)
                     total_time_per_question += (time.time() - start_time)
                     total_time_per_question_list.append(total_time_per_question)
+                    wandb.log({"inference_time_per_question": total_time_per_question})
 
-        print(total_time_per_question_list)
+        # print(total_time_per_question_list)
 
         results = {
                     "mean_time_per_question": np.mean(np.array(total_time_per_question_list)),
@@ -213,7 +227,7 @@ class Trainer():
 
         return results
 
-    def calculate_metrics(self, dataset, dataloader, logger=None):
+    def calculate_metrics(self, dataset, dataloader):
         """
             1. Run the inference script
             2. Calculate the time taken
@@ -251,5 +265,7 @@ class Trainer():
             "mean_squad_f1": mean_squad_f1,
             "mean_time_per_question (ms)": results["mean_time_per_question"]*1000,
         }
+
+        wandb.log({"metrics": metrics})
 
         return metrics

@@ -131,6 +131,6 @@ dmypy.json
 *.DS_Store*
 lightning_logs
 *.xlsx*
-
-data-dir/
+*data-dir*
 *wandb*
+*vscode*

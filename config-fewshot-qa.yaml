@@ -1,0 +1,30 @@
+task: qa
+seed: 3407
+wandb: FewshotQA
+fewshot_qa: True
+
+data:
+  data_path: data-dir/df_sample.csv
+  test_size: 0.2
+  train_batch_size: 2
+  val_batch_size: 2
+  alias_flag: 0
+
+training:
+  epochs: 1
+  optimizer: adam
+  lr: 0.00002
+  sched_function: none
+  sched_func_params: {}
+  sched_params:
+    monitor: val_loss
+  train_reader: True
+  train_retriever: True
+
+model:
+  model_path: facebook/bart-large
+  num_labels: 2
+  save_path: models/exp_bert/
+  params: {}
+  reader_path: null
+  retriever_path: null
