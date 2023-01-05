@@ -43,7 +43,7 @@ def load_mappings():
 
 	with open("data-dir/idx2title.pkl", "rb") as f:
 		idx2title = pickle.load(f)
-
+		
 		return con_idx_2_title_idx, ques2idx, idx2ques, con2idx, idx2con, title2idx, idx2title
 
 
