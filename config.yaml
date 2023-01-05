@@ -43,4 +43,4 @@ model:
   params: {}
   non_pooler: False
   dim: 128
-  two_step_loss: True
+  two_step_loss: False
