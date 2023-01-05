@@ -134,17 +134,5 @@ if __name__ == "__main__":
 		# classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_dataloader)
 		# print(f"Classification F1: {classification_f1}, QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
 	
-<<<<<<< HEAD
-	# trainer.train(train_dataloader, val_dataloader)
-	# calculate_metrics(test_ds, test_dataloader, wandb_logger)
-	test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
-	print(test_metrics)
-
-	# model.__train__(train_dataloader, logger = wandb_logger)
-	# model.__inference__(test_ds, test_dataloader, logger = wandb_logger)
-
-	# classification_f1, qa_f1, ttime_per_example = model.calculate_metrics(test_ds, test_dataloader, logger = wandb_logger)
-=======
->>>>>>> 8cfacb603e909ed6228a86b6fe7a8b093c145be5
 
 		
