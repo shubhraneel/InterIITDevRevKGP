@@ -12,6 +12,7 @@ use_drqa: True
 create_drqa_tfidf: False
 top_k: 5
 quantize: False
+quatize_type: 'static'
 ONNX: True
 path_to_onnx_model: 'data-dir/model.onnx'
 path_to_quantized_onnx_model: 'data-dir/model_quantized.onnx'

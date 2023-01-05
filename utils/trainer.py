@@ -16,7 +16,7 @@ from utils import compute_f1
 from data import SQuAD_Dataset
 
 import onnxruntime
-from onnxruntime.quantization import quantize_dynamic
+from onnxruntime.quantization import quantize_dynamic, quantize_static
 
 from transformers.modeling_outputs import QuestionAnsweringModelOutput
 
@@ -48,7 +48,10 @@ class Trainer():
             # TODO Handle this case when using quantization without ONNX using torch.quantization
         
             if (self.config.quantize):
-                quantize_dynamic(self.config.path_to_onnx_model, self.config.path_to_quantized_onnx_model)
+                if (self.config.quantize_type == 'static'):
+                    quantize_static(self.config.path_to_onnx_model, self.config.path_to_quantized_onnx_model)
+                elif (self.config.quantize_type == 'dynamic'):
+                    quantize_dynamic(self.config.path_to_onnx_model, self.config.path_to_quantized_onnx_model)
             
             sess_options = onnxruntime.SessionOptions()
             # TODO Find if this line helps
