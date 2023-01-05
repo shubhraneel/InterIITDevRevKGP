@@ -41,10 +41,6 @@ training:
 model:
   model_path: google/bert_uncased_L-2_H-128_A-2
   params: {}
-<<<<<<< HEAD
   non_pooler: False
   dim: 128
   two_step_loss: True
-=======
-  non_pooler: False
->>>>>>> 1089ff6b9d78a22ad8b48ced80783642f24c9a90
