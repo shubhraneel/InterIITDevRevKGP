@@ -4,7 +4,7 @@ from transformers import AutoModelForQuestionAnswering
 
 from pathlib import Path
 from transformers.onnx import FeaturesManager
-
+import transformers
 
 class BaselineQA(nn.Module):
     def __init__(self, config, device):
@@ -112,7 +112,7 @@ class BaselineQA(nn.Module):
                 model=self.model,
                 config=onnx_config,
                 opset=13,
-                output=Path(self.config.onnx_model_path)
-                )
+                output=Path(self.config.path_to_onnx_model)
+        )
 
         print(onnx_inputs, onnx_outputs)

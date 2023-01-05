@@ -2,7 +2,7 @@ task: qa
 seed: 3407
 wandb_path: quantization-inference-testing-cuda
 fewshot_qa: False
-inference_device: cuda
+inference_device: cpu
 train: False
 inference: True
 save_model_optimizer: False
@@ -41,4 +41,4 @@ training:
 model:
   model_path: google/bert_uncased_L-2_H-128_A-2
   params: {}
-  non_pooler: True
+  non_pooler: False

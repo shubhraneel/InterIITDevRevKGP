@@ -21,7 +21,7 @@ from onnxruntime.quantization import quantize_dynamic
 from transformers.modeling_outputs import QuestionAnsweringModelOutput
 
 def to_numpy(tensor):
-        return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
+  return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
 
 class Trainer():
     def __init__(self, config, model, optimizer, device, tokenizer, ques2idx, retriever=None):
@@ -140,9 +140,11 @@ class Trainer():
                     # self.onnx_runtime_session.get_inputs()[3].name: to_numpy(batch['end_positions'].unsqueeze(dim=1))
                 }
 
+            # print(ort_inputs)
+
             ort_outputs = self.onnx_runtime_session.run(None, ort_inputs)
 
-            print(ort_outputs)
+            # print(ort_outputs)
             out = QuestionAnsweringModelOutput(
                 # loss = torch.tensor(ort_outputs[0]),
                 start_logits = torch.tensor(ort_outputs[0]),
