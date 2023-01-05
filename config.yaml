@@ -12,16 +12,14 @@ use_drqa: True
 create_drqa_tfidf: False
 top_k: 5
 quantize: False
-ONNX: True
-path_to_onnx_model: 'data-dir/model.onnx'
-path_to_quantized_onnx_model: 'data-dir/model_quantized.onnx'
+ONNX: False
 
 data:
   train_data_path: data-dir/train/df_train.pkl
   val_data_path: data-dir/val/df_val.pkl
   test_data_path: data-dir/test/df_test.pkl
   train_batch_size: 32
-  val_batch_size: 32
+  val_batch_size: 2
   apply_aliasing: False
   pad_on_right: True
   max_length: 512
@@ -43,4 +41,4 @@ model:
   params: {}
   non_pooler: False
   dim: 128
-  two_step_loss: True
+  two_step_loss: False

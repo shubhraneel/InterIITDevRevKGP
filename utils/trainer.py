@@ -44,16 +44,16 @@ class Trainer():
         self.onnx_runtime_session = None
         if (self.config.ONNX):
             self.model.export_to_onnx(tokenizer)
-
+​
             # TODO Handle this case when using quantization without ONNX using torch.quantization
         
             if (self.config.quantize):
-                quantize_dynamic(self.config.path_to_onnx_model, self.config.path_to_quantized_onnx_model)
+                quantize_dynamic("checkpoints/{}/model.onnx".format(self.config.load_path), "checkpoints/{}/model_quantized.onnx".format(self.config.load_path))
             
             sess_options = onnxruntime.SessionOptions()
             # TODO Find if this line helps
             # sess_options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
-            model_path = self.config.path_to_onnx_model if not self.config.quantize else self.config.path_to_quantized_onnx_model
+            model_path = "checkpoints/{}/model.onnx".format(self.config.load_path) if not self.config.quantize else "checkpoints/{}/model_quantized.onnx".format(self.config.load_path)
             self.onnx_runtime_session = onnxruntime.InferenceSession(model_path, sess_options)
 
 
