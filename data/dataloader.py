@@ -196,7 +196,7 @@ class SQuAD_Dataset(Dataset):
 
         if not self.config.model.non_pooler:
             batch["question_context_token_type_ids"] = torch.stack([torch.tensor(
-                x["question_context_token_type_ids"]) for x in items], dim=0).squeeze(),
+                x["question_context_token_type_ids"]) for x in items], dim=0).squeeze()
 
         return batch
 

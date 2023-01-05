@@ -10,7 +10,7 @@ load_model_optimizer: False
 load_path: v2-inference-testing-cuda
 use_drqa: True
 create_drqa_tfidf: True
-top_k: 5
+drqa_top_k: 5
 
 data:
   train_data_path: data-dir/train/df_train.pkl
@@ -37,4 +37,4 @@ training:
 model:
   model_path: google/bert_uncased_L-2_H-128_A-2
   params: {}
-  non_pooler: True
+  non_pooler: False
