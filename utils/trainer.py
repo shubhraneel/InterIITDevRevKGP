@@ -17,7 +17,7 @@ from data import SQuAD_Dataset
 
 import onnxruntime
 from onnxruntime.quantization import quantize_dynamic, quantize_static
-from onnxruntime.transformers import transformer_optimizer
+from onnxruntime.transformers import optimzer as transformer_optimizer
 
 from transformers.modeling_outputs import QuestionAnsweringModelOutput
 
