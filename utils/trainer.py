@@ -43,8 +43,8 @@ class Trainer():
                     batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
 
             out = self.model(batch)
-            if self.config.model.two_step_loss:
-                out=out[0]
+            if batch_idx%300==0:
+              self.log_ipop_batch(batch,out,batch_idx)
             loss = out.loss
             loss.backward()
 
@@ -59,6 +59,40 @@ class Trainer():
 
         return (total_loss / (batch_idx + 1))
 
+    def log_ipop_batch(self,batch,out,batch_idx):
+      rows=[]
+      for i in range(len(batch["context"])):
+        context = batch["context"][i]
+        start_probs=F.softmax(out.start_logits,dim=1)
+        end_probs=F.softmax(out.end_logits,dim=1)
+
+        max_start_probs=torch.max(start_probs, axis=1)
+        max_end_probs=torch.max(end_probs, axis=1)
+
+        offset_mapping = batch["question_context_offset_mapping"][i]
+        start_index = max_start_probs.indices[i].item()
+        end_index = max_end_probs.indices[i].item()
+        decoded_answer=""
+        if (offset_mapping[start_index] is not None and offset_mapping[end_index] is not None): 
+          start_char = offset_mapping[start_index][0]
+          end_char = offset_mapping[end_index][1]
+
+          decoded_answer = context[start_char:end_char]
+        
+        tgt_answer=""
+        if (offset_mapping[batch["start_positions"][i]] is not None and offset_mapping[batch["end_positions"][i]] is not None):
+          tgt_start=offset_mapping[batch["start_positions"][i]][0]
+          tgt_end=offset_mapping[batch["end_positions"][i]][1]
+
+          tgt_answer= context[tgt_start:tgt_end]
+        
+        answer=batch["answer"][i]
+        question=batch["question"][i]
+
+        rows.append([question,answer,decoded_answer,tgt_answer])
+      
+      my_table = wandb.Table(columns=["question","dataset answer","predicted answer", "train target"], data=rows)
+      wandb.log({"Batch "+str(batch_idx)+ " IP/OP": my_table})
 
     def train(self, train_dataloader, val_dataloader=None):
         self.model.train()
@@ -84,8 +118,6 @@ class Trainer():
                         batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
                     
                 out = self.model(batch)
-                if self.config.model.two_step_loss:
-                    out=out[0]
                 loss = out.loss
 
                 total_loss += loss.item()
@@ -174,19 +206,16 @@ class Trainer():
             
             # para, para_id, theme, theme_id, question, question_id
             pred = self.predict(qp_batch)
-            if self.config.model.two_step_loss:
-                confidence_scores=pred[1] # -> [32,1]
-                # pred=pred[0]
-            else:
-                # print(pred.start_logits.shape) # -> [32,512] 
-                start_probs=F.softmax(pred.start_logits,dim=1)  # -> [32,512] 
-                end_probs=F.softmax(pred.end_logits,dim=1)    # -> [32,512] 
 
-                max_start_probs=torch.max(start_probs, axis=1)  # -> [32,1] 
-                max_end_probs=torch.max(end_probs,axis=1)       # -> [32,1]
+            # print(pred.start_logits.shape) -> [32,512] 
+            start_probs=F.softmax(pred.start_logits,dim=1)  # -> [32,512] 
+            end_probs=F.softmax(pred.end_logits,dim=1)    # -> [32,512] 
 
-                confidence_scores=max_end_probs.values*max_start_probs.values  # -> [32,1]                
+            max_start_probs=torch.max(start_probs, axis=1)  # -> [32,1] 
+            max_end_probs=torch.max(end_probs,axis=1)       # -> [32,1]
 
+            confidence_scores=max_end_probs.values*max_start_probs.values  # -> [32,1]
+            
             for batch_idx,q_id in enumerate(qp_batch["question_id"]):
                 if (question_prediction_dict[q_id][0]<confidence_scores[batch_idx]):
                     # using the context in the qp_pair get extract the span using max_start_prob and max_end_prob                    

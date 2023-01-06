@@ -1,31 +1,31 @@
 task: qa
 seed: 3407
-wandb_path: v2-inference-testing-cuda
+wandb_path: v2-inference-testing-bertuncased_notrain
 fewshot_qa: False
 inference_device: cuda
 train: True
 inference: True
 save_model_optimizer: True
 load_model_optimizer: False
-load_path: v2-inference-testing-cuda
+load_path: v2-inference-testing-bertuncased_notrain
 use_drqa: True
-create_drqa_tfidf: True
-drqa_top_k: 5
+create_drqa_tfidf: False
+top_k: 5
 
 data:
   train_data_path: data-dir/train/df_train.pkl
   val_data_path: data-dir/val/df_val.pkl
   test_data_path: data-dir/test/df_test.pkl
   train_batch_size: 32
-  val_batch_size: 32
+  val_batch_size: 2
   apply_aliasing: False
   pad_on_right: True
   max_length: 512
-  doc_stride: 128
+  doc_stride: 0
   tokenizer_batch_size: 32
 
 training:
-  epochs: 1
+  epochs: 0
   optimizer: adam
   lr: 0.00002
   sched_function: none
@@ -35,8 +35,8 @@ training:
   evaluate_every: 1
 
 model:
-  model_path: google/bert_uncased_L-2_H-128_A-2
+  model_path: bert-base-uncased
   params: {}
   non_pooler: False
   dim: 128
-  two_step_loss: True
+  two_step_loss: False
