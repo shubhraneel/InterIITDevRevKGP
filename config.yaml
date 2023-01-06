@@ -23,11 +23,11 @@ data:
   apply_aliasing: False
   pad_on_right: True
   max_length: 512
-  doc_stride: 128
+  doc_stride: 0
   tokenizer_batch_size: 32
 
 training:
-  epochs: 1
+  epochs: 0
   optimizer: adam
   lr: 0.00002
   sched_function: none
@@ -37,7 +37,7 @@ training:
   evaluate_every: 1
 
 model:
-  model_path: google/bert_uncased_L-2_H-128_A-2
+  model_path: bert-base-uncased
   params: {}
   non_pooler: False
   dim: 128
