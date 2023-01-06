@@ -194,12 +194,8 @@ if __name__ == "__main__":
 
 			# calculate_metrics(test_ds, test_dataloader, wandb_logger)
 			# test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
-<<<<<<< HEAD
-			test_metrics = trainer.calculate_metrics(df_test,test_retriever,'test',config.inference_device,do_prepare=True)
-=======
 			model.to(config.inference_device)
-			test_metrics = trainer.calculate_metrics(df_test)
->>>>>>> f4fedf2655ed7eb07aa51779eec6c98968c01f1d
+			test_metrics = trainer.calculate_metrics(df_test,test_retriever,'test',config.inference_device,do_prepare=True)
 			print(test_metrics)
 
 
