@@ -12,7 +12,7 @@ use_drqa: True
 create_drqa_tfidf: False
 top_k: 5
 quantize: True
-quatize_type: dynamic
+quantize_type: dynamic
 ONNX_preprocess: True
 ONNX: True
 path_to_onnx_model: 'data-dir/model.onnx'
