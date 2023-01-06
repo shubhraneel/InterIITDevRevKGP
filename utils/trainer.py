@@ -16,7 +16,8 @@ from utils import compute_f1
 from data import SQuAD_Dataset
 
 import onnxruntime
-from onnxruntime.quantization import quantize_dynamic, quantize_static, quant_pre_process
+from onnxruntime.quantization import quantize_dynamic, quantize_static
+from onnxruntime.transformers import transformer_optimizer
 
 from transformers.modeling_outputs import QuestionAnsweringModelOutput
 
@@ -48,7 +49,10 @@ class Trainer():
             # TODO Handle this case when using quantization without ONNX using torch.quantization
             # Optimize model
             if (self.config.ONNX_preprocess):
-                quant_pre_process(self.config.path_to_onnx_model, self.config.path_to_onnx_model)
+                # quant_pre_process(self.config.path_to_onnx_model, self.config.path_to_onnx_model)
+                optimized_model = transformer_optimizer.optimize_model(self.config.path_to_onnx_model, model_type='bert', num_heads=2, hidden_size=128)
+                optimized_model.convert_float_to_float16()
+                optimized_model.save_model_to_file(self.config.path_to_onnx_model)
 
             if (self.config.quantize):
                 if (self.config.quantize_type == 'static'):
