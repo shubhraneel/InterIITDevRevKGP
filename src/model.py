@@ -2,6 +2,10 @@ import torch
 import torch.nn as nn
 from transformers import AutoModelForQuestionAnswering
 
+from pathlib import Path
+from transformers.onnx import FeaturesManager
+import transformers
+
 class BaselineQA(nn.Module):
     def __init__(self, config, device):
         super(BaselineQA, self).__init__()
@@ -36,3 +40,25 @@ class BaselineQA(nn.Module):
             return (out,torch.nn.functional.softmax(scores))
 
         return out  
+
+    def export_to_onnx(self, tokenizer):
+        # TODO Using torch.onnx.export
+        # Will use transformers.onnx.export for transformer models
+
+        # TODO Using transformers.onnx if this doesn't work
+        feature = "question-answering"
+
+        # load config
+        model_kind, model_onnx_config = FeaturesManager.check_supported_model_or_raise(self.model, feature=feature)
+        onnx_config = model_onnx_config(self.model.config)
+
+        # export
+        onnx_inputs, onnx_outputs = transformers.onnx.export(
+                preprocessor=tokenizer,
+                model=self.model,
+                config=onnx_config,
+                opset=13,
+                output=Path("checkpoints/{}/model.onnx".format(self.config.load_path))
+        )
+
+        print(onnx_inputs, onnx_outputs)
