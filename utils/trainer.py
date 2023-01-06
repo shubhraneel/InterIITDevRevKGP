@@ -24,7 +24,8 @@ def to_numpy(tensor):
   return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
 
 class Trainer():
-    def __init__(self, config, model, optimizer, device, tokenizer, ques2idx, retriever=None):
+    def __init__(self, config, model, optimizer, device, 
+        tokenizer, ques2idx, df_val=None,val_retriever=None):
         self.config = config
         self.device = device
 
@@ -37,8 +38,14 @@ class Trainer():
         wandb.watch(self.model)
 
         self.ques2idx = ques2idx
+
         self.retriever = retriever
 
+        self.df_val = df_val
+        self.val_retriever = val_retriever
+
+        self.prepared_test_loader=None
+        self.prepared_test_df_matched=None
         # setup onnx runtime if config.onnx is true
         self.onnx_runtime_session = None
         if (self.config.ONNX):
@@ -151,7 +158,9 @@ class Trainer():
             out = self.model(batch)
             if self.config.model.two_step_loss:
                 out=out[0]
-            
+            if batch_idx%300==0:
+              self.log_ipop_batch(batch,out,batch_idx)
+
             loss = out.loss
             if self.config.training.can_loss and not self.config.model.non_pooler:
                 loss += self.contrastive_adaptive_loss(out, batch) * self.config.training.can_loss_beta
@@ -159,7 +168,7 @@ class Trainer():
             loss.backward()
 
             if loss.isnan():
-              print("NanSense")
+              print("NanSense", batch)
               self.optimizer.zero_grad()
               continue
 
@@ -167,7 +176,7 @@ class Trainer():
             tepoch.set_postfix(loss = total_loss / (batch_idx + 1))
             wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
 
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 0.5)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
             self.optimizer.step()
             self.optimizer.zero_grad()
 
@@ -175,6 +184,40 @@ class Trainer():
 
         return (total_loss / (batch_idx + 1))
 
+    def log_ipop_batch(self,batch,out,batch_idx):
+      rows=[]
+      for i in range(len(batch["context"])):
+        context = batch["context"][i]
+        start_probs=F.softmax(out.start_logits,dim=1)
+        end_probs=F.softmax(out.end_logits,dim=1)
+
+        max_start_probs=torch.max(start_probs, axis=1)
+        max_end_probs=torch.max(end_probs, axis=1)
+
+        offset_mapping = batch["question_context_offset_mapping"][i]
+        start_index = max_start_probs.indices[i].item()
+        end_index = max_end_probs.indices[i].item()
+        decoded_answer=""
+        if (offset_mapping[start_index] is not None and offset_mapping[end_index] is not None): 
+          start_char = offset_mapping[start_index][0]
+          end_char = offset_mapping[end_index][1]
+
+          decoded_answer = context[start_char:end_char]
+        
+        tgt_answer=""
+        if (offset_mapping[batch["start_positions"][i]] is not None and offset_mapping[batch["end_positions"][i]] is not None):
+          tgt_start=offset_mapping[batch["start_positions"][i]][0]
+          tgt_end=offset_mapping[batch["end_positions"][i]][1]
+
+          tgt_answer= context[tgt_start:tgt_end]
+        
+        answer=batch["answer"][i]
+        question=batch["question"][i]
+
+        rows.append([question,answer,decoded_answer,tgt_answer])
+      
+      my_table = wandb.Table(columns=["question","dataset answer","predicted answer", "train target"], data=rows)
+      wandb.log({"Batch "+str(batch_idx)+ " IP/OP": my_table})
 
     def train(self, train_dataloader, val_dataloader=None):
         self.model.train()
@@ -182,7 +225,11 @@ class Trainer():
             self._train_step(train_dataloader, epoch)
             
             if ((val_dataloader is not None) and (((epoch + 1) % self.config.training.evaluate_every)) == 0):
-                self.evaluate(val_dataloader)
+                # self.evaluate(val_dataloader)
+                if epoch==0:
+                  self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
+                else:
+                  self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=False)
                 self.model.train()
 
 
@@ -200,7 +247,6 @@ class Trainer():
                         batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
                 
                 out = self.model(batch)
-
                 if self.config.model.two_step_loss:
                     out=out[0]
 
@@ -254,12 +300,7 @@ class Trainer():
         
         return self.model(batch)
 
-
-    def inference(self, df_test):
-        self.model.to(self.config.inference_device)
-        self.device = self.config.inference_device
-        self.model.device = self.config.inference_device
-
+    def prepare_df_before_inference(self, df_test,retriever,prefix,device):
         title_id_list = df_test["title_id"].unique()
         gb_title = df_test.groupby("title_id")
         df_test_matched = pd.DataFrame()
@@ -277,8 +318,8 @@ class Trainer():
                 context_id = row["context_id"]
 
                 df_contexts=pd.DataFrame()
-                if self.retriever is not None:
-                    doc_idx_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, str(title_id), k=self.config.top_k)
+                if retriever is not None:
+                    doc_idx_filtered, doc_text_filtered = retriever.retrieve_top_k(question, str(title_id), k=self.config.top_k)
                     df_contexts_og = df_unique_con.loc[df_unique_con["context_id"].isin([int(doc_idx) for doc_idx in doc_idx_filtered])].copy()
                     # TODO: we can endup sampling things in doc_idx_filtered again
                     df_contexts_random =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=max(0,self.config.top_k-len(doc_idx_filtered)),random_state=self.config.seed)
@@ -309,17 +350,29 @@ class Trainer():
         time_test_dataloader_generation=1000*(time.time() - start_time)
         print(time_test_dataloader_generation)
         print(time_test_dataloader_generation/df_test.shape[0])
-        wandb.log({"time_test_dataloader_generation": time_test_dataloader_generation})
-        wandb.log({"per_q_time_test_dataloader_generation": time_test_dataloader_generation/df_test.shape[0]})
+        wandb.log({"time_"+str(prefix)+"_dataloader_generation": time_test_dataloader_generation})
+        wandb.log({"per_q_"+str(prefix)+"_time_"+str(prefix)+"_dataloader_generation": time_test_dataloader_generation/df_test.shape[0]})
         
         print(f"{len(df_test_matched)=}")
         print(f"{len(df_temp)=}")
+
+        self.prepared_test_loader=test_dataloader
+        self.prepared_test_df_matched=df_test_matched
+
+
+    def inference(self, df_test,retriever,prefix,device,do_prepare):
+        self.model.to(device)
+        self.device = device
+        self.model.device = device
+
+        if do_prepare or self.prepared_test_loader==None or self.prepared_test_df_matched==None:
+          self.prepare_df_before_inference(df_test,retriever,prefix,device)
        
         start_time=time.time()
-        question_prediction_dict={q_id:(0,"") for q_id in df_test_matched["question_id"].unique()}
+        question_prediction_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
 
         # TODO: without sequentional batch iteration
-        for qp_batch_id, qp_batch in tqdm(enumerate(test_dataloader),total=len(test_dataloader)):
+        for qp_batch_id, qp_batch in tqdm(enumerate(self.prepared_test_loader),total=len(self.prepared_test_loader)):
             
             if (len(qp_batch['question_context_input_ids'].shape) == 1):
                 qp_batch['question_context_input_ids'] = qp_batch['question_context_input_ids'].unsqueeze(dim=0)
@@ -329,19 +382,16 @@ class Trainer():
             
             # para, para_id, theme, theme_id, question, question_id
             pred = self.predict(qp_batch)
-            if self.config.model.two_step_loss:
-                confidence_scores=pred[1] # -> [32,1]
-                # pred=pred[0]
-            else:
-                # print(pred.start_logits.shape) # -> [32,512] 
-                start_probs=F.softmax(pred.start_logits,dim=1)  # -> [32,512] 
-                end_probs=F.softmax(pred.end_logits,dim=1)    # -> [32,512] 
 
-                max_start_probs=torch.max(start_probs, axis=1)  # -> [32,1] 
-                max_end_probs=torch.max(end_probs,axis=1)       # -> [32,1]
+            # print(pred.start_logits.shape) -> [32,512] 
+            start_probs=F.softmax(pred.start_logits,dim=1)  # -> [32,512] 
+            end_probs=F.softmax(pred.end_logits,dim=1)    # -> [32,512] 
 
-                confidence_scores=max_end_probs.values*max_start_probs.values  # -> [32,1]                
+            max_start_probs=torch.max(start_probs, axis=1)  # -> [32,1] 
+            max_end_probs=torch.max(end_probs,axis=1)       # -> [32,1]
 
+            confidence_scores=max_end_probs.values*max_start_probs.values  # -> [32,1]
+            
             for batch_idx,q_id in enumerate(qp_batch["question_id"]):
                 if (question_prediction_dict[q_id][0]<confidence_scores[batch_idx]):
                     # using the context in the qp_pair get extract the span using max_start_prob and max_end_prob                    
@@ -356,17 +406,18 @@ class Trainer():
                         start_char = offset_mapping[start_index][0]
                         end_char = offset_mapping[end_index][1]
                         decoded_answer = context[start_char:end_char]
-                    question_prediction_dict[q_id]=(confidence_scores[batch_idx].item(),decoded_answer)
+                    if(len(decoded_answer)>0):
+                        question_prediction_dict[q_id]=(confidence_scores[batch_idx].item(),decoded_answer)
     
         time_inference_generation=1000*(time.time()-start_time)
         print(time_inference_generation)
         print(time_inference_generation/df_test.shape[0])
-        wandb.log({"time_inference_generation": time_inference_generation})
-        wandb.log({"per_q_time_inference_generation": time_inference_generation/df_test.shape[0]})
+        wandb.log({prefix+"_time_inference_generation": time_inference_generation})
+        wandb.log({prefix+"_per_q_time_inference_generation": time_inference_generation/df_test.shape[0]})
         
         return question_prediction_dict
 
-    def calculate_metrics(self, df_test):
+    def calculate_metrics(self, df_test,retriever,prefix,device,do_prepare):
         """
             1. Run the inference script
             2. Calculate the time taken
@@ -375,9 +426,9 @@ class Trainer():
         """
 
         # TODO: check if this way of calculating the time is correct
-        if self.config.inference_device == 'cuda':
+        if device == 'cuda':
             torch.cuda.synchronize()
-        question_pred_dict= self.inference(df_test)
+        question_pred_dict= self.inference(df_test,retriever,prefix,device,do_prepare)
         predicted_answers=[question_pred_dict[q_id][1] for q_id in df_test['question_id']]
         gold_answers=df_test['answer_text'].tolist()
         

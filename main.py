@@ -151,10 +151,16 @@ if __name__ == "__main__":
 			tfidf_path = "data-dir/test/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
 			questions_df = df_test[["question", "title_id"]]
 			db_path = "data-dir/test/sqlite_con.db"
-			retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path)
+			test_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path)
+      
+			tfidf_path = "data-dir/val/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
+			questions_df = df_val[["question", "title_id"]]
+			db_path = "data-dir/val/sqlite_con.db"
+			val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path)
 
 		trainer = Trainer(config=config, model=model,
-						  optimizer=optimizer, device=device, tokenizer=tokenizer, ques2idx=ques2idx, retriever=retriever)
+						  optimizer=optimizer, device=device, tokenizer=tokenizer, ques2idx=ques2idx, 
+              val_retriever=val_retriever,df_val=df_val)
 
 		if (config.train):
 			print("Creating train dataset")
@@ -189,7 +195,7 @@ if __name__ == "__main__":
 			# calculate_metrics(test_ds, test_dataloader, wandb_logger)
 			# test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
 			model.to(config.inference_device)
-			test_metrics = trainer.calculate_metrics(df_test)
+			test_metrics = trainer.calculate_metrics(df_test,test_retriever,'test',config.inference_device,do_prepare=True)
 			print(test_metrics)
 
 

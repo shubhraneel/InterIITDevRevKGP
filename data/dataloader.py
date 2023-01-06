@@ -66,8 +66,8 @@ class SQuAD_Dataset(Dataset):
             examples["context" if self.config.data.pad_on_right else "question"],
             truncation="only_second" if self.config.data.pad_on_right else "only_first",
             max_length=self.config.data.max_length,
-            stride=self.config.data.doc_stride,
-            return_overflowing_tokens=True,
+            stride=0,#self.config.data.doc_stride,
+            return_overflowing_tokens=False,
             return_offsets_mapping=True,
             padding="max_length",
             return_token_type_ids=True
@@ -75,7 +75,7 @@ class SQuAD_Dataset(Dataset):
 
         # Since one example might give us several features if it has a long context, we need a map from a feature to
         # its corresponding example. This key gives us just that.
-        sample_mapping = inputs.pop("overflow_to_sample_mapping")
+        # sample_mapping = inputs.pop("overflow_to_sample_mapping")
 
         # The offset mappings will give us a map from token to character position in the original context. This will
         # help us compute the start_positions and end_positions.
@@ -96,7 +96,7 @@ class SQuAD_Dataset(Dataset):
             sequence_ids = inputs.sequence_ids(i)
 
             # One example can give several spans, this is the index of the example containing this span of text.
-            sample_index = sample_mapping[i]
+            sample_index = i
             answers = examples["answers"][sample_index]
             # If no answers are given, set the cls_index as answer.
             if (answers["answer_start"] == ""):
@@ -142,7 +142,7 @@ class SQuAD_Dataset(Dataset):
             context_index = 1 if self.config.data.pad_on_right else 0
 
             # One example can give several spans, this is the index of the example containing this span of text.
-            sample_index = sample_mapping[i]
+            sample_index = i
             inputs["example_id"].append(examples["question_id"][sample_index])
 
             # Set to None the offset_mapping that are not part of the context so it's easy to determine if a token
