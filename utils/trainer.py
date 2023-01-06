@@ -16,7 +16,8 @@ from utils import compute_f1
 from data import SQuAD_Dataset
 
 class Trainer():
-    def __init__(self, config, model, optimizer, device, tokenizer, ques2idx, retriever=None):
+    def __init__(self, config, model, optimizer, device, 
+        tokenizer, ques2idx, df_val=None,val_retriever=None):
         self.config = config
         self.device = device
 
@@ -29,7 +30,12 @@ class Trainer():
 
         self.ques2idx = ques2idx
 
-        self.retriever = retriever
+        self.df_val = df_val
+        self.val_retriever = val_retriever
+
+        self.prepared_test_loader=None
+        self.prepared_test_df_matched=None
+
 
     def _train_step(self, dataloader, epoch):
         total_loss = 0
@@ -100,7 +106,11 @@ class Trainer():
             self._train_step(train_dataloader, epoch)
             
             if ((val_dataloader is not None) and (((epoch + 1) % self.config.training.evaluate_every)) == 0):
-                self.evaluate(val_dataloader)
+                # self.evaluate(val_dataloader)
+                if epoch==0:
+                  self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
+                else:
+                  self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=False)
                 self.model.train()
 
 
@@ -131,12 +141,7 @@ class Trainer():
     def predict(self, batch):
         return self.model(batch)
 
-
-    def inference(self, df_test):
-        self.model.to(self.config.inference_device)
-        self.device = self.config.inference_device
-        self.model.device = self.config.inference_device
-
+    def prepare_df_before_inference(self, df_test,retriever,prefix,device):
         title_id_list = df_test["title_id"].unique()
         gb_title = df_test.groupby("title_id")
         df_test_matched = pd.DataFrame()
@@ -154,8 +159,8 @@ class Trainer():
                 context_id = row["context_id"]
 
                 df_contexts=pd.DataFrame()
-                if self.retriever is not None:
-                    doc_idx_filtered, doc_text_filtered = self.retriever.retrieve_top_k(question, str(title_id), k=self.config.top_k)
+                if retriever is not None:
+                    doc_idx_filtered, doc_text_filtered = retriever.retrieve_top_k(question, str(title_id), k=self.config.top_k)
                     df_contexts_og = df_unique_con.loc[df_unique_con["context_id"].isin([int(doc_idx) for doc_idx in doc_idx_filtered])].copy()
                     # TODO: we can endup sampling things in doc_idx_filtered again
                     df_contexts_random =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=max(0,self.config.top_k-len(doc_idx_filtered)),random_state=self.config.seed)
@@ -186,17 +191,29 @@ class Trainer():
         time_test_dataloader_generation=1000*(time.time() - start_time)
         print(time_test_dataloader_generation)
         print(time_test_dataloader_generation/df_test.shape[0])
-        wandb.log({"time_test_dataloader_generation": time_test_dataloader_generation})
-        wandb.log({"per_q_time_test_dataloader_generation": time_test_dataloader_generation/df_test.shape[0]})
+        wandb.log({"time_"+str(prefix)+"_dataloader_generation": time_test_dataloader_generation})
+        wandb.log({"per_q_"+str(prefix)+"_time_"+str(prefix)+"_dataloader_generation": time_test_dataloader_generation/df_test.shape[0]})
         
         print(f"{len(df_test_matched)=}")
         print(f"{len(df_temp)=}")
+
+        self.prepared_test_loader=test_dataloader
+        self.prepared_test_df_matched=df_test_matched
+
+
+    def inference(self, df_test,retriever,prefix,device,do_prepare):
+        self.model.to(device)
+        self.device = device
+        self.model.device = device
+
+        if do_prepare or self.prepared_test_loader==None or self.prepared_test_df_matched==None:
+          self.prepare_df_before_inference(df_test,retriever,prefix,device)
        
         start_time=time.time()
-        question_prediction_dict={q_id:(0,"") for q_id in df_test_matched["question_id"].unique()}
+        question_prediction_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
 
         # TODO: without sequentional batch iteration
-        for qp_batch_id, qp_batch in tqdm(enumerate(test_dataloader),total=len(test_dataloader)):
+        for qp_batch_id, qp_batch in tqdm(enumerate(self.prepared_test_loader),total=len(self.prepared_test_loader)):
             
             if (len(qp_batch['question_context_input_ids'].shape) == 1):
                 qp_batch['question_context_input_ids'] = qp_batch['question_context_input_ids'].unsqueeze(dim=0)
@@ -235,12 +252,12 @@ class Trainer():
         time_inference_generation=1000*(time.time()-start_time)
         print(time_inference_generation)
         print(time_inference_generation/df_test.shape[0])
-        wandb.log({"time_inference_generation": time_inference_generation})
-        wandb.log({"per_q_time_inference_generation": time_inference_generation/df_test.shape[0]})
+        wandb.log({prefix+"_time_inference_generation": time_inference_generation})
+        wandb.log({prefix+"_per_q_time_inference_generation": time_inference_generation/df_test.shape[0]})
         
         return question_prediction_dict
 
-    def calculate_metrics(self, df_test):
+    def calculate_metrics(self, df_test,retriever,prefix,device,do_prepare):
         """
             1. Run the inference script
             2. Calculate the time taken
@@ -249,9 +266,9 @@ class Trainer():
         """
 
         # TODO: check if this way of calculating the time is correct
-        if self.config.inference_device == 'cuda':
+        if device == 'cuda':
             torch.cuda.synchronize()
-        question_pred_dict= self.inference(df_test)
+        question_pred_dict= self.inference(df_test,retriever,prefix,device,do_prepare)
         predicted_answers=[question_pred_dict[q_id][1] for q_id in df_test['question_id']]
         gold_answers=df_test['answer_text'].tolist()
         
