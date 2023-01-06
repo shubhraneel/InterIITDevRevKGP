@@ -290,7 +290,8 @@ class Trainer():
                         start_char = offset_mapping[start_index][0]
                         end_char = offset_mapping[end_index][1]
                         decoded_answer = context[start_char:end_char]
-                    question_prediction_dict[q_id]=(confidence_scores[batch_idx].item(),decoded_answer)
+                    if(len(decoded_answer)>0):
+                        question_prediction_dict[q_id]=(confidence_scores[batch_idx].item(),decoded_answer)
     
         time_inference_generation=1000*(time.time()-start_time)
         print(time_inference_generation)
