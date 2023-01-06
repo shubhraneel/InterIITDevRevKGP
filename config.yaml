@@ -2,10 +2,10 @@ task: qa
 seed: 3407
 wandb_path: v2-contrastive-loss
 fewshot_qa: False
-inference_device: cpu
-train: False
+inference_device: cuda
+train: True
 inference: True
-save_model_optimizer: False
+save_model_optimizer: True
 load_model_optimizer: False
 load_path: v2-contrastive-loss
 use_drqa: True
@@ -19,7 +19,7 @@ data:
   val_data_path: data-dir/val/df_val.pkl
   test_data_path: data-dir/test/df_test.pkl
   train_batch_size: 32
-  val_batch_size: 2
+  val_batch_size: 32
   apply_aliasing: False
   pad_on_right: True
   max_length: 512
