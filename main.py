@@ -142,9 +142,9 @@ if __name__ == "__main__":
 
 		if (config.load_model_optimizer):
 			print("loading model and optimizer from checkpoints/{}/model_optimizer.pt".format(config.load_path))
-			checkpoint = torch.load("checkpoints/{}/model_optimizer.pt".format(config.load_path))
-			model.load_state_dict(checkpoint['model_state_dict'],
-					     map_location=torch.device(device))
+			checkpoint = torch.load("checkpoints/{}/model_optimizer.pt".format(config.load_path),
+						map_location=torch.device(device))
+			model.load_state_dict(checkpoint['model_state_dict'])
 			optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 		retriever = None
