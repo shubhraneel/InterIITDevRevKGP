@@ -13,10 +13,15 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
 from config import Config
-from src import BaselineQA, FewShotQA_Model
-from utils import Trainer, set_seed, Retriever
+from src import BaselineQA, FewShotQA_Model, BiDAF
+from utils import Trainer, set_seed, Retriever, BiDAFTrainer
 from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
 from utils import build_tf_idf_wrapper, store_contents
+
+from data import *
+
+from pandarallel import pandarallel
+pandarallel.initialize(progress_bar = True)
 
 
 def load_mappings():
@@ -129,6 +134,139 @@ if __name__ == "__main__":
 			test_dataloader)
 		print(
 			f"QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
+	
+	elif config.bidaf_qa:
+		preprocess_df(df_train)
+		preprocess_df(df_val)
+		preprocess_df(df_test)
+
+		vocab_text = gather_text_for_vocab([df_train, df_val])
+		print("Number of sentences in dataset: ", len(vocab_text))
+
+		word2idx, idx2word, word_vocab = build_word_vocab(vocab_text)
+		print("----------------------------------")
+		char2idx, char_vocab = build_char_vocab(vocab_text)
+
+		# Here "The" token was not found in word2idx
+		df_train['context_id'] = df_train.context.parallel_apply(context_to_ids, word2idx=word2idx)
+		df_val['context_id'] = df_val.context.parallel_apply(context_to_ids, word2idx=word2idx)
+		df_test['context_id'] = df_test.context.parallel_apply(context_to_ids, word2idx=word2idx)
+		
+		df_train['question_id'] = df_train.question.parallel_apply(question_to_ids, word2idx=word2idx)
+		df_val['question_id'] = df_val.question.parallel_apply(question_to_ids, word2idx=word2idx)
+		df_test['question_id'] = df_test.question.parallel_apply(question_to_ids, word2idx=word2idx)
+
+		print("Obtaining error indices")
+
+		err_train = get_error_indices(df_train, idx2word)
+		err_val = get_error_indices(df_val, idx2word)
+		err_test = get_error_indices(df_test, idx2word)
+
+		df_train.drop(err_train, inplace=True)
+		df_val.drop(err_val, inplace=True)
+		df_test.drop(err_test, inplace = True)
+
+		train_label_idx = df_train.parallel_apply(index_answer, axis = 1, idx2word = idx2word)
+		valid_label_idx = df_val.parallel_apply(index_answer, axis = 1, idx2word = idx2word)
+		test_label_idx = df_test.parallel_apply(index_answer, axis = 1, idx2word = idx2word)
+
+		df_train['label_idx'] = train_label_idx
+		df_val['label_idx'] = valid_label_idx
+		df_test['label_idx'] = test_label_idx
+
+		glove_dict = get_glove_dict()
+
+		weights_matrix, words_found = create_weights_matrix(glove_dict)
+		print("Words found in the GloVe vocab: " ,words_found)
+
+		np.save('bidafglove_tv.npy', weights_matrix)
+
+		CHAR_VOCAB_DIM = len(char2idx)
+		EMB_DIM = 100
+		CHAR_EMB_DIM = 8
+		NUM_OUTPUT_CHANNELS = 100
+		KERNEL_SIZE = (8,5)
+		HIDDEN_DIM = 100
+
+		train_ds = BiDAF_Dataset(config, df_train, char2idx)
+		val_ds = BiDAF_Dataset(config, df_val, char2idx)
+		test_ds = BiDAF_Dataset(config, df_test, char2idx)
+
+		train_dataloader = DataLoader(
+			train_ds, batch_size=config.data.train_batch_size, collate_fn = train_ds.collate_fn)
+		val_dataloader = DataLoader(
+			val_ds, batch_size=config.data.val_batch_size, collate_fn = val_ds.collate_fn)
+		test_dataloader = DataLoader(
+			test_ds, batch_size=config.data.val_batch_size, collate_fn = test_ds.collate_fn)
+
+		model = BiDAF(CHAR_VOCAB_DIM, 
+					EMB_DIM, 
+					CHAR_EMB_DIM, 
+					NUM_OUTPUT_CHANNELS, 
+					KERNEL_SIZE, 
+					HIDDEN_DIM, 
+					device).to(device)
+
+		optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
+		criterion = torch.nn.CrossEntropyLoss()
+
+		trainer = BiDAFTrainer(config, model, optimizer, device, criterion, ques2idx, retriever=None)
+		trainer.train(train_dataloader, val_dataloader)
+
+		test_metrics = trainer.calculate_metrics(df_test)
+		print(test_metrics)
+
+
+		# if (config.load_model_optimizer):
+		# 	print("loading model and optimizer from checkpoints/{}/model_optimizer.pt".format(config.load_path))
+		# 	checkpoint = torch.load("checkpoints/{}/model_optimizer.pt".format(config.load_path))
+		# 	model.load_state_dict(checkpoint['model_state_dict'])
+		# 	optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+		# retriever = None
+		# if (config.use_drqa):
+		# 	tfidf_path = "data-dir/test/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
+		# 	questions_df = df_test[["question", "title_id"]]
+		# 	db_path = "data-dir/test/sqlite_con.db"
+		# 	retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path)
+
+		# trainer = Trainer(config=config, model=model,
+		# 				  optimizer=optimizer, device=device, tokenizer=tokenizer, ques2idx=ques2idx, retriever=retriever)
+
+		# if (config.train):
+		# 	print("Creating train dataset")
+		# 	train_ds = SQuAD_Dataset(config, df_train, tokenizer)
+		# 	train_dataloader = DataLoader(
+		# 		train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
+		# 	print("length of train dataset: {}".format(train_ds.__len__()))
+
+		# 	print("Creating val dataset")
+		# 	val_ds = SQuAD_Dataset(config, df_val, tokenizer)
+		# 	val_dataloader = DataLoader(
+		# 		val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
+		# 	print("length of val dataset: {}".format(val_ds.__len__()))
+
+		# 	trainer.train(train_dataloader, val_dataloader)
+
+		# if (config.inference):
+		# 	# print("Creating test dataset")
+		# 	# test_ds = SQuAD_Dataset(config, df_test, tokenizer)
+		# 	# test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
+		# 	# print("length of test dataset: {}".format(test_ds.__len__()))
+
+		# 	# calculate_metrics(test_ds, test_dataloader, wandb_logger)
+		# 	# test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
+		# 	test_metrics = trainer.calculate_metrics(df_test)
+		# 	print(test_metrics)
+
+		# if (config.save_model_optimizer):
+		# 	print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
+		# 	os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
+		# 	torch.save({
+	    #     	'model_state_dict': model.state_dict(),
+	    #     	'optimizer_state_dict': optimizer.state_dict(),
+	    #     }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
+
 
 	else:
 		model = BaselineQA(config, device).to(device)

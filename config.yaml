@@ -8,9 +8,10 @@ inference: True
 save_model_optimizer: True
 load_model_optimizer: False
 load_path: v2-inference-testing-cuda
-use_drqa: True
+use_drqa: False
 create_drqa_tfidf: True
 drqa_top_k: 5
+bidaf_qa: True
 
 data:
   train_data_path: data-dir/train/df_train.pkl
@@ -35,7 +36,7 @@ training:
   evaluate_every: 1
 
 model:
-  model_path: google/bert_uncased_L-2_H-128_A-2
+  model_path: bert-base-uncased
   params: {}
   non_pooler: False
   dim: 128
