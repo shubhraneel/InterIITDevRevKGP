@@ -351,9 +351,14 @@ class Trainer():
             "mean_squad_f1": mean_squad_f1,
             # "mean_time_per_question (ms)": results["mean_time_per_question"]*1000,
         }
-
-        wandb.log({"metrics": metrics})
-        wandb.log({"predicted_answers": predicted_answers})
-        wandb.log({"gold_answers": gold_answers})
+        
+        if prefix=='val':
+          wandb.log({"val_metrics": metrics})
+          wandb.log({"val_predicted_answers": predicted_answers})
+          wandb.log({"val_gold_answers": gold_answers})
+        else:
+          wandb.log({"metrics": metrics})
+          wandb.log({"predicted_answers": predicted_answers})
+          wandb.log({"gold_answers": gold_answers})
 
         return metrics
