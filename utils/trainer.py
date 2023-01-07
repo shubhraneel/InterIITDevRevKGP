@@ -35,7 +35,7 @@ class Trainer():
         self.optimizer = optimizer
         self.model = model
 
-        if self.config.lr_flag: self.scheduler = lr_scheduler.LinearLR(self.optimizer, start_factor=config.training.lr_start_factor, total_iters=config.training.lr_total_iters)
+        if self.config.training.lr_flag: self.scheduler = lr_scheduler.LinearLR(self.optimizer, start_factor=config.training.lr_start_factor, total_iters=config.training.lr_total_iters)
 
         wandb.watch(self.model)
 
