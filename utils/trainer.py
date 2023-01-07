@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from torch.optim import lr_scheduler
 
 from utils import compute_f1
 from data import SQuAD_Dataset
@@ -34,6 +35,7 @@ class Trainer():
         self.optimizer = optimizer
         self.model = model
 
+        if self.config.lr_flag: self.scheduler = lr_scheduler.LinearLR(self.optimizer, start_factor=config.training.lr_start_factor, total_iters=config.training.lr_total_iters)
 
         wandb.watch(self.model)
 
@@ -50,7 +52,7 @@ class Trainer():
         self.onnx_runtime_session = None
         if (self.config.ONNX):
             self.model.export_to_onnx(tokenizer)
-​
+
             # TODO Handle this case when using quantization without ONNX using torch.quantization
         
             if (self.config.quantize):
@@ -85,6 +87,7 @@ class Trainer():
             wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
             
             self.optimizer.step()
+            if self.config.lr_flag: self.scheduler.step()
             self.optimizer.zero_grad()
 
         wandb.log({"train_epoch_loss": total_loss / (batch_idx + 1)})
