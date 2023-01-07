@@ -266,7 +266,7 @@ class Trainer():
         self.device = device
         self.model.device = device
 
-        if do_prepare or self.prepared_test_loader==None or self.prepared_test_df_matched==None:
+        if do_prepare:
           self.prepare_df_before_inference(df_test,retriever,prefix,device)
        
         start_time=time.time()
