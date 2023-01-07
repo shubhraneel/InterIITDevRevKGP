@@ -25,17 +25,21 @@ def to_numpy(tensor):
 
 class Trainer():
     def __init__(self, config, model, optimizer, device, 
-        tokenizer, ques2idx, df_val=None,val_retriever=None):
+          tokenizer, ques2idx, df_val=None,val_retriever=None,
+          model_clf=None,optimizer_clf=None):
         self.config = config
         self.device = device
 
         self.tokenizer = tokenizer
 
         self.optimizer = optimizer
+        self.optimizer_clf=optimizer_clf
         self.model = model
-
+        self.model_clf=model_clf
 
         wandb.watch(self.model)
+        if model_clf!=None:
+          wandb.watch(self.model_clf)
 
         self.ques2idx = ques2idx
 
@@ -45,16 +49,15 @@ class Trainer():
         self.prepared_test_loader=None
         self.prepared_test_df_matched=None
 
-
         # setup onnx runtime if config.onnx is true
         self.onnx_runtime_session = None
         if (self.config.ONNX):
             self.model.export_to_onnx(tokenizer)
-​
-            # TODO Handle this case when using quantization without ONNX using torch.quantization
+
+       # TODO Handle this case when using quantization without ONNX using torch.quantization
         
-            if (self.config.quantize):
-                quantize_dynamic("checkpoints/{}/model.onnx".format(self.config.load_path), "checkpoints/{}/model_quantized.onnx".format(self.config.load_path))
+        if (self.config.quantize):
+            quantize_dynamic("checkpoints/{}/model.onnx".format(self.config.load_path), "checkpoints/{}/model_quantized.onnx".format(self.config.load_path))
             
             sess_options = onnxruntime.SessionOptions()
             # TODO Find if this line helps
@@ -65,6 +68,7 @@ class Trainer():
 
     def _train_step(self, dataloader, epoch):
         total_loss = 0
+        total_loss_clf=0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
         for batch_idx, batch in enumerate(tepoch):
             tepoch.set_description(f"Epoch {epoch + 1}")
@@ -75,10 +79,23 @@ class Trainer():
                     batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
 
             out = self.model(batch)
-            if batch_idx%300==0:
-              self.log_ipop_batch(batch,out,batch_idx)
+            # if batch_idx%300==0:
+              # self.log_ipop_batch(batch,out,batch_idx)
             loss = out.loss
             loss.backward()
+
+            if self.config.model.two_step_loss:
+              out_clf=self.model_clf(batch)
+              
+              loss_clf=out_clf.loss
+              loss_clf.backward()
+
+              self.optimizer_clf.step()
+              self.optimizer_clf.zero_grad()
+
+              total_loss_clf+=loss_clf.item()
+
+              wandb.log({"train_batch_loss_clf": total_loss_clf / (batch_idx + 1)})
 
             total_loss += loss.item()
             tepoch.set_postfix(loss = total_loss / (batch_idx + 1))
@@ -87,6 +104,9 @@ class Trainer():
             self.optimizer.step()
             self.optimizer.zero_grad()
 
+        if self.config.model.two_step_loss:
+          wandb.log({"train_epoch_loss_clf": total_loss_clf / (batch_idx + 1)})
+        
         wandb.log({"train_epoch_loss": total_loss / (batch_idx + 1)})
 
         return (total_loss / (batch_idx + 1))
@@ -128,16 +148,23 @@ class Trainer():
 
     def train(self, train_dataloader, val_dataloader=None):
         self.model.train()
+        if self.config.model.two_step_loss:
+          self.model_clf.train()
         for epoch in range(self.config.training.epochs):
             self._train_step(train_dataloader, epoch)
             
             if ((val_dataloader is not None) and (((epoch + 1) % self.config.training.evaluate_every)) == 0):
                 # self.evaluate(val_dataloader)
-                if epoch==0:
-                  self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
-                else:
-                  self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=False)
+                self.model.eval()
+                if self.config.model.two_step_loss:
+                  self.model_clf.eval()
+                # if epoch==0:
+                #   self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
+                # else:
+                #   self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=False)
                 self.model.train()
+                if self.config.model.two_step_loss:
+                  self.model_clf.train()
 
 
     def evaluate(self, dataloader):
@@ -265,12 +292,17 @@ class Trainer():
         self.model.to(device)
         self.device = device
         self.model.device = device
+        if self.config.model.two_step_loss:
+          self.model_clf.device=device
+          self.model_clf.to(device)
 
-        if do_prepare or self.prepared_test_loader==None or self.prepared_test_df_matched==None:
+        if do_prepare:
           self.prepare_df_before_inference(df_test,retriever,prefix,device)
        
         start_time=time.time()
         question_prediction_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
+        if self.config.model.two_step_loss or self.config.model.clf_loss:
+          clf_prediction_dict={q_id:0 for q_id in self.prepared_test_df_matched["question_id"].unique()}
 
         # TODO: without sequentional batch iteration
         for qp_batch_id, qp_batch in tqdm(enumerate(self.prepared_test_loader),total=len(self.prepared_test_loader)):
@@ -284,6 +316,16 @@ class Trainer():
             # para, para_id, theme, theme_id, question, question_id
             pred = self.predict(qp_batch)
 
+            if self.config.model.two_step_loss:
+              pred_clf=self.model_clf(qp_batch)
+              batch_preds_clf=[1 if p[1]>=p[0] else 0 for p in pred_clf.logits]
+
+            if self.config.model.clf_loss:
+              cls_tokens=pred.hidden_states[-1][:,0]
+
+              scores=self.model.score(cls_tokens).squeeze(1) # [32]
+              batch_preds_clf=[1 if p>=0.5 else 0 for p in scores]
+
             # print(pred.start_logits.shape) -> [32,512] 
             start_probs=F.softmax(pred.start_logits,dim=1)  # -> [32,512] 
             end_probs=F.softmax(pred.end_logits,dim=1)    # -> [32,512] 
@@ -294,6 +336,9 @@ class Trainer():
             confidence_scores=max_end_probs.values*max_start_probs.values  # -> [32,1]
             
             for batch_idx,q_id in enumerate(qp_batch["question_id"]):
+                if self.config.model.overwrite_qa and ( self.config.model.two_step_loss or self.config.model.clf_loss):
+                  if(batch_preds_clf[batch_idx]==0):
+                    continue
                 if (question_prediction_dict[q_id][0]<confidence_scores[batch_idx]):
                     # using the context in the qp_pair get extract the span using max_start_prob and max_end_prob                    
                     context = qp_batch["context"][batch_idx]
@@ -309,6 +354,10 @@ class Trainer():
                         decoded_answer = context[start_char:end_char]
                     if(len(decoded_answer)>0):
                         question_prediction_dict[q_id]=(confidence_scores[batch_idx].item(),decoded_answer)
+                
+                if self.config.model.two_step_loss or self.config.model.clf_loss:
+                  if(batch_preds_clf[batch_idx]==1):
+                    clf_prediction_dict[q_id]=1
     
         time_inference_generation=1000*(time.time()-start_time)
         print(time_inference_generation)
@@ -316,6 +365,8 @@ class Trainer():
         wandb.log({prefix+"_time_inference_generation": time_inference_generation})
         wandb.log({prefix+"_per_q_time_inference_generation": time_inference_generation/df_test.shape[0]})
         
+        if self.config.model.two_step_loss or self.config.model.clf_loss:
+          return question_prediction_dict,clf_prediction_dict
         return question_prediction_dict
 
     def calculate_metrics(self, df_test,retriever,prefix,device,do_prepare):
@@ -329,7 +380,13 @@ class Trainer():
         # TODO: check if this way of calculating the time is correct
         if device == 'cuda':
             torch.cuda.synchronize()
-        question_pred_dict= self.inference(df_test,retriever,prefix,device,do_prepare)
+
+        if self.config.model.two_step_loss or self.config.model.clf_loss:
+          question_pred_dict,clf_preds_dict=self.inference(df_test,retriever,prefix,device,do_prepare)
+          clf_preds=[clf_preds_dict[q_id] for q_id in df_test['question_id']]
+        else:
+          question_pred_dict= self.inference(df_test,retriever,prefix,device,do_prepare)
+
         predicted_answers=[question_pred_dict[q_id][1] for q_id in df_test['question_id']]
         gold_answers=df_test['answer_text'].tolist()
         
@@ -337,7 +394,11 @@ class Trainer():
         squad_f1_per_span = [compute_f1(predicted_answers[i],gold_answers[i])  for i in range(len(predicted_answers))]
         mean_squad_f1 = np.mean(squad_f1_per_span)
 
-        classification_prediction = [1 if (len(predicted_answers[i]) != 0) else 0 for i in range(len(predicted_answers)) ] 
+        if self.config.model.two_step_loss or self.config.model.clf_loss:
+          classification_prediction = clf_preds
+        else:
+          classification_prediction = [1 if (len(predicted_answers[i]) != 0) else 0 for i in range(len(predicted_answers)) ] 
+
         classification_actual = df_test["answerable"].astype(int)
         classification_f1 = f1_score(classification_actual, classification_prediction)
         classification_accuracy = accuracy_score(classification_actual, classification_prediction)
@@ -352,8 +413,14 @@ class Trainer():
             # "mean_time_per_question (ms)": results["mean_time_per_question"]*1000,
         }
 
-        wandb.log({"metrics": metrics})
-        wandb.log({"predicted_answers": predicted_answers})
-        wandb.log({"gold_answers": gold_answers})
+        
+        if prefix=='val':
+          wandb.log({"val_metrics": metrics})
+          wandb.log({"val_predicted_answers": predicted_answers})
+          wandb.log({"val_gold_answers": gold_answers})
+        else:
+          wandb.log({"metrics": metrics})
+          wandb.log({"predicted_answers": predicted_answers})
+          wandb.log({"gold_answers": gold_answers})
 
         return metrics

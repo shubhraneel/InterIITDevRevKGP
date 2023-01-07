@@ -1,13 +1,13 @@
 task: qa
 seed: 3407
-wandb_path: v2-inference-testing
+wandb_path: v2-bert-clf-loss2-inf
 fewshot_qa: False
-inference_device: cpu
+inference_device: cuda
 train: False
 inference: True
 save_model_optimizer: False
-load_model_optimizer: False
-load_path: v2-inference-testing
+load_model_optimizer: True
+load_path: v2-bert-clf-loss
 use_drqa: True
 create_drqa_tfidf: False
 top_k: 5
@@ -27,7 +27,7 @@ data:
   tokenizer_batch_size: 32
 
 training:
-  epochs: 1
+  epochs: 10
   optimizer: adam
   lr: 0.00002
   sched_function: none
@@ -37,8 +37,10 @@ training:
   evaluate_every: 1
 
 model:
-  model_path: google/bert_uncased_L-2_H-128_A-2
+  model_path: google/bert_uncased_L-4_H-128_A-2
+  clf_model_path: google/bert_uncased_L-4_H-128_A-2
   params: {}
-  non_pooler: True
-  dim: 128
+  non_pooler: False
   two_step_loss: False
+  overwrite_qa: True
+  clf_loss: True

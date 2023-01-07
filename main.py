@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
 from config import Config
-from src import BaselineQA, FewShotQA_Model
+from src import BaselineQA, FewShotQA_Model,BaselineClf
 from utils import Trainer, set_seed, Retriever
 from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
 from utils import build_tf_idf_wrapper, store_contents
@@ -137,14 +137,23 @@ if __name__ == "__main__":
 			f"QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
 
 	else:
+		model_clf=None
+		optimizer_clf=None
+		if config.model.two_step_loss:
+			model_clf=BaselineClf(config,device).to(device)
+			optimizer_clf= torch.optim.Adam(model_clf.parameters(), lr=config.training.lr)
+		
 		model = BaselineQA(config, device).to(device)
 		optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
 
 		if (config.load_model_optimizer):
 			print("loading model and optimizer from checkpoints/{}/model_optimizer.pt".format(config.load_path))
-			checkpoint = torch.load("checkpoints/{}/model_optimizer.pt".format(config.load_path))
+			checkpoint = torch.load("checkpoints/{}/model_optimizer.pt".format(config.load_path),
+          map_location=torch.device(device))
 			model.load_state_dict(checkpoint['model_state_dict'])
 			optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+			if config.model.two_step_loss:
+			  model_clf.load_state_dict(checkpoint['clf_model_state_dict'])
 
 		retriever = None
 		if (config.use_drqa):
@@ -160,7 +169,7 @@ if __name__ == "__main__":
 
 		trainer = Trainer(config=config, model=model,
 						  optimizer=optimizer, device=device, tokenizer=tokenizer, ques2idx=ques2idx, 
-              val_retriever=val_retriever,df_val=df_val)
+              val_retriever=val_retriever,df_val=df_val,model_clf=model_clf,optimizer_clf=optimizer_clf)
 
 		if (config.train):
 			print("Creating train dataset")
@@ -184,6 +193,12 @@ if __name__ == "__main__":
 	        	'model_state_dict': model.state_dict(),
 	        	'optimizer_state_dict': optimizer.state_dict(),
 	        }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
+			if config.model.two_step_loss:
+			  torch.save({
+              'model_state_dict': model.state_dict(),
+              'clf_model_state_dict': model_clf.state_dict(),
+              'optimizer_state_dict': optimizer.state_dict(),
+            }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
 
 
 		if (config.inference):
@@ -194,12 +209,9 @@ if __name__ == "__main__":
 
 			# calculate_metrics(test_ds, test_dataloader, wandb_logger)
 			# test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
-<<<<<<< HEAD
-			test_metrics = trainer.calculate_metrics(df_test,test_retriever,'test',config.inference_device,do_prepare=True)
-=======
 			model.to(config.inference_device)
-			test_metrics = trainer.calculate_metrics(df_test)
->>>>>>> f4fedf2655ed7eb07aa51779eec6c98968c01f1d
+			test_metrics = trainer.calculate_metrics(df_test,test_retriever,'test',config.inference_device,do_prepare=True)
+			model.to(config.inference_device)
 			print(test_metrics)
 
 
