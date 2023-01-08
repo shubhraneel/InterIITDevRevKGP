@@ -134,7 +134,7 @@ class Trainer():
             self._train_step(train_dataloader, epoch)
             
             if ((val_dataloader is not None) and (((epoch + 1) % self.config.training.evaluate_every)) == 0):
-                # self.evaluate(val_dataloader)
+                self.evaluate(val_dataloader)
                 if epoch==0:
                   self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
                 else:
