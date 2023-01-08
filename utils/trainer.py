@@ -87,7 +87,7 @@ class Trainer():
             wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
             
             self.optimizer.step()
-            if self.config.lr_flag: self.scheduler.step()
+            if self.config.training.lr_flag: self.scheduler.step()
             self.optimizer.zero_grad()
 
         wandb.log({"train_epoch_loss": total_loss / (batch_idx + 1)})
