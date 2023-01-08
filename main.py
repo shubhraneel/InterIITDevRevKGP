@@ -18,6 +18,9 @@ from utils import Trainer, set_seed, Retriever
 from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
 from utils import build_tf_idf_wrapper, store_contents
 
+from onnxruntime.transformers import optimizer as onnx_optimizer
+import onnxruntime
+import torch.onnx
 
 def load_mappings():
 	with open("data-dir/con_idx_2_title_idx.pkl", "rb") as f:
@@ -79,6 +82,9 @@ if __name__ == "__main__":
 
 	set_seed(config.seed)
 
+	# TODO Explore pytorch.quantization also
+	assert not config.quantize or config.ONNX, "Quantizing without ONNX Runtime is not supported"
+
 	print("Reading data csv")
 	df_train = pd.read_pickle(config.data.train_data_path)
 	df_val = pd.read_pickle(config.data.val_data_path)
@@ -136,7 +142,8 @@ if __name__ == "__main__":
 
 		if (config.load_model_optimizer):
 			print("loading model and optimizer from checkpoints/{}/model_optimizer.pt".format(config.load_path))
-			checkpoint = torch.load("checkpoints/{}/model_optimizer.pt".format(config.load_path))
+			checkpoint = torch.load("checkpoints/{}/model_optimizer.pt".format(config.load_path),
+						map_location=torch.device(device))
 			model.load_state_dict(checkpoint['model_state_dict'])
 			optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
@@ -145,10 +152,16 @@ if __name__ == "__main__":
 			tfidf_path = "data-dir/test/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
 			questions_df = df_test[["question", "title_id"]]
 			db_path = "data-dir/test/sqlite_con.db"
-			retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path)
+			test_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path)
+      
+			tfidf_path = "data-dir/val/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
+			questions_df = df_val[["question", "title_id"]]
+			db_path = "data-dir/val/sqlite_con.db"
+			val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path)
 
 		trainer = Trainer(config=config, model=model,
-						  optimizer=optimizer, device=device, tokenizer=tokenizer, ques2idx=ques2idx, retriever=retriever)
+						  optimizer=optimizer, device=device, tokenizer=tokenizer, ques2idx=ques2idx, 
+              val_retriever=val_retriever,df_val=df_val)
 
 		if (config.train):
 			print("Creating train dataset")
@@ -165,6 +178,15 @@ if __name__ == "__main__":
 
 			trainer.train(train_dataloader, val_dataloader)
 
+		if (config.save_model_optimizer):
+			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
+			os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
+			torch.save({
+	        	'model_state_dict': model.state_dict(),
+	        	'optimizer_state_dict': optimizer.state_dict(),
+	        }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
+
+
 		if (config.inference):
 			# print("Creating test dataset")
 			# test_ds = SQuAD_Dataset(config, df_test, tokenizer)
@@ -173,16 +195,10 @@ if __name__ == "__main__":
 
 			# calculate_metrics(test_ds, test_dataloader, wandb_logger)
 			# test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
-			test_metrics = trainer.calculate_metrics(df_test)
+			model.to(config.inference_device)
+			test_metrics = trainer.calculate_metrics(df_test,test_retriever,'test',config.inference_device,do_prepare=True)
 			print(test_metrics)
 
-		if (config.save_model_optimizer):
-			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
-			os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
-			torch.save({
-	        	'model_state_dict': model.state_dict(),
-	        	'optimizer_state_dict': optimizer.state_dict(),
-	        }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
 
 		# model = AutoModel_Classifier_QA(config, tokenizer=tokenizer, logger=wandb_logger)
 		# model.__train__(train_dataloader)
