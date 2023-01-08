@@ -3,6 +3,17 @@ import torch.nn as nn
 from transformers import AutoModelForQuestionAnswering
 import numpy as np
 
+from torch import nn
+import torch
+import numpy as np
+import pandas as pd
+import pickle, time
+import re, os, string, typing, gc, json
+import torch.nn.functional as F
+import spacy
+from sklearn.model_selection import train_test_split
+from collections import Counter
+
 class BaselineQA(nn.Module):
     def __init__(self, config, device):
         super(BaselineQA, self).__init__()
@@ -141,7 +152,7 @@ class ContextualEmbeddingLayer(nn.Module):
 class BiDAF(nn.Module):
     
     def __init__(self, char_vocab_dim, emb_dim, char_emb_dim, num_output_channels, 
-                 kernel_size, ctx_hidden_dim, device):
+                 kernel_size, ctx_hidden_dim, max_ctx_len, device):
         '''
         char_vocab_dim = len(char2idx)
         emb_dim = 100
@@ -153,6 +164,8 @@ class BiDAF(nn.Module):
         super().__init__()
         
         self.device = device
+        self.max_ctx_len = max_ctx_len
+
         self.word_embedding = self.get_glove_embedding()
         self.character_embedding = CharacterEmbeddingLayer(char_vocab_dim, char_emb_dim, 
                                                       num_output_channels, kernel_size)
@@ -160,13 +173,15 @@ class BiDAF(nn.Module):
         self.dropout = nn.Dropout()
         self.similarity_weight = nn.Linear(emb_dim*6, 1, bias=False)
         self.modeling_lstm = nn.LSTM(emb_dim*8, emb_dim, bidirectional=True, num_layers=2, batch_first=True, dropout=0.2)
+
         self.output_start = nn.Linear(emb_dim*10, 1, bias=False)
         self.output_end = nn.Linear(emb_dim*10, 1, bias=False)
+
         self.end_lstm = nn.LSTM(emb_dim*2, emb_dim, bidirectional=True, batch_first=True)
 
     def get_glove_embedding(self):
         
-        weights_matrix = np.load('bidafglove.npy')
+        weights_matrix = np.load('bidafglove_tv.npy')
         num_embeddings, embedding_dim = weights_matrix.shape
         embedding = nn.Embedding.from_pretrained(torch.FloatTensor(weights_matrix).to(self.device),freeze=True)
 
@@ -178,10 +193,10 @@ class BiDAF(nn.Module):
         # char_ctx = [bs, ctx_len, ctx_word_len]
         # char_ques = [bs, ques_len, ques_word_len]
         
-        ctx = batch["padded_context"]
-        ques = batch["padded_question"]
-        char_ctx = batch["char_context"]
-        char_ques = batch["char_question"]
+        ctx = batch["padded_context"].to(self.device)
+        ques = batch["padded_question"].to(self.device)
+        char_ctx = batch["char_context"].to(self.device)
+        char_ques = batch["char_question"].to(self.device)
 
         ctx_len = ctx.shape[1]
         

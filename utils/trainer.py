@@ -15,6 +15,8 @@ from torch.utils.data import DataLoader
 from utils import compute_f1
 from data import SQuAD_Dataset, BiDAF_Dataset
 
+from data import *
+
 class Trainer():
     def __init__(self, config, model, optimizer, device, tokenizer, ques2idx, retriever=None):
         self.config = config
@@ -258,17 +260,20 @@ class Trainer():
 
 class BiDAFTrainer():
 
-    def __init__(self, config, model, optimizer, device, criterion, ques2idx, retriever=None):
+    def __init__(self, config, model, optimizer, device, criterion, ques2idx, char2idx, word2idx, train_ds, retriever=None):
         self.config = config
         self.device = device
 
         self.optimizer = optimizer
         self.model = model
         self.criterion = criterion
+        self.train_ds = train_ds
 
         wandb.watch(self.model)
 
         self.ques2idx = ques2idx
+        self.char2idx = char2idx
+        self.word2idx = word2idx
 
         self.retriever = retriever
 
@@ -277,19 +282,10 @@ class BiDAFTrainer():
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
         for batch_idx, batch in enumerate(tepoch):
             tepoch.set_description(f"Epoch {epoch + 1}")
-            # if (len(batch["question_context_input_ids"].shape) == 1):
-            #     batch["question_context_input_ids"] = batch["question_context_input_ids"].unsqueeze(dim=0)
-            #     batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
-            #     if not self.config.model.non_pooler:
-            #         batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
 
             out = self.model(batch)
-            loss = self.criterion(out[0], batch["start_positions"].to(self.device)) + self.criterion(out[1], batch["end_positions"].to(self.device))
+            loss = (self.criterion(out[0], batch["start_positions"].long().to(self.device)) + self.criterion(out[1], batch["end_positions"].long().to(self.device))) / 2
 
-            # TODO: Define the loss here
-            # if self.config.model.two_step_loss:
-            #     out=out[0]
-            # loss = out.loss
             loss.backward()
 
             total_loss += loss.item()
@@ -321,17 +317,9 @@ class BiDAFTrainer():
         tepoch.set_description("Validation Step")
         with torch.no_grad():
             for batch_idx, batch in enumerate(tepoch):
-                # if (len(batch["question_context_input_ids"].shape) == 1):
-                #     batch["question_context_input_ids"] = batch["question_context_input_ids"].unsqueeze(dim=0)
-                #     batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
-                #     if not self.config.model.non_pooler:
-                #         batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
                     
                 out = self.model(batch)
-                loss = self.criterion(out[0], batch["start_positions"].to(self.device)) + self.criterion(out[1], batch["end_positions"].to(self.device))
-                # if self.config.model.two_step_loss:
-                #     out=out[0]
-                # loss = out.loss
+                loss = (self.criterion(out[0], batch["start_positions"].long().to(self.device)) + self.criterion(out[1], batch["end_positions"].long().to(self.device))) / 2
 
                 total_loss += loss.item()
                 tepoch.set_postfix(loss = total_loss / (batch_idx+1))
@@ -388,13 +376,22 @@ class BiDAFTrainer():
                     # don't uncomment this
                     # df_contexts = pd.concat([df_contexts, pd.DataFrame(row)], axis=0, ignore_index=True)
                 else:
+
                     row_dict = row.to_dict()
+                    del row_dict["context_ids"]
+                    del row_dict["question_ids"]
+                    
                     df_contexts.loc[df_contexts["context_id"] == context_id, row_dict.keys()] = row_dict.values()
                 df_test_matched = pd.concat([df_test_matched, df_contexts], axis=0, ignore_index=True)
 
         # print(f"original paragraph not in top k {unmatched}")
+        preprocess_df(df_test_matched)
+        df_test_matched['context_ids'] = df_test_matched.context.parallel_apply(context_to_ids, word2idx=self.word2idx)
+        df_test_matched['question_ids'] = df_test_matched.question.parallel_apply(question_to_ids, word2idx=self.word2idx)
         
-        test_ds = BiDAF_Dataset(self.config, df_test_matched, self.tokenizer) #, hide_tqdm=True
+        test_ds = BiDAF_Dataset(self.config, df_test_matched, self.char2idx, max_context_len = self.train_ds.max_context_len, max_word_ctx = self.train_ds.max_word_ctx, 
+								max_question_len = self.train_ds.max_question_len, max_word_ques = self.train_ds.max_word_ques) #, hide_tqdm=True
+        
         test_dataloader = DataLoader(test_ds, batch_size=self.config.data.val_batch_size, collate_fn=test_ds.collate_fn)
         time_test_dataloader_generation=1000*(time.time() - start_time)
         print(time_test_dataloader_generation)
@@ -411,19 +408,11 @@ class BiDAFTrainer():
         # TODO: without sequentional batch iteration
         for qp_batch_id, qp_batch in tqdm(enumerate(test_dataloader),total=len(test_dataloader)):
             
-            # if (len(qp_batch['question_context_input_ids'].shape) == 1):
-            #     qp_batch['question_context_input_ids'] = qp_batch['question_context_input_ids'].unsqueeze(dim=0)
-            #     qp_batch['question_context_attention_mask'] = qp_batch['question_context_attention_mask'].unsqueeze(dim=0)
-            #     if not self.config.model.non_pooler:
-            #         qp_batch['question_context_token_type_ids'] = qp_batch['question_context_token_type_ids'].unsqueeze(dim=0)
-            
             # para, para_id, theme, theme_id, question, question_id
             pred = self.predict(qp_batch)
             if self.config.model.two_step_loss:
                 confidence_scores=pred[1] # -> [32,1]
-                # pred=pred[0]
             else:
-                # print(pred.start_logits.shape) # -> [32,512] 
                 start_probs=F.softmax(pred[0],dim=1)  # -> [32,512] 
                 end_probs=F.softmax(pred[1],dim=1)    # -> [32,512] 
 
@@ -433,20 +422,19 @@ class BiDAFTrainer():
                 confidence_scores=max_end_probs.values*max_start_probs.values  # -> [32,1]                
 
             for batch_idx, q_id in enumerate(qp_batch["question_id"]):
-                if (question_prediction_dict[q_id][0]<confidence_scores[batch_idx]):
+                if (question_prediction_dict[q_id][0] < confidence_scores[batch_idx]):
                     # using the context in the qp_pair get extract the span using max_start_prob and max_end_prob                    
                     context = qp_batch["context"][batch_idx]
-                    offset_mapping = qp_batch["question_context_offset_mapping"][batch_idx]
+                    # offset_mapping = qp_batch["question_context_offset_mapping"][batch_idx]
                     decoded_answer = ""
                     
                     start_index = max_start_probs.indices[batch_idx].item()
                     end_index = max_end_probs.indices[batch_idx].item()
 
                     decoded_answer = context[start_index:end_index]
-                    # if (offset_mapping[start_index] is not None and offset_mapping[end_index] is not None):
-                    #     start_char = offset_mapping[start_index][0]
-                    #     end_char = offset_mapping[end_index][1]
-                    #     decoded_answer = context[start_char:end_char]
+
+                    if len(decoded_answer) > 0:
+                        question_prediction_dict[q_id] = (confidence_scores[batch_idx].item(), decoded_answer)
 
                     question_prediction_dict[q_id]=(confidence_scores[batch_idx].item(), decoded_answer)
     

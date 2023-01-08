@@ -5,7 +5,7 @@ from tqdm import tqdm
 import torch
 from torch.utils.data import Dataset, DataLoader
 
-# from . import preprocess_fn
+from data.preprocess import *
 
 from torch import nn
 import torch
@@ -18,7 +18,7 @@ import spacy
 from sklearn.model_selection import train_test_split
 from collections import Counter
 nlp = spacy.load('en_core_web_sm')
-from . import *
+# from . import *
 
 # TODO: memory optimization
 class SQuAD_Dataset(Dataset):
@@ -240,6 +240,9 @@ class SQuAD_Dataset(Dataset):
             return print_dict
 
 
+
+
+
 class BiDAF_Dataset(Dataset):
     '''
     - Creates batches dynamically by padding to the length of largest example
@@ -248,7 +251,7 @@ class BiDAF_Dataset(Dataset):
     - Returns tensors for training.
     '''
     
-    def __init__(self, config, df, char2idx):
+    def __init__(self, config, df, char2idx, max_context_len = None, max_word_ctx = None, max_question_len = None, max_word_ques = None):
         
         # self.batch_size = batch_size
         # data = [data[i:i+self.batch_size] for i in range(0, len(data), self.batch_size)]
@@ -259,29 +262,68 @@ class BiDAF_Dataset(Dataset):
         self.char2idx = char2idx
 
         self.data = preprocess_fn(self.df)
+
+        print(len(self.data["context"]))
         # self.theme_para_id_mapping = self._get_theme_para_id_mapping()
 
         data_keys = ["answers", "context", "question",
                      "title", "question_id", "context_id", "title_id"]    
 
-        self.max_context_len = max([len(ctx) for ctx in self.data["context_id"]])
+        if max_context_len is None:
+            self.max_context_len = max([len(ctx) for ctx in self.data["context"]])
+        else:
+            self.max_context_len = max_context_len
 
-        self.max_word_ctx = 0
-        for context in self.data.context:
-            for word in nlp(context, disable=['parser','tagger','ner']):
-                if len(word.text) > self.max_word_ctx:
-                    self.max_word_ctx = len(word.text)
+        if max_word_ctx is None:
+            self.max_word_ctx = 0
+            for context in tqdm(self.data["context"], position = 0, leave = True, total = len(self.data["context"])):
+                for word in nlp(context, disable=['parser','tagger','ner']):
+                    if len(word.text) > self.max_word_ctx:
+                        self.max_word_ctx = len(word.text)
+        else:
+            self.max_word_ctx = max_word_ctx
 
-        self.max_question_len = max([len(ques) for ques in self.data.question_id])
+        if max_question_len is None:
+            self.max_question_len = max([len(ques) for ques in self.data["question"]])
+        else:
+            self.max_question_len = max_question_len
 
-        self.max_word_ques = 0
-        for question in self.data.question:
-            for word in nlp(question, disable=['parser','tagger','ner']):
-                if len(word.text) > self.max_word_ques:
-                    self.max_word_ques = len(word.text)
+        if max_word_ques is None:
+            self.max_word_ques = 0
+            for question in tqdm(self.data["question"], position = 0, leave = True, total = len(self.data["question"])):
+                for word in nlp(question, disable=['parser','tagger','ner']):
+                    if len(word.text) > self.max_word_ques:
+                        self.max_word_ques = len(word.text)
+        else:
+            self.max_word_ques = max_word_ques
+
+        self.padded_contexts, self.padded_questions, self.char_contexts, self.char_questions = [], [], [], []
+        for idx in tqdm(range(len(self.df)), position = 0, leave = True):
+
+            context_id = self.data["context_ids"][idx]
+            context = self.data["context"][idx]
+            answer_text = self.data["answers"][idx]["text"]
+            
+            padded_context = torch.LongTensor(self.max_context_len).fill_(1)
+            padded_context[:len(context_id)] = torch.LongTensor(context_id)
+            self.padded_contexts.append(padded_context)
+
+            char_context = torch.ones(self.max_context_len, self.max_word_ctx).type(torch.LongTensor)
+            char_context = self.make_char_vector(self.max_context_len, self.max_word_ctx, context)
+            self.char_contexts.append(char_context)
+            
+            ques = self.data["question_ids"][idx]
+            padded_question = torch.LongTensor(self.max_question_len).fill_(1)
+            padded_question[:len(ques)] = torch.LongTensor(ques)
+            self.padded_questions.append(padded_question)
+
+            char_ques = torch.ones(self.max_question_len, self.max_word_ques).type(torch.LongTensor)
+            char_ques = self.make_char_vector(self.max_question_len, self.max_word_ques, self.data["question"][idx])
+            self.char_questions.append(char_ques)
+
         
     def __len__(self):
-        return len(self.data)
+        return len(self.data["context"])
     
     def make_char_vector(self, max_sent_len, max_word_len, sentence):
         
@@ -289,6 +331,8 @@ class BiDAF_Dataset(Dataset):
         
         for i, word in enumerate(nlp(sentence, disable=['parser','tagger','ner'])):
             for j, ch in enumerate(word.text):
+                if j >= max_word_len:
+                    break
                 char_vec[i][j] = self.char2idx.get(ch, 0)
         
         return char_vec    
@@ -314,37 +358,48 @@ class BiDAF_Dataset(Dataset):
         
         '''
 
-        context = self.data["context"][idx]
-        answer_text = self.data["answers"]["text"][idx]
+        # context_id = self.data["context_ids"][idx]
+        # context = self.data["context"][idx]
+        answer_text = self.data["answers"][idx]["text"]
         
-        padded_context = torch.LongTensor(self.max_context_len).fill_(1)
-        padded_context[:len(context)] = torch.LongTensor(context)
+        # padded_context = torch.LongTensor(self.max_context_len).fill_(1)
+        # padded_context[:len(context_id)] = torch.LongTensor(context_id)
+        padded_context = self.padded_contexts[idx]
 
-        char_context = torch.ones(self.max_context_len, self.max_word_ctx).type(torch.LongTensor)
-        char_context = self.make_char_vector(self.max_context_len, self.max_word_ctx, context)
+        # char_context = torch.ones(self.max_context_len, self.max_word_ctx).type(torch.LongTensor)
+        # char_context = self.make_char_vector(self.max_context_len, self.max_word_ctx, context)
+        char_context = self.char_contexts[idx]
         
-        ques = self.data["question_id"][idx]
-        padded_question = torch.LongTensor(self.max_question_len).fill_(1)
-        padded_question[:len(ques)] = torch.LongTensor(ques)
+        # ques = self.data["question_ids"][idx]
+        # padded_question = torch.LongTensor(self.max_question_len).fill_(1)
+        # padded_question[:len(ques)] = torch.LongTensor(ques)
+        padded_question = self.padded_questions[idx]
 
-        char_ques = torch.ones(self.max_question_len, self.max_word_ques).type(torch.LongTensor)
-        char_ques = self.make_char_vector(self.max_question_len, self.max_word_ques, self.data["question"][idx])
+        # char_ques = torch.ones(self.max_question_len, self.max_word_ques).type(torch.LongTensor)
+        # char_ques = self.make_char_vector(self.max_question_len, self.max_word_ques, self.data["question"][idx])
+        char_ques = self.char_questions[idx]
 
-        start_position = self.data["answers"]["answer_start"][idx]
+        start_position = self.data["answers"][idx]["answer_start"]
+        if start_position == "":
+            start_position = 0
+
         end_position = start_position + len(answer_text)
 
         return {"padded_context": padded_context,
                 "padded_question": padded_question,
                 "char_context": char_context,
                 "char_question": char_ques,
-                "start_position": start_position,
-                "end_position": end_position,
-                "context": context,
+                "start_positions": torch.tensor(start_position),
+                "end_positions": torch.tensor(end_position),
+
+                "context": self.data["context"][idx],
                 "answer": answer_text,
                 # "id": idx,
                 "title": self.data["title"][idx],
                 "question": self.data["question"][idx],
+                "question_ids": self.data["question_ids"][idx],
                 "question_id": self.data["question_id"][idx],
+                "context_ids": self.data["context_ids"][idx],
                 "context_id": self.data["context_id"][idx],
                 "title_id": self.data["title_id"][idx]}
 
@@ -365,71 +420,11 @@ class BiDAF_Dataset(Dataset):
             "question":	        [x["question"] for x in items],
             "context":	        [x["context"] for x in items],
             "question_id":      [x["question_id"] for x in items],
+            "question_ids":      [x["question_ids"] for x in items],
             "context_id":       [x["context_id"] for x in items],
+            "context_ids":       [x["context_ids"] for x in items],
             "title_id":	        [x["title_id"] for x in items],
-            "answer":	        [x["answers"]["text"] for x in items],
+            "answer":	        [x["answer"] for x in items],
         }
 
-        # if not self.config.model.non_pooler:
-        #     batch["question_context_token_type_ids"] = torch.stack([torch.tensor(
-        #         x["question_context_token_type_ids"]) for x in items], dim=0).squeeze()
-
         return batch
-
-        #     for i, question in enumerate(batch.question):
-        #         char_ques[i] = self.make_char_vector(max_question_len, max_word_ques, question)
-            
-        #     ids = list(batch.id)  
-        #     label = torch.LongTensor(list(batch.label_idx))
-
-
-
-        # for batch in self.data:
-            
-        #     spans = []
-        #     ctx_text = []
-        #     answer_text = []
-            
-        #     for ctx in batch.context:
-        #         ctx_text.append(ctx)
-        #         spans.append(self.get_span(ctx))
-            
-        #     for ans in batch.answer:
-        #         answer_text.append(ans)
-                
-        #     max_context_len = max([len(ctx) for ctx in batch.context_ids])
-        #     padded_context = torch.LongTensor(len(batch), max_context_len).fill_(1)
-            
-        #     for i, ctx in enumerate(batch.context_ids):
-        #         padded_context[i, :len(ctx)] = torch.LongTensor(ctx)
-                
-        #     max_word_ctx = 0
-        #     for context in batch.context:
-        #         for word in nlp(context, disable=['parser','tagger','ner']):
-        #             if len(word.text) > max_word_ctx:
-        #                 max_word_ctx = len(word.text)
-            
-        #     char_ctx = torch.ones(len(batch), max_context_len, max_word_ctx).type(torch.LongTensor)
-        #     for i, context in enumerate(batch.context):
-        #         char_ctx[i] = self.make_char_vector(max_context_len, max_word_ctx, context)
-            
-        #     max_question_len = max([len(ques) for ques in batch.question_ids])
-        #     padded_question = torch.LongTensor(len(batch), max_question_len).fill_(1)
-            
-        #     for i, ques in enumerate(batch.question_ids):
-        #         padded_question[i, :len(ques)] = torch.LongTensor(ques)
-                
-        #     max_word_ques = 0
-        #     for question in batch.question:
-        #         for word in nlp(question, disable=['parser','tagger','ner']):
-        #             if len(word.text) > max_word_ques:
-        #                 max_word_ques = len(word.text)
-            
-        #     char_ques = torch.ones(len(batch), max_question_len, max_word_ques).type(torch.LongTensor)
-        #     for i, question in enumerate(batch.question):
-        #         char_ques[i] = self.make_char_vector(max_question_len, max_word_ques, question)
-            
-        #     ids = list(batch.id)  
-        #     label = torch.LongTensor(list(batch.label_idx))
-            
-        #     yield (padded_context, padded_question, char_ctx, char_ques, label, ctx_text, answer_text, ids)
