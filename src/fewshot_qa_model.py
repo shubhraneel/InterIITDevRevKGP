@@ -62,7 +62,7 @@ class FewShotQA_Model(Base_Model):
             
         print(str(epoch), str(step), str(total_loss / (step + 1)))
 
-    def validate(self, epoch, tokenizer, model, device, val_dataloader, max_gen_length=32): # IMPORTANT TODO: Don't hardcode 32 
+    def validate(self, epoch, tokenizer, model, device, val_dataloader, max_gen_length=32): 
         """
         Function to evaluate model for predictions
 
@@ -98,13 +98,11 @@ class FewShotQA_Model(Base_Model):
         answers = []
         for s in strings:    
             if 'Answer:' in s:
-                # Find the 'Answer:' substring and take everything after it
+
                 answer = s.split('Answer:')[1]
-                # Strip leading and trailing whitespace
                 answer = answer.strip()
                 answers.append(answer)
             else:
-                # If 'Answer:' is not present, return an empty string
                 answers.append("")
         return answers
 
@@ -155,7 +153,7 @@ class FewShotQA_Model(Base_Model):
 
         f1_spans = []
         for i in range(len(results["predicted_spans"])):
-            f1_spans.append(compute_f1(results["predicted_spans"][i], results["gold_spans"][i])) # For the text
+            f1_spans.append(compute_f1(results["predicted_spans"][i], results["gold_spans"][i]))
 
         qa_f1 = np.mean(f1_spans)
         return qa_f1, ttime_per_example
