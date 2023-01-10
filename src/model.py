@@ -51,17 +51,12 @@ class BaselineQA(nn.Module):
         return out  
 
     def export_to_onnx(self, tokenizer):
-        # TODO Using torch.onnx.export
-        # Will use transformers.onnx.export for transformer models
 
-        # TODO Using transformers.onnx if this doesn't work
         feature = "question-answering"
 
-        # load config
         model_kind, model_onnx_config = FeaturesManager.check_supported_model_or_raise(self.model, feature=feature)
         onnx_config = model_onnx_config(self.model.config)
 
-        # export
         onnx_inputs, onnx_outputs = transformers.onnx.export(
                 preprocessor=tokenizer,
                 model=self.model,
@@ -101,19 +96,15 @@ class BaselineClf(nn.Module):
 
         return out  
 
-    ## Confirm that this works
+    
     def export_to_onnx(self, tokenizer):
-        # TODO Using torch.onnx.export
-        # Will use transformers.onnx.export for transformer models
-
-        # TODO Using transformers.onnx if this doesn't work
         feature = "question-answering"
 
-        # load config
+
         model_kind, model_onnx_config = FeaturesManager.check_supported_model_or_raise(self.model, feature=feature)
         onnx_config = model_onnx_config(self.model.config)
 
-        # export
+
         onnx_inputs, onnx_outputs = transformers.onnx.export(
                 preprocessor=tokenizer,
                 model=self.model,
