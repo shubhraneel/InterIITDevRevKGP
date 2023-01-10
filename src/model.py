@@ -35,15 +35,7 @@ class BaselineQA(nn.Module):
                             output_hidden_states=True)
         if self.config.model.clf_loss:
             cls_tokens=out.hidden_states[-1][:,0]
-            # start_probs=F.softmax(out.start_logits,dim=1)  # -> [32,512] 
-            # end_probs=F.softmax(out.end_logits,dim=1)    # -> [32,512] 
-
-            # max_start_probs=torch.max(start_probs, axis=1)  # -> [32,1] 
-            # max_end_probs=torch.max(end_probs,axis=1)       # -> [32,1]
-
-            # confidence_scores=end_probs.values*start_probs.values  # -> [32,1]
-            # scores=confidence_scores.squeeze(1)
-            scores=self.score(cls_tokens).squeeze(1) # [32]
+            scores=self.score(cls_tokens).squeeze(1)
             out.loss+=self.loss_fct(scores,batch["answerable"].to(self.device).float())
 
             return out
