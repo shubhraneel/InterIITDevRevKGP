@@ -82,8 +82,7 @@ class FewShotQA_Model(Base_Model):
                     attention_mask=attention_mask, 
                     max_length=max_gen_length, 
                     num_beams=1, 
-                    early_stopping=True,
-                    #decoder_start_token_id=tokenizer.bos_token_id
+                    early_stopping=True
                     )
 
                 pred_text = [tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=True) for g in generated_ids]
@@ -147,7 +146,7 @@ class FewShotQA_Model(Base_Model):
         results = self.__inference__(dataloader)
         torch.cuda.synchronize()
         ttime_elapsed = int(round(time.time() * 1000)) - tsince
-        # print ('test time elapsed {}ms'.format(ttime_elapsed))
+        
 
         ttime_per_example = (ttime_elapsed * dataloader.batch_size)/len(results["ground"])
 
