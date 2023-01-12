@@ -15,7 +15,11 @@ class BaselineQA(nn.Module):
         if config.model.two_step_loss:
             self.score=nn.Linear(config.model.dim,1)
             self.loss_fct=nn.BCEWithLogitsLoss()
-
+        self.classifier_hidden = torch.nn.Linear(128, 128)
+        self.classifier_dropout = torch.nn.Dropout(p=0.2)
+        self.output_layer = torch.nn.Linear(128, 1)
+        self.sigmoid = torch.nn.Sigmoid()
+        self.loss_classifier = torch.nn.BCELoss()
         self.device = device
 
     def forward(self, batch):
@@ -38,6 +42,16 @@ class BaselineQA(nn.Module):
             out.loss+=self.loss_fct(scores,batch["answerable"])
 
             return (out,torch.nn.functional.softmax(scores))
+
+        if out.loss != None :
+            cls_representations = out["hidden_states"][-1][:, 0, :]
+            cls_representations = self.classifier_hidden(cls_representations)
+            cls_representations = self.classifier_dropout(cls_representations)
+            cls_representations = self.output_layer(cls_representations)
+            cls_representations = self.cls_representations.squeeze(dim=-1)
+            cls_representations = self.sigmoid(cls_representations)
+            clf_loss = self.loss_classifier(cls_representations, batch["answerable"])
+            out.loss += clf_loss
 
         return out  
 
