@@ -61,6 +61,10 @@ class Trainer():
             model_path = "checkpoints/{}/model.onnx".format(self.config.load_path) if not self.config.quantize else "checkpoints/{}/model_quantized.onnx".format(self.config.load_path)
             self.onnx_runtime_session = onnxruntime.InferenceSession(model_path, sess_options)
 
+        if self.config.model.span_level:
+            seq_indices = list(range(self.config.data.max_length))
+            self.seq_pair_indices = [(x, y) for x in seq_indices for y in seq_indices if y - x >= 0 and y - x <= config.data.answer_max_len]
+
 
     def _train_step(self, dataloader, epoch):
         total_loss = 0
@@ -284,13 +288,18 @@ class Trainer():
             pred = self.predict(qp_batch)
 
             # print(pred.start_logits.shape) -> [32,512] 
-            start_probs=F.softmax(pred.start_logits,dim=1)  # -> [32,512] 
-            end_probs=F.softmax(pred.end_logits,dim=1)    # -> [32,512] 
+            if self.config.model.span_level:
+                probs = F.softmax(pred[1], dim=1)
+                max_probs = torch.max(probs, axis=1)
+                confidence_scores = max_probs.values
+            else:
+                start_probs=F.softmax(pred.start_logits,dim=1)  # -> [32,512] 
+                end_probs=F.softmax(pred.end_logits,dim=1)    # -> [32,512] 
 
-            max_start_probs=torch.max(start_probs, axis=1)  # -> [32,1] 
-            max_end_probs=torch.max(end_probs,axis=1)       # -> [32,1]
+                max_start_probs=torch.max(start_probs, axis=1)  # -> [32,1] 
+                max_end_probs=torch.max(end_probs,axis=1)       # -> [32,1]
 
-            confidence_scores=max_end_probs.values*max_start_probs.values  # -> [32,1]
+                confidence_scores=max_end_probs.values*max_start_probs.values  # -> [32,1]
             
             for batch_idx,q_id in enumerate(qp_batch["question_id"]):
                 if (question_prediction_dict[q_id][0]<confidence_scores[batch_idx]):
@@ -298,9 +307,13 @@ class Trainer():
                     context = qp_batch["context"][batch_idx]
                     offset_mapping = qp_batch["question_context_offset_mapping"][batch_idx]
                     decoded_answer = ""
-                    
-                    start_index = max_start_probs.indices[batch_idx].item()
-                    end_index = max_end_probs.indices[batch_idx].item()
+
+                    if self.config.model.span_level:
+                        idx = max_probs.indices[batch_idx].item()
+                        start_index, end_index = self.seq_pair_indices[idx]
+                    else:
+                        start_index = max_start_probs.indices[batch_idx].item()
+                        end_index = max_end_probs.indices[batch_idx].item()
 
                     if (offset_mapping[start_index] is not None and offset_mapping[end_index] is not None):
                         start_char = offset_mapping[start_index][0]

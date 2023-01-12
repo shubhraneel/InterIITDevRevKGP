@@ -152,9 +152,18 @@ class SQuAD_Dataset(Dataset):
                 for k, o in enumerate(inputs["offset_mapping"][i])
             ]
 
+        seq_indices = list(range(self.config.data.max_length))
+        seq_pair_indices = [(x, y) for x in seq_indices for y in seq_indices if y - x >= 0 and y - x <= config.data.answer_max_len]
+        seq_pair_iddict = {(x, y): i for i, (x, y) in enumerate(seq_pair_indices)}
+        inputs['span_indices'] = [seq_pair_iddict[(x, y)] 
+            if (x, y) in seq_pair_iddict else len(seq_pair_indices)
+            for x, y in zip(inputs["start_positions"], inputs["end_positions"])
+        ]
+
         inputs["start_positions"] = torch.tensor(inputs["start_positions"])
         inputs["end_positions"] = torch.tensor(inputs["end_positions"])
         inputs["answerable"] = torch.tensor(inputs["answerable"])
+        inputs['span_indices'] = torch.tensor(inputs['span_indices'])
 
         inputs["question_context_input_ids"] = inputs.pop("input_ids")
         inputs["question_context_attention_mask"] = inputs.pop(
@@ -184,6 +193,7 @@ class SQuAD_Dataset(Dataset):
             "answerable":                           torch.stack([x["answerable"] for x in items], dim=0),
             "start_positions":                      torch.stack([x["start_positions"] for x in items], dim=0),
             "end_positions":                        torch.stack([x["end_positions"] for x in items], dim=0),
+            "span_indices":                         torch.stack([x['span_indices'] for x in items], dim=0),
 
             "title":								[x["title"] for x in items],
             "question":								[x["question"] for x in items],
