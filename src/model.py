@@ -48,9 +48,10 @@ class BaselineQA(nn.Module):
             cls_representations = self.classifier_hidden(cls_representations)
             cls_representations = self.classifier_dropout(cls_representations)
             cls_representations = self.output_layer(cls_representations)
-            cls_representations = self.cls_representations.squeeze(dim=-1)
+            cls_representations = cls_representations.squeeze(dim=-1)
             cls_representations = self.sigmoid(cls_representations)
-            clf_loss = self.loss_classifier(cls_representations, batch["answerable"])
+            answerable = torch.tensor(batch["answerable"],dtype = torch.float32)
+            clf_loss = self.loss_classifier(cls_representations, answerable)
             out.loss += clf_loss
 
         return out  
