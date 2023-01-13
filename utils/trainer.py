@@ -8,6 +8,7 @@ from sklearn.metrics import f1_score, accuracy_score, classification_report
 
 import sys
 import torch
+import os
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -44,6 +45,8 @@ class Trainer():
 
         self.prepared_test_loader=None
         self.prepared_test_df_matched=None
+
+        self.best_val_loss=1e9
 
 
         # setup onnx runtime if config.onnx is true
@@ -131,11 +134,19 @@ class Trainer():
             self._train_step(train_dataloader, epoch)
             
             if ((val_dataloader is not None) and (((epoch + 1) % self.config.training.evaluate_every)) == 0):
-                # self.evaluate(val_dataloader)
+                val_loss=self.evaluate(val_dataloader)
                 if epoch==0:
-                  self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
+                  metrics=self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
                 else:
-                  self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=False)
+                  metrics=self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=False)
+                if self.best_val_loss>=val_loss and self.config.save_model_optimizer:
+                  self.best_val_loss=val_loss
+                  print("saving best model and optimizer at checkpoints/{}/model_optimizer.pt".format(self.config.load_path))
+                  os.makedirs("checkpoints/{}/".format(self.config.load_path), exist_ok=True)
+                  torch.save({
+                        'model_state_dict': self.model.state_dict(),
+                        'optimizer_state_dict': self.optimizer.state_dict(),
+                      }, "checkpoints/{}/model_optimizer.pt".format(self.config.load_path))
                 self.model.train()
 
 
