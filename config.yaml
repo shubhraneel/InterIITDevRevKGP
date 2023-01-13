@@ -1,6 +1,6 @@
 task: qa
 seed: 3407
-wandb_path: v2-inference-testing-cuda
+wandb_path: bidaf-train-inference
 fewshot_qa: False
 inference_device: cuda
 train: True
@@ -17,8 +17,8 @@ data:
   train_data_path: data-dir/train/df_train.pkl
   val_data_path: data-dir/val/df_val.pkl
   test_data_path: data-dir/test/df_test.pkl
-  train_batch_size: 8
-  val_batch_size: 8
+  train_batch_size: 2
+  val_batch_size: 2
   apply_aliasing: False
   pad_on_right: True
   max_length: 512
@@ -26,7 +26,7 @@ data:
   tokenizer_batch_size: 32
 
 training:
-  epochs: 1
+  epochs: 10
   optimizer: adam
   lr: 0.00002
   sched_function: none

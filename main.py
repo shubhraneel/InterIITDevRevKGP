@@ -89,6 +89,10 @@ if __name__ == "__main__":
 	df_val = pd.read_pickle(config.data.val_data_path)
 	df_test = pd.read_pickle(config.data.test_data_path)
 
+	# df_train = df_train.iloc[:500]
+	# df_val = df_val.iloc[:200]
+	# df_test = df_test.iloc[:200]
+
 	con_idx_2_title_idx, ques2idx, idx2ques, con2idx, idx2con, title2idx, idx2title = load_mappings()
 
 	if (config.use_drqa and config.create_drqa_tfidf):
