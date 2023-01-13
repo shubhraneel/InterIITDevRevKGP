@@ -107,7 +107,7 @@ class QA_with_head(nn.Module):
             cls_representations = self.output_layer(cls_representations)
             cls_representations = cls_representations.squeeze(dim=-1)
             cls_representations = self.sigmoid(cls_representations)
-            answerable = torch.tensor(batch["answerable"],dtype = torch.float32)
+            answerable = torch.tensor(batch["answerable"],dtype = torch.float32).to(self.device)
             clf_loss = self.loss_classifier(cls_representations, answerable)
             out.loss += clf_loss
 
