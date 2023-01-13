@@ -19,6 +19,7 @@ from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
 from utils import build_tf_idf_wrapper, store_contents
 from nltk.tokenize import sent_tokenize
 import nltk  
+from tqdm import tqdm
 
 from onnxruntime.transformers import optimizer as onnx_optimizer
 import onnxruntime
@@ -53,19 +54,18 @@ def reformat_data_for_sqlite(df, split, use_sentence_level):
 	if (use_sentence_level):
 		context_doc_id_original = df[["context", "context_id"]].rename(
 			columns={"context": "text", "context_id": "id"})
+		context_doc_id_original = context_doc_id_original.drop_duplicates(subset=["text", "id"])
 		context_doc_id=pd.DataFrame()
-		for idx, row in context_doc_id_original.iterrows():
+		for idx, row in tqdm(context_doc_id_original.iterrows()):
 			context=row['text']
 			context_id=row['id']
-			tri_sent_list=[]
-			sent_id_list=[]
-			sent_list=sent_tokenize(context)
-			for i in range(len(sent_list)-2):
-				tri_sent_list.append(sent_list[i:i+3])
-				sent_id_list.append(str(i))
-			df_local=pd.DataFrame(list(zip(tri_sent_list,sent_id_list)),columns=['text','id'])
-			df_local['id']=f"{context_id}_"+df_local['id']
+			# print(context_id,context)
+			sent_list=list(sent_tokenize(context))
+			sent_id_list= [f"{context_id}_{x}" for x in range(len(sent_list))]
+			df_local=pd.DataFrame(list(zip(sent_list,sent_id_list)),columns=['text','id'])
+			df_local=df_local.dropna()
 			context_doc_id=pd.concat([context_doc_id,df_local],axis=1)
+		print(context_doc_id.head())
 		context_doc_id = context_doc_id.drop_duplicates(subset=["text", "id"])	
 	else:
 		context_doc_id = df[["context", "context_id"]].rename(
@@ -113,8 +113,8 @@ if __name__ == "__main__":
 
 	if (config.use_drqa and config.create_drqa_tfidf):
 		print("using drqa")
-		prepare_retriever(df_train, "sqlite_con.db", "train",False)
 		prepare_retriever(df_val, "sqlite_con.db", "val",config.sentence_level)
+		prepare_retriever(df_train, "sqlite_con.db", "train",False)
 		prepare_retriever(df_test, "sqlite_con.db", "test",config.sentence_level)
 
 	# add local_files_only=local_files_only if using server
