@@ -14,6 +14,10 @@ import spacy
 from sklearn.model_selection import train_test_split
 from collections import Counter
 
+from pathlib import Path
+from transformers.onnx import FeaturesManager
+import transformers
+
 class BaselineQA(nn.Module):
     def __init__(self, config, device):
         super(BaselineQA, self).__init__()
