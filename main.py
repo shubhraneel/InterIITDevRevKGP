@@ -18,6 +18,7 @@ from utils import Trainer, set_seed, Retriever
 from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
 from utils import build_tf_idf_wrapper, store_contents
 from nltk.tokenize import sent_tokenize
+import nltk  
 
 from onnxruntime.transformers import optimizer as onnx_optimizer
 import onnxruntime
