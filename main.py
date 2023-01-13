@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
 from config import Config
-from src import BaselineQA, FewShotQA_Model
+from src import BaselineQA, FewShotQA_Model, QA_with_head
 from utils import Trainer, set_seed, Retriever
 from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
 from utils import build_tf_idf_wrapper, store_contents
@@ -137,7 +137,10 @@ if __name__ == "__main__":
 			f"QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
 
 	else:
-		model = BaselineQA(config, device).to(device)
+		if config.answerable_head:
+			model = QA_with_head(config, device).to(device)
+		else:
+			model = BaselineQA(config, device).to(device)
 		optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
 
 		if (config.load_model_optimizer):
