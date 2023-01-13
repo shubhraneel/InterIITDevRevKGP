@@ -9,7 +9,7 @@ from data.preprocess import preprocess_fn
 
 # TODO: memory optimization
 class SQuAD_Dataset(Dataset):
-    def __init__(self, config, df, tokenizer, hide_tqdm=False):
+    def __init__(self, config, df, tokenizer, hide_tqdm=False,mode='train'):
         self.config = config
 
         self.tokenizer = tokenizer
@@ -40,6 +40,14 @@ class SQuAD_Dataset(Dataset):
 
             for key in tokenized_keys:
                 self.data[key].extend(tokenized_inputs[key])
+
+        if config.run_distillation and mode!='test':
+          with open(f"/data-dir/distillation/{mode}_start_logits.pkl", 'wb') as f:
+            self.data["distill_start_logits"]=pickle.load(f)
+          
+          with open(f"/data-dir/distillation/{mode}_end_logits.pkl", 'wb') as f:
+            self.data["distill_end_logits"]=pickle.load(f)
+          
 
     # def _get_theme_para_id_mapping(self):
     #     """
@@ -193,6 +201,9 @@ class SQuAD_Dataset(Dataset):
             "title_id":								[x["title_id"] for x in items],
             "answer":								[x["answers"]["text"] for x in items],
         }
+        if self.config.run_distillation:
+          batch["distill_start_logits"]=torch.stack([torch.tensor(x["distill_start_logits"]) for x in items], dim=0).squeeze()
+          batch["distill_end_logits"]=torch.stack([torch.tensor(x["distill_end_logits"]) for x in items], dim=0).squeeze()
 
         if not self.config.model.non_pooler:
             batch["question_context_token_type_ids"] = torch.stack([torch.tensor(

@@ -85,6 +85,9 @@ if __name__ == "__main__":
 	# TODO Explore pytorch.quantization also
 	assert not config.quantize or config.ONNX, "Quantizing without ONNX Runtime is not supported"
 
+  # Do not train while preparing knowledge distillation:
+	assert (config.prepare_distillation and not config.train and not config.inference and not config.run_distillation) or not config.prepare_distillation,"Set train and inference False while preparing distillation. Also do not run distillation"
+
 	print("Reading data csv")
 	df_train = pd.read_pickle(config.data.train_data_path)
 	df_val = pd.read_pickle(config.data.val_data_path)
@@ -163,6 +166,24 @@ if __name__ == "__main__":
 						  optimizer=optimizer, device=device, tokenizer=tokenizer, ques2idx=ques2idx, 
               val_retriever=val_retriever,df_val=df_val)
 
+		if config.prepare_distillation:
+			print("Creating train dataset")
+			train_ds = SQuAD_Dataset(config, df_train, tokenizer)
+			train_dataloader = DataLoader(
+				train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
+			print("length of train dataset: {}".format(train_ds.__len__()))
+
+			print("Creating val dataset")
+			val_ds = SQuAD_Dataset(config, df_val, tokenizer)
+			val_dataloader = DataLoader(
+				val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
+			print("length of val dataset: {}".format(val_ds.__len__()))
+
+			print("Preparing Distillation for Train Data")
+			trainer.save_logits(train_dataloader,'train')
+			print("Preparing Distillation for Val Data")
+			trainer.save_logits(val_dataloader,'val')
+
 		if (config.train):
 			print("Creating train dataset")
 			train_ds = SQuAD_Dataset(config, df_train, tokenizer)
@@ -178,13 +199,13 @@ if __name__ == "__main__":
 
 			trainer.train(train_dataloader, val_dataloader)
 
-		if (config.save_model_optimizer):
-			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
-			os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
-			torch.save({
-	        	'model_state_dict': model.state_dict(),
-	        	'optimizer_state_dict': optimizer.state_dict(),
-	        }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
+		# if (config.save_model_optimizer):
+		# 	print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
+		# 	os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
+		# 	torch.save({
+	  #		   	'model_state_dict': model.state_dict(),
+	  #       	'optimizer_state_dict': optimizer.state_dict(),
+	  #       }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
 
 
 		if (config.inference):

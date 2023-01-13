@@ -1,18 +1,20 @@
 task: qa
 seed: 3407
-wandb_path: v2-inference-testing
+wandb_path: prepare-distillation
 fewshot_qa: False
-inference_device: cpu
-train: True
-inference: True
+inference_device: cuda
+train: False
+inference: False
 save_model_optimizer: False
-load_model_optimizer: False
-load_path: v2-inference-testing
+load_model_optimizer: True
+load_path: v2-bert-experiments-24
 use_drqa: True
 create_drqa_tfidf: False
 top_k: 5
 quantize: False
 ONNX: False
+prepare_distillation: True
+run_distillation: False
 
 data:
   train_data_path: data-dir/train/df_train.pkl
@@ -27,7 +29,7 @@ data:
   tokenizer_batch_size: 32
 
 training:
-  epochs: 1
+  epochs: 3
   optimizer: adam
   lr: 0.00002
   sched_function: none
@@ -37,7 +39,7 @@ training:
   evaluate_every: 1
 
 model:
-  model_path: google/bert_uncased_L-2_H-128_A-2
+  model_path: google/bert_uncased_L-12_H-768_A-12
   params: {}
   non_pooler: False
   dim: 128

@@ -8,6 +8,8 @@ from sklearn.metrics import f1_score, accuracy_score, classification_report
 
 import sys
 import torch
+import os
+import pickle
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -45,6 +47,10 @@ class Trainer():
         self.prepared_test_loader=None
         self.prepared_test_df_matched=None
 
+        self.best_val_loss=1e9
+
+        if config.run_distillation:
+          self.kl_div=torch.nn.KLDivLoss()
 
         # setup onnx runtime if config.onnx is true
         self.onnx_runtime_session = None
@@ -64,6 +70,7 @@ class Trainer():
 
     def _train_step(self, dataloader, epoch):
         total_loss = 0
+        total_kldiv_loss=0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
         for batch_idx, batch in enumerate(tepoch):
             tepoch.set_description(f"Epoch {epoch + 1}")
@@ -72,16 +79,30 @@ class Trainer():
                 batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
                 if not self.config.model.non_pooler:
                     batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
+                if self.config.run_distillation:
+                  batch["distill_start_logits"] = batch["distill_start_logits"].unsqueeze(dim=0)
+                  batch["distill_end_logits"] = batch["distill_end_logits"].unsqueeze(dim=0)
 
             out = self.model(batch)
-            if batch_idx%300==0:
-              self.log_ipop_batch(batch,out,batch_idx)
+
+            # if batch_idx%300==0:
+              # self.log_ipop_batch(batch,out,batch_idx)
             loss = out.loss
+            if self.config.run_distillation:
+              kl_div_loss=self.kl_div(out.start_logits,batch["distill_start_logits"].to(self.device))
+              kl_div_loss+=self.kl_div(out.end_logits,batch["distill_end_logits"].to(self.device))
+
+              loss+=kl_div_loss
+
+              total_kldiv_loss+=kl_div_loss.item()
+
             loss.backward()
 
-            total_loss += loss.item()
-            tepoch.set_postfix(loss = total_loss / (batch_idx + 1))
+            total_loss += out.loss.item()
+            tepoch.set_postfix(loss = (total_loss+total_kldiv_loss) / (batch_idx + 1))
             wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
+            if self.config.run_distillation:
+              wandb.log({"train_batch_kl_div_loss": total_kldiv_loss / (batch_idx + 1)})
             
             self.optimizer.step()
             self.optimizer.zero_grad()
@@ -131,12 +152,43 @@ class Trainer():
             self._train_step(train_dataloader, epoch)
             
             if ((val_dataloader is not None) and (((epoch + 1) % self.config.training.evaluate_every)) == 0):
-                # self.evaluate(val_dataloader)
+                val_loss=self.evaluate(val_dataloader)
                 if epoch==0:
-                  self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
+                  metrics=self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
                 else:
-                  self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=False)
+                  metrics=self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=False)
+                if self.best_val_loss>=val_loss and self.config.save_model_optimizer:
+                  self.best_val_loss=val_loss
+                  print("saving best model and optimizer at checkpoints/{}/model_optimizer.pt".format(self.config.load_path))
+                  os.makedirs("checkpoints/{}/".format(self.config.load_path), exist_ok=True)
+                  torch.save({
+                        'model_state_dict': self.model.state_dict(),
+                        'optimizer_state_dict': self.optimizer.state_dict(),
+                      }, "checkpoints/{}/model_optimizer.pt".format(self.config.load_path))
                 self.model.train()
+
+    def save_logits(self,dataloader,mode):
+      start_logits_all=[]
+      end_logits_all=[]
+      tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
+      with torch.no_grad():
+        for batch_idx, batch in enumerate(tepoch):
+            tepoch.set_description(f"Generating Logits")
+            if (len(batch["question_context_input_ids"].shape) == 1):
+                batch["question_context_input_ids"] = batch["question_context_input_ids"].unsqueeze(dim=0)
+                batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
+                if not self.config.model.non_pooler:
+                    batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
+
+            out = self.model(batch)
+            start_logits_all.extend(out.start_logits.detach().cpu())
+            end_logits_all.extend(out.end_logits.detach().cpu())
+
+      with open(f"data-dir/distillation/{mode}_start_logits.pkl", 'wb') as f:
+        pickle.dump(start_logits_all, f)
+      
+      with open(f"data-dir/distillation/{mode}_end_logits.pkl", 'wb') as f:
+        pickle.dump(end_logits_all, f)
 
 
     def evaluate(self, dataloader):
