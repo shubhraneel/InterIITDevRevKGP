@@ -33,6 +33,7 @@ class BaselineQA(nn.Module):
                             start_positions = batch["start_positions"].to(self.device),
                             end_positions = batch["end_positions"].to(self.device),
                             output_hidden_states=True)
+        # print("test",out.keys())
         if self.config.model.clf_loss:
             cls_tokens=out.hidden_states[-1][:,0]
             # start_probs=F.softmax(out.start_logits,dim=1)  # -> [32,512] 

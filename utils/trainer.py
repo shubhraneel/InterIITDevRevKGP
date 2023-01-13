@@ -154,14 +154,14 @@ class Trainer():
             self._train_step(train_dataloader, epoch)
             
             if ((val_dataloader is not None) and (((epoch + 1) % self.config.training.evaluate_every)) == 0):
-                # self.evaluate(val_dataloader)
                 self.model.eval()
                 if self.config.model.two_step_loss:
                   self.model_clf.eval()
-                # if epoch==0:
-                #   self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
-                # else:
-                #   self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=False)
+                self.evaluate(val_dataloader)
+                if epoch==0:
+                  self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
+                else:
+                  self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=False)
                 self.model.train()
                 if self.config.model.two_step_loss:
                   self.model_clf.train()

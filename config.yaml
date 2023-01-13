@@ -1,8 +1,8 @@
 task: qa
 seed: 3407
-wandb_path: v2-bert-clf-loss2-inf
+wandb_path: v2-bert-clf-loss2-inf-cpu
 fewshot_qa: False
-inference_device: cuda
+inference_device: cpu
 train: False
 inference: True
 save_model_optimizer: False
