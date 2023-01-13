@@ -11,6 +11,7 @@ load_path: quantization-inference-testing-cuda
 use_drqa: True
 create_drqa_tfidf: False
 top_k: 5
+sentence_level: False
 quantize: False
 ONNX: True
 path_to_onnx_model: 'data-dir/model.onnx'
