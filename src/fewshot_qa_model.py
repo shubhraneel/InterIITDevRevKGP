@@ -62,7 +62,7 @@ class FewShotQA_Model(Base_Model):
             
         print(str(epoch), str(step), str(total_loss / (step + 1)))
 
-    def validate(self, epoch, tokenizer, model, device, val_dataloader, max_gen_length=32): # IMPORTANT TODO: Don't hardcode 32 
+    def validate(self, epoch, tokenizer, model, device, val_dataloader, max_gen_length=32): 
         """
         Function to evaluate model for predictions
 
@@ -82,8 +82,7 @@ class FewShotQA_Model(Base_Model):
                     attention_mask=attention_mask, 
                     max_length=max_gen_length, 
                     num_beams=1, 
-                    early_stopping=True,
-                    #decoder_start_token_id=tokenizer.bos_token_id
+                    early_stopping=True
                     )
 
                 pred_text = [tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=True) for g in generated_ids]
@@ -98,13 +97,11 @@ class FewShotQA_Model(Base_Model):
         answers = []
         for s in strings:    
             if 'Answer:' in s:
-                # Find the 'Answer:' substring and take everything after it
+
                 answer = s.split('Answer:')[1]
-                # Strip leading and trailing whitespace
                 answer = answer.strip()
                 answers.append(answer)
             else:
-                # If 'Answer:' is not present, return an empty string
                 answers.append("")
         return answers
 
@@ -149,13 +146,13 @@ class FewShotQA_Model(Base_Model):
         results = self.__inference__(dataloader)
         torch.cuda.synchronize()
         ttime_elapsed = int(round(time.time() * 1000)) - tsince
-        # print ('test time elapsed {}ms'.format(ttime_elapsed))
+        
 
         ttime_per_example = (ttime_elapsed * dataloader.batch_size)/len(results["ground"])
 
         f1_spans = []
         for i in range(len(results["predicted_spans"])):
-            f1_spans.append(compute_f1(results["predicted_spans"][i], results["gold_spans"][i])) # For the text
+            f1_spans.append(compute_f1(results["predicted_spans"][i], results["gold_spans"][i]))
 
         qa_f1 = np.mean(f1_spans)
         return qa_f1, ttime_per_example

@@ -37,14 +37,14 @@ class Base_Model():
         results = self.__inference__(dataset, dataloader, logger)
         torch.cuda.synchronize()
         ttime_elapsed = int(round(time.time() * 1000)) - tsince
-        # print ('test time elapsed {}ms'.format(ttime_elapsed))
+
 
         ttime_per_example = (ttime_elapsed * dataloader.batch_size)/len(results["ground"])
-        classification_f1 = sklearn.metrics.f1_score(results["preds"], results["ground"]) # For paragraph search task
+        classification_f1 = sklearn.metrics.f1_score(results["preds"], results["ground"])
 
         f1_spans = []
         for i in range(len(results["predicted_spans"])):
-            f1_spans.append(compute_f1(results["predicted_spans"][i], results["gold_spans"][i])) # For the text
+            f1_spans.append(compute_f1(results["predicted_spans"][i], results["gold_spans"][i]))
 
         qa_f1 = np.mean(f1_spans)
         return classification_f1, qa_f1, ttime_per_example

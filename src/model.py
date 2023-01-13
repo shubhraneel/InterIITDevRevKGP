@@ -36,15 +36,7 @@ class BaselineQA(nn.Module):
         # print("test",out.keys())
         if self.config.model.clf_loss:
             cls_tokens=out.hidden_states[-1][:,0]
-            # start_probs=F.softmax(out.start_logits,dim=1)  # -> [32,512] 
-            # end_probs=F.softmax(out.end_logits,dim=1)    # -> [32,512] 
-
-            # max_start_probs=torch.max(start_probs, axis=1)  # -> [32,1] 
-            # max_end_probs=torch.max(end_probs,axis=1)       # -> [32,1]
-
-            # confidence_scores=end_probs.values*start_probs.values  # -> [32,1]
-            # scores=confidence_scores.squeeze(1)
-            scores=self.score(cls_tokens).squeeze(1) # [32]
+            scores=self.score(cls_tokens).squeeze(1)
             out.loss+=self.loss_fct(scores,batch["answerable"].to(self.device).float())
 
             return out
@@ -52,17 +44,12 @@ class BaselineQA(nn.Module):
         return out  
 
     def export_to_onnx(self, tokenizer):
-        # TODO Using torch.onnx.export
-        # Will use transformers.onnx.export for transformer models
 
-        # TODO Using transformers.onnx if this doesn't work
         feature = "question-answering"
 
-        # load config
         model_kind, model_onnx_config = FeaturesManager.check_supported_model_or_raise(self.model, feature=feature)
         onnx_config = model_onnx_config(self.model.config)
 
-        # export
         onnx_inputs, onnx_outputs = transformers.onnx.export(
                 preprocessor=tokenizer,
                 model=self.model,
@@ -102,19 +89,15 @@ class BaselineClf(nn.Module):
 
         return out  
 
-    ## Confirm that this works
+    
     def export_to_onnx(self, tokenizer):
-        # TODO Using torch.onnx.export
-        # Will use transformers.onnx.export for transformer models
-
-        # TODO Using transformers.onnx if this doesn't work
         feature = "question-answering"
 
-        # load config
+
         model_kind, model_onnx_config = FeaturesManager.check_supported_model_or_raise(self.model, feature=feature)
         onnx_config = model_onnx_config(self.model.config)
 
-        # export
+
         onnx_inputs, onnx_outputs = transformers.onnx.export(
                 preprocessor=tokenizer,
                 model=self.model,
