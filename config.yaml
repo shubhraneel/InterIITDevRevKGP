@@ -11,6 +11,7 @@ load_path: v2-inference-testing
 use_drqa: True
 create_drqa_tfidf: False
 top_k: 5
+sentence_level: False
 quantize: False
 ONNX: False
 

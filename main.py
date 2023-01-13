@@ -17,6 +17,7 @@ from src import BaselineQA, FewShotQA_Model
 from utils import Trainer, set_seed, Retriever
 from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
 from utils import build_tf_idf_wrapper, store_contents
+from nltk.tokenize import sent_tokenize
 
 from onnxruntime.transformers import optimizer as onnx_optimizer
 import onnxruntime
@@ -47,18 +48,35 @@ def load_mappings():
 		return con_idx_2_title_idx, ques2idx, idx2ques, con2idx, idx2con, title2idx, idx2title
 
 
-def reformat_data_for_sqlite(df, split):
-
-	context_doc_id = df[["context", "context_id"]].rename(
-		columns={"context": "text", "context_id": "id"})
-	context_doc_id = context_doc_id.drop_duplicates(subset=["text", "id"])
-	context_doc_id["id"] = context_doc_id["id"].astype(str)
+def reformat_data_for_sqlite(df, split, use_sentence_level):
+	if (use_sentence_level):
+		context_doc_id_original = df[["context", "context_id"]].rename(
+			columns={"context": "text", "context_id": "id"})
+		context_doc_id=pd.DataFrame()
+		for idx, row in context_doc_id_original.iterrows():
+			context=row['text']
+			context_id=row['id']
+			tri_sent_list=[]
+			sent_id_list=[]
+			sent_list=sent_tokenize(context)
+			for i in range(len(sent_list)-2):
+				tri_sent_list.append(sent_list[i:i+3])
+				sent_id_list.append(str(i))
+			df_local=pd.DataFrame(list(zip(tri_sent_list,sent_id_list)),columns=['text','id'])
+			df_local['id']=f"{context_id}_"+df_local['id']
+			context_doc_id=pd.concat([context_doc_id,df_local],axis=1)
+		context_doc_id = context_doc_id.drop_duplicates(subset=["text", "id"])	
+	else:
+		context_doc_id = df[["context", "context_id"]].rename(
+			columns={"context": "text", "context_id": "id"})
+		context_doc_id = context_doc_id.drop_duplicates(subset=["text", "id"])
+		context_doc_id["id"] = context_doc_id["id"].astype(str)
 	context_doc_id.to_json(
 		"data-dir/{}/contexts.json".format(split), orient="records", lines=True)
 
 
-def prepare_retriever(df, db_path, split):
-	reformat_data_for_sqlite(df, f"{split}")
+def prepare_retriever(df, db_path, split, use_sentence_level):
+	reformat_data_for_sqlite(df, f"{split}",use_sentence_level)
 	if (os.path.exists(f"data-dir/{split}/{db_path}")):
 		os.remove(f"data-dir/{split}/{db_path}")
 
@@ -94,10 +112,9 @@ if __name__ == "__main__":
 
 	if (config.use_drqa and config.create_drqa_tfidf):
 		print("using drqa")
-
-		prepare_retriever(df_train, "sqlite_con.db", "train")
-		prepare_retriever(df_val, "sqlite_con.db", "val")
-		prepare_retriever(df_test, "sqlite_con.db", "test")
+		prepare_retriever(df_train, "sqlite_con.db", "train",config.sentence_level)
+		prepare_retriever(df_val, "sqlite_con.db", "val",config.sentence_level)
+		prepare_retriever(df_test, "sqlite_con.db", "test",config.sentence_level)
 
 	# add local_files_only=local_files_only if using server
 	tokenizer = AutoTokenizer.from_pretrained(
@@ -182,9 +199,9 @@ if __name__ == "__main__":
 			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
 			os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
 			torch.save({
-	        	'model_state_dict': model.state_dict(),
-	        	'optimizer_state_dict': optimizer.state_dict(),
-	        }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
+				'model_state_dict': model.state_dict(),
+				'optimizer_state_dict': optimizer.state_dict(),
+			}, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
 
 
 		if (config.inference):
