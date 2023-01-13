@@ -3,13 +3,14 @@ seed: 3407
 wandb_path: v2-inference-testing
 fewshot_qa: False
 inference_device: cpu
-train: False
+train: True
 inference: True
 save_model_optimizer: False
 load_model_optimizer: False
 load_path: v2-inference-testing
 use_drqa: True
 create_drqa_tfidf: False
+bidaf_qa: False
 top_k: 5
 quantize: False
 ONNX: False
