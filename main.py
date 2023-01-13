@@ -87,7 +87,7 @@ def prepare_retriever(df, db_path, split, use_sentence_level):
 
 
 if __name__ == "__main__":
-
+	nltk.download('punkt')
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--config', default="config.yaml", help="Config File")
 
@@ -112,7 +112,7 @@ if __name__ == "__main__":
 
 	if (config.use_drqa and config.create_drqa_tfidf):
 		print("using drqa")
-		prepare_retriever(df_train, "sqlite_con.db", "train",config.sentence_level)
+		prepare_retriever(df_train, "sqlite_con.db", "train",False)
 		prepare_retriever(df_val, "sqlite_con.db", "val",config.sentence_level)
 		prepare_retriever(df_test, "sqlite_con.db", "test",config.sentence_level)
 
