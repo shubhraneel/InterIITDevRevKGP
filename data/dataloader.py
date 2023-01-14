@@ -24,7 +24,7 @@ class SQuAD_Dataset(Dataset):
         
         tokenized_keys = ["question_context_input_ids", "question_context_attention_mask",
                     "start_positions", "end_positions", "answerable",
-                    "question_context_offset_mapping"
+                    "question_context_offset_mapping", "bio_tags"
                     ]
 
         if not self.config.model.non_pooler:
@@ -152,8 +152,18 @@ class SQuAD_Dataset(Dataset):
                 for k, o in enumerate(inputs["offset_mapping"][i])
             ]
 
+        def bio_tags_from_start_end(start, end):
+            tags = [0 for _  in self.config.data.max_length]
+            tags[start] = 1
+            for i in range(start+1, end+1):
+                tags[i] = 2
+            return tags
+
+        inputs["bio_tags"] = [bio_tags_from_start_end(s, e) for s, e in zip(inputs['start_positions'], inputs['end_positions'])]
+
         inputs["start_positions"] = torch.tensor(inputs["start_positions"])
         inputs["end_positions"] = torch.tensor(inputs["end_positions"])
+        inputs['bio_tags'] = torch.tensor(inputs['bio_tags'])
         inputs["answerable"] = torch.tensor(inputs["answerable"])
 
         inputs["question_context_input_ids"] = inputs.pop("input_ids")
@@ -184,6 +194,7 @@ class SQuAD_Dataset(Dataset):
             "answerable":                           torch.stack([x["answerable"] for x in items], dim=0),
             "start_positions":                      torch.stack([x["start_positions"] for x in items], dim=0),
             "end_positions":                        torch.stack([x["end_positions"] for x in items], dim=0),
+            "bio_tags":                             torch.stack([x['bio_tags'] for x in items], dim=0),
 
             "title":								[x["title"] for x in items],
             "question":								[x["question"] for x in items],

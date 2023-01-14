@@ -79,7 +79,11 @@ class Trainer():
             out = self.model(batch)
             if batch_idx%300==0:
               self.log_ipop_batch(batch,out,batch_idx)
-            loss = out.loss
+
+            if self.config.model.bio_tags:
+                loss = out[0].loss
+            else:
+                loss = out.loss
             loss.backward()
 
             total_loss += loss.item()
@@ -97,15 +101,27 @@ class Trainer():
       rows=[]
       for i in range(len(batch["context"])):
         context = batch["context"][i]
-        start_probs=F.softmax(out.start_logits,dim=1)
-        end_probs=F.softmax(out.end_logits,dim=1)
 
-        max_start_probs=torch.max(start_probs, axis=1)
-        max_end_probs=torch.max(end_probs, axis=1)
+        if self.config.model.bio_tags:
+            scores = out[1]
+            max_start_probs = torch.max(scores[i, :, 1], axis=0)
+            start_index = max_start_probs.indices.item()
+            idx = start_index
+            while torch.argmax(scores[i, idx+1]) == 2:
+                idx += 1
+            end_index = idx
 
+        else:
+            start_probs=F.softmax(out.start_logits,dim=1)
+            end_probs=F.softmax(out.end_logits,dim=1)
+
+            max_start_probs=torch.max(start_probs, axis=1)
+            max_end_probs=torch.max(end_probs, axis=1)
+
+            start_index = max_start_probs.indices[i].item()
+            end_index = max_end_probs.indices[i].item()
+        
         offset_mapping = batch["question_context_offset_mapping"][i]
-        start_index = max_start_probs.indices[i].item()
-        end_index = max_end_probs.indices[i].item()
         decoded_answer=""
         if (offset_mapping[start_index] is not None and offset_mapping[end_index] is not None): 
           start_char = offset_mapping[start_index][0]
@@ -295,13 +311,20 @@ class Trainer():
             pred = self.predict(qp_batch)
 
             # print(pred.start_logits.shape) -> [32,512] 
-            start_probs=F.softmax(pred.start_logits,dim=1)  # -> [32,512] 
-            end_probs=F.softmax(pred.end_logits,dim=1)    # -> [32,512] 
 
-            max_start_probs=torch.max(start_probs, axis=1)  # -> [32,1] 
-            max_end_probs=torch.max(end_probs,axis=1)       # -> [32,1]
+            if self.config.model.bio_tags:
+                scores = pred[1]
+                max_start_probs = torch.max(scores[:, :, 1], axis=1)
+                confidence_scores = max_start_probs.values
+            else:
+                start_probs=F.softmax(pred.start_logits,dim=1)  # -> [32,512] 
+                end_probs=F.softmax(pred.end_logits,dim=1)    # -> [32,512] 
 
-            confidence_scores=max_end_probs.values*max_start_probs.values  # -> [32,1]
+                max_start_probs=torch.max(start_probs, axis=1)  # -> [32,1] 
+                max_end_probs=torch.max(end_probs,axis=1)       # -> [32,1]
+
+                confidence_scores=max_end_probs.values*max_start_probs.values  # -> [32,1]
+
             
             for batch_idx,q_id in enumerate(qp_batch["question_id"]):
                 if (question_prediction_dict[q_id][0]<confidence_scores[batch_idx]):
@@ -310,8 +333,15 @@ class Trainer():
                     offset_mapping = qp_batch["question_context_offset_mapping"][batch_idx]
                     decoded_answer = ""
                     
-                    start_index = max_start_probs.indices[batch_idx].item()
-                    end_index = max_end_probs.indices[batch_idx].item()
+                    if self.config.model.bio_tags:
+                        start_index = max_start_probs.indices[batch_idx].item()
+                        idx = start_index
+                        while torch.argmax(scores[batch_idx, idx+1]) == 2:
+                            idx += 1
+                        end_index = idx
+                    else:
+                        start_index = max_start_probs.indices[batch_idx].item()
+                        end_index = max_end_probs.indices[batch_idx].item()
 
                     if (offset_mapping[start_index] is not None and offset_mapping[end_index] is not None):
                         start_char = offset_mapping[start_index][0]

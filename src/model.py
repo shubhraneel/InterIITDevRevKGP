@@ -15,6 +15,8 @@ class BaselineQA(nn.Module):
         if config.model.two_step_loss:
             self.score=nn.Linear(config.model.dim,1)
             self.loss_fct=nn.BCEWithLogitsLoss()
+        if config.model.bio_tags:
+            self.mlp_out = nn.Linear(config.model.dim, 3)
 
         self.device = device
 
@@ -38,6 +40,13 @@ class BaselineQA(nn.Module):
             out.loss+=self.loss_fct(scores,batch["answerable"])
 
             return (out,torch.nn.functional.softmax(scores))
+        
+        if self.config.model.bio_tags:
+            ner_scores = self.mlp_out(out.hidden_states[-1])
+            ner_scores_T = ner_scores.transpose(1, 2)
+            loss = F.cross_entropy(batch['bio_tags'], ner_scores_T)
+            out.loss = loss
+            return (out,F.softmax(ner_scores, dim=2))
 
         return out  
 
