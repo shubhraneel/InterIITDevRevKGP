@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from transformers import AutoModelForQuestionAnswering
+import torch.nn.functional as F
 
 from pathlib import Path
 from transformers.onnx import FeaturesManager
@@ -44,7 +45,7 @@ class BaselineQA(nn.Module):
         if self.config.model.bio_tags:
             ner_scores = self.mlp_out(out.hidden_states[-1])
             ner_scores_T = ner_scores.transpose(1, 2)
-            loss = F.cross_entropy(batch['bio_tags'], ner_scores_T)
+            loss = F.cross_entropy(ner_scores_T, batch['bio_tags'].to(self.device))
             out.loss = loss
             return (out,F.softmax(ner_scores, dim=2))
 

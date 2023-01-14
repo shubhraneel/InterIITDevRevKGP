@@ -153,7 +153,7 @@ class SQuAD_Dataset(Dataset):
             ]
 
         def bio_tags_from_start_end(start, end):
-            tags = [0 for _  in self.config.data.max_length]
+            tags = [0 for _  in range(self.config.data.max_length)]
             tags[start] = 1
             for i in range(start+1, end+1):
                 tags[i] = 2
@@ -163,7 +163,7 @@ class SQuAD_Dataset(Dataset):
 
         inputs["start_positions"] = torch.tensor(inputs["start_positions"])
         inputs["end_positions"] = torch.tensor(inputs["end_positions"])
-        inputs['bio_tags'] = torch.tensor(inputs['bio_tags'])
+        inputs['bio_tags'] = torch.tensor(inputs['bio_tags'], dtype=torch.int64)
         inputs["answerable"] = torch.tensor(inputs["answerable"])
 
         inputs["question_context_input_ids"] = inputs.pop("input_ids")

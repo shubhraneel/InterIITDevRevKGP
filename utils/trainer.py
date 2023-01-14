@@ -107,7 +107,7 @@ class Trainer():
             max_start_probs = torch.max(scores[i, :, 1], axis=0)
             start_index = max_start_probs.indices.item()
             idx = start_index
-            while torch.argmax(scores[i, idx+1]) == 2:
+            while idx+1 < self.config.data.max_length and torch.argmax(scores[i, idx+1]) == 2:
                 idx += 1
             end_index = idx
 
@@ -180,7 +180,10 @@ class Trainer():
                         batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
                     
                 out = self.model(batch)
-                loss = out.loss
+                if self.config.model.bio_tags: 
+                  loss = out[0].loss
+                else:
+                  loss = out.loss
 
                 total_loss += loss.item()
                 tepoch.set_postfix(loss = total_loss / (batch_idx+1))
@@ -336,7 +339,7 @@ class Trainer():
                     if self.config.model.bio_tags:
                         start_index = max_start_probs.indices[batch_idx].item()
                         idx = start_index
-                        while torch.argmax(scores[batch_idx, idx+1]) == 2:
+                        while idx+1 < self.config.data.max_length and torch.argmax(scores[batch_idx, idx+1]) == 2:
                             idx += 1
                         end_index = idx
                     else:
