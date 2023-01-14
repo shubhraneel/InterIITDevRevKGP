@@ -64,7 +64,7 @@ def reformat_data_for_sqlite(df, split, use_sentence_level):
 			sent_id_list= [f"{context_id}_{x}" for x in range(len(sent_list))]
 			df_local=pd.DataFrame(list(zip(sent_list,sent_id_list)),columns=['text','id'])
 			df_local=df_local.dropna()
-			context_doc_id=pd.concat([context_doc_id,df_local],axis=1)
+			context_doc_id=pd.concat([context_doc_id,df_local],axis=0)
 		print(context_doc_id.head())
 		context_doc_id = context_doc_id.drop_duplicates(subset=["text", "id"])	
 	else:
