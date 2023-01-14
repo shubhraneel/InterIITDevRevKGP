@@ -45,7 +45,7 @@ class Trainer():
 
         self.prepared_test_loader=None
         self.prepared_test_df_matched=None
-        self.best_val_loss=1e9
+        self.best_f1=0
         # setup onnx runtime if config.onnx is true
         self.onnx_runtime_session = None
         if (self.config.ONNX):
@@ -166,20 +166,6 @@ class Trainer():
                 loss += self.contrastive_adaptive_loss(out, batch) * self.config.training.can_loss_beta
 
             if loss.isnan():
-              print("NanSense", batch_idx)
-              self.optimizer.zero_grad()
-              batch_1 = {}
-              for i in range(28):
-                for key in batch.keys():
-                  batch_1[key] = batch[key][i:i+4]
-                with torch.no_grad():
-                  out = self.model(batch_1)
-                if self.config.training.can_loss and not self.config.model.non_pooler:
-                  out.loss += self.contrastive_adaptive_loss(out, batch_1) * self.config.training.can_loss_beta
-                if out.loss.isnan():
-                  print(batch_1)
-                else:
-                  print(out.loss)
               self.optimizer.zero_grad()
               continue
             
@@ -189,7 +175,7 @@ class Trainer():
             tepoch.set_postfix(loss = total_loss / (batch_idx + 1))
             wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
 
-            # torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 2.0)
             self.optimizer.step()
             self.optimizer.zero_grad()
 
@@ -243,8 +229,9 @@ class Trainer():
                   metrics=self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
                 else:
                   metrics=self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=False)
-                if self.best_val_loss>=val_loss and self.config.save_model_optimizer:
-                  self.best_val_loss=val_loss
+                print(metrics)
+                if self.best_f1<=metrics["mean_squad_f1"] and self.config.save_model_optimizer:
+                  self.best_f1=metrics["mean_squad_f1"]
                   print("saving best model and optimizer at checkpoints/{}/model_optimizer.pt".format(self.config.load_path))
                   os.makedirs("checkpoints/{}/".format(self.config.load_path), exist_ok=True)
                   torch.save({

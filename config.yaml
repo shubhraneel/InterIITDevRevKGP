@@ -1,12 +1,12 @@
 task: qa
 seed: 3407
-wandb_path: v2-contrastive-loss-test
+wandb_path: v2-contrastive-loss-train_more
 fewshot_qa: False
 inference_device: cuda
 train: True
 inference: True
 save_model_optimizer: True
-load_model_optimizer: False
+load_model_optimizer: True
 load_path: v2-contrastive-loss-test
 use_drqa: True
 create_drqa_tfidf: False
@@ -27,7 +27,7 @@ data:
   tokenizer_batch_size: 32
 
 training:
-  epochs: 3
+  epochs: 10
   optimizer: adam
   lr: 0.00002
   sched_function: none
