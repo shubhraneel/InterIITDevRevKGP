@@ -78,6 +78,9 @@ class QA_with_head(nn.Module):
         self.sigmoid = torch.nn.Sigmoid()
         self.loss_classifier = torch.nn.BCELoss()
         self.device = device
+        
+        if config.model.two_step_training:
+            self.training_qa = 1
 
     def forward(self, batch):
         if not self.config.model.non_pooler:
@@ -100,18 +103,27 @@ class QA_with_head(nn.Module):
 
             return (out,torch.nn.functional.softmax(scores))
 
-        if out.loss != None :
-            cls_representations = out["hidden_states"][-1][:, 0, :]
-            cls_representations = self.classifier_hidden(cls_representations)
-            cls_representations = self.classifier_dropout(cls_representations)
-            cls_representations = self.output_layer(cls_representations)
-            cls_representations = cls_representations.squeeze(dim=-1)
-            cls_representations = self.sigmoid(cls_representations)
+        cls_representations = out["hidden_states"][-1][:, 0, :]
+        cls_representations = self.classifier_hidden(cls_representations)
+        cls_representations = self.classifier_dropout(cls_representations)
+        cls_representations = self.output_layer(cls_representations)
+        cls_representations = cls_representations.squeeze(dim=-1)
+        cls_representations = self.sigmoid(cls_representations)
+        out["confidence"] = cls_representations
+
+        if out.loss != None:
+            
             answerable = torch.tensor(batch["answerable"],dtype = torch.float32).to(self.device)
             clf_loss = self.loss_classifier(cls_representations, answerable)
-            out.loss += clf_loss
+            
+            if config.model.training_mode == 0:
+                out.loss += clf_loss
+            elif config.model.training_mode == 1:
+                pass
+            else:
+                out.loss = clf_loss
 
-        return out  
+        return out
 
     def export_to_onnx(self, tokenizer):
         # TODO Using torch.onnx.export

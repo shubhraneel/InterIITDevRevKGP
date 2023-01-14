@@ -181,6 +181,11 @@ if __name__ == "__main__":
 
 			trainer.train(train_dataloader, val_dataloader)
 
+			if config.model.training_mode == 1:
+				config.model.training_mode = 0
+				trainer.config = config
+				trainer.train(train_dataloader, val_dataloader)
+
 		if (config.save_model_optimizer):
 			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
 			os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)

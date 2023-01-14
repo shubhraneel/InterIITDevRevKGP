@@ -43,3 +43,4 @@ model:
   non_pooler: False
   dim: 128
   two_step_loss: False
+  train_mode: 1 # 0 if train both, 1 if train qa only, 2 if train clf

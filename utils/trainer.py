@@ -290,10 +290,10 @@ class Trainer():
             max_start_probs=torch.max(start_probs, axis=1)  # -> [32,1] 
             max_end_probs=torch.max(end_probs,axis=1)       # -> [32,1]
 
-            confidence_scores=max_end_probs.values*max_start_probs.values  # -> [32,1]
+            confidence_scores=pred["confidence"]  # -> [32,1]
             
             for batch_idx,q_id in enumerate(qp_batch["question_id"]):
-                if (question_prediction_dict[q_id][0]<confidence_scores[batch_idx]):
+                if (question_prediction_dict[q_id][0]<confidence_scores[batch_idx]) and confidence_scores[batch_idx] > 0.5:
                     # using the context in the qp_pair get extract the span using max_start_prob and max_end_prob                    
                     context = qp_batch["context"][batch_idx]
                     offset_mapping = qp_batch["question_context_offset_mapping"][batch_idx]
