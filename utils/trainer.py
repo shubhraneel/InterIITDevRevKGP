@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torch.optim import lr_scheduler
+from transformers import get_scheduler
 
 from utils import compute_f1
 from data import SQuAD_Dataset
@@ -35,8 +35,7 @@ class Trainer():
         self.optimizer = optimizer
         self.model = model
 
-        if self.config.training.lr_flag: self.scheduler = lr_scheduler.LinearLR(self.optimizer, start_factor=config.training.lr_start_factor, total_iters=config.training.lr_total_iters)
-
+        
         wandb.watch(self.model)
 
         self.ques2idx = ques2idx
@@ -68,6 +67,7 @@ class Trainer():
     def _train_step(self, dataloader, epoch):
         total_loss = 0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
+        if self.config.training.lr_flag: self.scheduler = get_scheduler(self.config.scheduler,self.optimizer, num_warmup_steps=0.2*len(dataloader), num_training_steps=len(dataloader))
         for batch_idx, batch in enumerate(tepoch):
             tepoch.set_description(f"Epoch {epoch + 1}")
             if (len(batch["question_context_input_ids"].shape) == 1):
@@ -85,6 +85,7 @@ class Trainer():
             total_loss += loss.item()
             tepoch.set_postfix(loss = total_loss / (batch_idx + 1))
             wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
+            
             
             self.optimizer.step()
             if self.config.training.lr_flag: self.scheduler.step()
