@@ -150,13 +150,23 @@ if __name__ == "__main__":
 			model.load_state_dict(checkpoint['model_state_dict'])
 			optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
+		teacher_model=None
+		if config.run_distillation:
+			temp=config.model.model_path
+			config.model.model_path=config.model.teacher_model_path
+			teacher_model=BaselineQA(config, device).to(device)
+			checkpoint = torch.load("checkpoints/{}/model_optimizer.pt".format(config.teacher_load_path),
+						map_location=torch.device(device))
+			teacher_model.load_state_dict(checkpoint['model_state_dict'])
+			config.model.model_path=temp
+
 		retriever = None
 		if (config.use_drqa):
 			tfidf_path = "data-dir/test/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
 			questions_df = df_test[["question", "title_id"]]
 			db_path = "data-dir/test/sqlite_con.db"
 			test_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path)
-      
+		  
 			tfidf_path = "data-dir/val/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
 			questions_df = df_val[["question", "title_id"]]
 			db_path = "data-dir/val/sqlite_con.db"
@@ -164,7 +174,7 @@ if __name__ == "__main__":
 
 		trainer = Trainer(config=config, model=model,
 						  optimizer=optimizer, device=device, tokenizer=tokenizer, ques2idx=ques2idx, 
-              val_retriever=val_retriever,df_val=df_val)
+              val_retriever=val_retriever,df_val=df_val,teacher=teacher_model)
 
 		if config.prepare_distillation:
 			print("Creating train dataset")
@@ -181,8 +191,8 @@ if __name__ == "__main__":
 
 			print("Preparing Distillation for Train Data")
 			trainer.save_logits(train_dataloader,'train')
-			print("Preparing Distillation for Val Data")
-			trainer.save_logits(val_dataloader,'val')
+			# print("Preparing Distillation for Val Data")
+			# trainer.save_logits(val_dataloader,'val')
 
 		if (config.train):
 			print("Creating train dataset")
@@ -204,7 +214,7 @@ if __name__ == "__main__":
 		# 	os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
 		# 	torch.save({
 	  #		   	'model_state_dict': model.state_dict(),
-	  #       	'optimizer_state_dict': optimizer.state_dict(),
+	  #			 	'optimizer_state_dict': optimizer.state_dict(),
 	  #       }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
 
 

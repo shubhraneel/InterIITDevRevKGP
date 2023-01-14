@@ -27,7 +27,8 @@ def to_numpy(tensor):
 
 class Trainer():
     def __init__(self, config, model, optimizer, device, 
-        tokenizer, ques2idx, df_val=None,val_retriever=None):
+        tokenizer, ques2idx, df_val=None,val_retriever=None,
+        teacher=None):
         self.config = config
         self.device = device
 
@@ -35,7 +36,7 @@ class Trainer():
 
         self.optimizer = optimizer
         self.model = model
-
+        self.teacher=teacher
 
         wandb.watch(self.model)
 
@@ -50,7 +51,7 @@ class Trainer():
         self.best_val_loss=1e9
 
         if config.run_distillation:
-          self.kl_div=torch.nn.KLDivLoss()
+          self.kl_div=torch.nn.CrossEntropyLoss()
 
         # setup onnx runtime if config.onnx is true
         self.onnx_runtime_session = None
@@ -71,6 +72,7 @@ class Trainer():
     def _train_step(self, dataloader, epoch):
         total_loss = 0
         total_kldiv_loss=0
+        
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
         for batch_idx, batch in enumerate(tepoch):
             tepoch.set_description(f"Epoch {epoch + 1}")
@@ -79,20 +81,21 @@ class Trainer():
                 batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
                 if not self.config.model.non_pooler:
                     batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
-                if self.config.run_distillation:
-                  batch["distill_start_logits"] = batch["distill_start_logits"].unsqueeze(dim=0)
-                  batch["distill_end_logits"] = batch["distill_end_logits"].unsqueeze(dim=0)
 
             out = self.model(batch)
-
-            # if batch_idx%300==0:
-              # self.log_ipop_batch(batch,out,batch_idx)
             loss = out.loss
-            if self.config.run_distillation:
-              kl_div_loss=self.kl_div(out.start_logits,batch["distill_start_logits"].to(self.device))
-              kl_div_loss+=self.kl_div(out.end_logits,batch["distill_end_logits"].to(self.device))
 
-              loss+=kl_div_loss
+            if self.config.run_distillation:
+              with torch.no_grad():
+                teacher_pred=self.teacher(batch)
+                teacher_start=torch.nn.functional.softmax(teacher_pred.start_logits)
+                teacher_end=torch.nn.functional.softmax(teacher_pred.end_logits)
+
+              kl_div_loss=self.kl_div(torch.nn.functional.softmax(out.start_logits),teacher_start)
+              kl_div_loss+=self.kl_div(torch.nn.functional.softmax(out.end_logits),teacher_end)
+              # print(out.start_logits,teacher_start)
+
+              loss+=0.5*kl_div_loss
 
               total_kldiv_loss+=kl_div_loss.item()
 
@@ -169,7 +172,7 @@ class Trainer():
 
     def save_logits(self,dataloader,mode):
       start_logits_all=[]
-      end_logits_all=[]
+      # end_logits_all=[]
       tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
       with torch.no_grad():
         for batch_idx, batch in enumerate(tepoch):
@@ -182,13 +185,13 @@ class Trainer():
 
             out = self.model(batch)
             start_logits_all.extend(out.start_logits.detach().cpu())
-            end_logits_all.extend(out.end_logits.detach().cpu())
-
-      with open(f"data-dir/distillation/{mode}_start_logits.pkl", 'wb') as f:
+            # end_logits_all.extend(out.end_logits.detach().cpu())
+      
+      with open(f"distillation/{mode}_start_logits.pkl", 'wb') as f:
         pickle.dump(start_logits_all, f)
       
-      with open(f"data-dir/distillation/{mode}_end_logits.pkl", 'wb') as f:
-        pickle.dump(end_logits_all, f)
+      # with open(f"distillation/{mode}_end_logits.pkl", 'wb') as f:
+      #   pickle.dump(end_logits_all, f)
 
 
     def evaluate(self, dataloader):
