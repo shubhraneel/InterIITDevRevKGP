@@ -23,7 +23,7 @@ class BaselineQA(nn.Module):
                 num_width_embeddings = 10,
                 span_width_embedding_dim = config.model.dim
             )
-            seq_indices = list(range(self.config.data.max_length))
+            seq_indices = list(range(self.config.data.answer_max_len))
             self.span_indices = [[x, y] for x in seq_indices for y in seq_indices if y - x >= 0 and y - x <= config.data.answer_max_len]
             self.span_mlp = nn.Linear(config.model.dim*3, 1)
 
@@ -53,11 +53,12 @@ class BaselineQA(nn.Module):
         elif self.config.model.span_level:
             token_embeddings = out.hidden_states[-1]
             span_indices = torch.tensor([self.span_indices for _ in range(batch["question_context_input_ids"].shape[0])])
+            span_indices = span_indices.to(self.device)
             span_embeddings = self.span_extractor(token_embeddings, span_indices)
             mlp_out = self.span_mlp(span_embeddings).squeeze(-1)
-            loss = F.cross_entropy(mlp_out, batch["span_indices"])
+            loss = F.cross_entropy(mlp_out, batch["span_indices"].to(self.device))
             out.loss = loss
-            return out
+            return out, torch.nn.functional.softmax(mlp_out, dim=1)
 
         return out  
 

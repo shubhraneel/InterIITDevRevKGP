@@ -76,11 +76,15 @@ class Trainer():
                 batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
                 if not self.config.model.non_pooler:
                     batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
-
+            
             out = self.model(batch)
             if batch_idx%300==0:
               self.log_ipop_batch(batch,out,batch_idx)
-            loss = out.loss
+
+            if self.config.model.span_level:
+              loss = out[0].loss
+            else:
+              loss = out.loss
             loss.backward()
 
             total_loss += loss.item()
@@ -98,15 +102,24 @@ class Trainer():
       rows=[]
       for i in range(len(batch["context"])):
         context = batch["context"][i]
-        start_probs=F.softmax(out.start_logits,dim=1)
-        end_probs=F.softmax(out.end_logits,dim=1)
 
-        max_start_probs=torch.max(start_probs, axis=1)
-        max_end_probs=torch.max(end_probs, axis=1)
+        if self.config.model.span_level:
+          probs = F.softmax(out[1], dim=1)
+          max_probs = torch.max(probs, axis=1)
 
+          idx = max_probs.indices[i].item()
+          start_index, end_index = self.seq_pair_indices[idx]
+        else:
+          start_probs=F.softmax(out.start_logits,dim=1)
+          end_probs=F.softmax(out.end_logits,dim=1)
+
+          max_start_probs=torch.max(start_probs, axis=1)
+          max_end_probs=torch.max(end_probs, axis=1)
+
+          start_index = max_start_probs.indices[i].item()
+          end_index = max_end_probs.indices[i].item()
+        
         offset_mapping = batch["question_context_offset_mapping"][i]
-        start_index = max_start_probs.indices[i].item()
-        end_index = max_end_probs.indices[i].item()
         decoded_answer=""
         if (offset_mapping[start_index] is not None and offset_mapping[end_index] is not None): 
           start_char = offset_mapping[start_index][0]
@@ -157,7 +170,10 @@ class Trainer():
                         batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
                     
                 out = self.model(batch)
-                loss = out.loss
+                if self.config.model.span_level:
+                  loss = out[0].loss
+                else:
+                  loss = out.loss
 
                 total_loss += loss.item()
                 tepoch.set_postfix(loss = total_loss / (batch_idx+1))

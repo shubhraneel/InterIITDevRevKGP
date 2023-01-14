@@ -24,7 +24,7 @@ class SQuAD_Dataset(Dataset):
         
         tokenized_keys = ["question_context_input_ids", "question_context_attention_mask",
                     "start_positions", "end_positions", "answerable",
-                    "question_context_offset_mapping"
+                    "question_context_offset_mapping", "span_indices"
                     ]
 
         if not self.config.model.non_pooler:
@@ -152,11 +152,11 @@ class SQuAD_Dataset(Dataset):
                 for k, o in enumerate(inputs["offset_mapping"][i])
             ]
 
-        seq_indices = list(range(self.config.data.max_length))
-        seq_pair_indices = [(x, y) for x in seq_indices for y in seq_indices if y - x >= 0 and y - x <= config.data.answer_max_len]
+        seq_indices = list(range(self.config.data.answer_max_len))
+        seq_pair_indices = [(x, y) for x in seq_indices for y in seq_indices if y - x >= 0 and y - x <= self.config.data.answer_max_len]
         seq_pair_iddict = {(x, y): i for i, (x, y) in enumerate(seq_pair_indices)}
         inputs['span_indices'] = [seq_pair_iddict[(x, y)] 
-            if (x, y) in seq_pair_iddict else len(seq_pair_indices)
+            if (x, y) in seq_pair_iddict else 0
             for x, y in zip(inputs["start_positions"], inputs["end_positions"])
         ]
 
