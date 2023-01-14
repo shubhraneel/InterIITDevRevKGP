@@ -142,7 +142,8 @@ if __name__ == "__main__":
 
 		if (config.load_model_optimizer):
 			print("loading model and optimizer from checkpoints/{}/model_optimizer.pt".format(config.load_path))
-			checkpoint = torch.load("checkpoints/{}/model_optimizer.pt".format(config.load_path))
+			checkpoint = torch.load("checkpoints/{}/model_optimizer.pt".format(config.load_path),
+						map_location=torch.device(device))
 			model.load_state_dict(checkpoint['model_state_dict'])
 			optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
@@ -177,13 +178,13 @@ if __name__ == "__main__":
 
 			trainer.train(train_dataloader, val_dataloader)
 
-		if (config.save_model_optimizer):
-			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
-			os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
-			torch.save({
-	        	'model_state_dict': model.state_dict(),
-	        	'optimizer_state_dict': optimizer.state_dict(),
-	        }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
+		# if (config.save_model_optimizer):
+		# 	print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
+		# 	os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
+		# 	torch.save({
+	  #       	'model_state_dict': model.state_dict(),
+	  #       	'optimizer_state_dict': optimizer.state_dict(),
+	  #       }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
 
 
 		if (config.inference):

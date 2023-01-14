@@ -27,7 +27,7 @@ data:
   tokenizer_batch_size: 32
 
 training:
-  epochs: 1
+  epochs: 3
   optimizer: adam
   lr: 0.00002
   sched_function: none
