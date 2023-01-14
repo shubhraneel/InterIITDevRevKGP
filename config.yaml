@@ -1,17 +1,15 @@
 task: qa
 seed: 3407
-wandb_path: v2-contrastive-loss
-wandb_path: v2-inference-testing
+wandb_path: v2-contrastive-loss-test
 fewshot_qa: False
 inference_device: cuda
 train: True
 inference: True
 save_model_optimizer: True
 load_model_optimizer: False
-load_path: v2-contrastive-loss
-load_path: v2-inference-testing
+load_path: v2-contrastive-loss-test
 use_drqa: True
-create_drqa_tfidf: True
+create_drqa_tfidf: False
 top_k: 5
 quantize: False
 ONNX: False
@@ -29,7 +27,7 @@ data:
   tokenizer_batch_size: 32
 
 training:
-  epochs: 10
+  epochs: 1
   optimizer: adam
   lr: 0.00002
   sched_function: none
@@ -38,7 +36,7 @@ training:
     monitor: val_loss
   evaluate_every: 1
   can_loss: True  # Contrastive_Adaptive_Loss
-  can_loss_beta: 0.001  # 0.00000001
+  can_loss_beta: 0.1  # 0.00000001
 
 model:
   model_path: google/bert_uncased_L-2_H-128_A-2

@@ -39,8 +39,6 @@ class Trainer():
 
         self.ques2idx = ques2idx
 
-        self.retriever = retriever
-
         self.df_val = df_val
         self.val_retriever = val_retriever
 
@@ -164,19 +162,32 @@ class Trainer():
             loss = out.loss
             if self.config.training.can_loss and not self.config.model.non_pooler:
                 loss += self.contrastive_adaptive_loss(out, batch) * self.config.training.can_loss_beta
-            
-            loss.backward()
 
             if loss.isnan():
-              print("NanSense", batch)
+              print("NanSense", batch_idx)
+              self.optimizer.zero_grad()
+              batch_1 = {}
+              for i in range(28):
+                for key in batch.keys():
+                  batch_1[key] = batch[key][i:i+4]
+                with torch.no_grad():
+                  out = self.model(batch_1)
+                if self.config.training.can_loss and not self.config.model.non_pooler:
+                  out.loss += self.contrastive_adaptive_loss(out, batch_1) * self.config.training.can_loss_beta
+                if out.loss.isnan():
+                  print(batch_1)
+                else:
+                  print(out.loss)
               self.optimizer.zero_grad()
               continue
+            
+            loss.backward()
 
             total_loss += loss.item()
             tepoch.set_postfix(loss = total_loss / (batch_idx + 1))
             wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
 
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+            # torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
             self.optimizer.step()
             self.optimizer.zero_grad()
 
@@ -365,7 +376,7 @@ class Trainer():
         self.device = device
         self.model.device = device
 
-        if do_prepare or self.prepared_test_loader==None or self.prepared_test_df_matched==None:
+        if do_prepare:
           self.prepare_df_before_inference(df_test,retriever,prefix,device)
        
         start_time=time.time()
