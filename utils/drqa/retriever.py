@@ -144,7 +144,7 @@ class TfidfDocRanker(object):
 
 
 class Retriever(object):
-    def __init__(self, tfidf_path, questions_df, con_idx_2_title_idx, db_path):
+    def __init__(self, tfidf_path, questions_df, con_idx_2_title_idx, db_path, sentence_level=False):
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
         fmt = logging.Formatter('%(asctime)s: [ %(message)s ]', '%m/%d/%Y %I:%M:%S %p')
@@ -156,6 +156,7 @@ class Retriever(object):
         self.ranker = TfidfDocRanker(tfidf_path=tfidf_path)
 
         # all at once
+        self.sentence_level=sentence_level
         self.df_q = questions_df
         self.top_3_contexts = []
         self.con_title_id_dict = con_idx_2_title_idx
@@ -173,7 +174,10 @@ class Retriever(object):
         # print("type(title_id)", type(title_id))
         # print(f"{self.con_title_id_dict['11']=}")
         # print(f"{[self.con_title_id_dict[doc] for doc in doc_names]=}")
-        doc_names_filtered = [doc for doc in doc_names if self.con_title_id_dict[doc] == title_id]
+        if self.sentence_level:
+            doc_names_filtered = [doc.split('_')[0] for doc in doc_names if self.con_title_id_dict[doc.split('_')[0]] == title_id]
+        else:
+            doc_names_filtered = [doc for doc in doc_names if self.con_title_id_dict[doc] == title_id]
         
         # print(doc_names_filtered)
 
