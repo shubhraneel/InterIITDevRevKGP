@@ -166,6 +166,49 @@ class Trainer():
                 if self.config.model.two_step_loss:
                   self.model_clf.train()
 
+    def boosted_train(self,learner_id,train_dataloader,val_dataloader):
+      self.model.train()
+      for epoch in range(self.config.training.epochs):
+        self._boosted_train_step(train_dataloader, epoch,learner_id)
+        
+        if ((val_dataloader is not None) and (((epoch + 1) % self.config.training.evaluate_every)) == 0):
+            self.model.eval()
+            self.evaluate(val_dataloader)
+            if epoch==0:
+              self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
+            else:
+              self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=False)
+            self.model.train()
+
+      return self.calculate_boosting_metric(train_dataloader,learner_id)
+
+    def _boosted_train_step(self, dataloader, epoch,learner_id):
+        total_loss = 0
+        tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
+        for batch_idx, batch in enumerate(tepoch):
+            tepoch.set_description(f"Epoch {epoch + 1}")
+            if (len(batch["question_context_input_ids"].shape) == 1):
+                batch["question_context_input_ids"] = batch["question_context_input_ids"].unsqueeze(dim=0)
+                batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
+                if not self.config.model.non_pooler:
+                    batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
+
+            out = self.model(batch,learner_id=learner_id)
+            # if batch_idx%300==0:
+              # self.log_ipop_batch(batch,out,batch_idx)
+            loss = out.loss
+            loss.backward()
+
+            total_loss += loss.item()
+            tepoch.set_postfix(loss = total_loss / (batch_idx + 1))
+            wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
+            
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+
+        wandb.log({"train_epoch_loss": total_loss / (batch_idx + 1)})
+
+        return (total_loss / (batch_idx + 1))
 
     def evaluate(self, dataloader):
         self.model.eval()
@@ -189,6 +232,44 @@ class Trainer():
 
         wandb.log({"val_epoch_loss": total_loss / (batch_idx + 1)})
         return (total_loss / (batch_idx + 1))
+
+    def calculate_boosting_metric(self,dataloader,learner_id):
+      tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
+      tepoch.set_description(f"Calculating Boosting Metrics for {learner_id}")
+      metrics=[]
+      with torch.no_grad():
+        for batch_idx, batch in enumerate(tepoch):
+          if (len(batch["question_context_input_ids"].shape) == 1):
+              batch["question_context_input_ids"] = batch["question_context_input_ids"].unsqueeze(dim=0)
+              batch["question_context_attention_mask"] = batch["question_context_attention_mask"].unsqueeze(dim=0)
+              if not self.config.model.non_pooler:
+                  batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
+              
+          out = self.model(batch,learner_id=learner_id)
+
+          start_probs=F.softmax(out.start_logits,dim=1)  # -> [32,512] 
+          end_probs=F.softmax(out.end_logits,dim=1)    # -> [32,512] 
+
+          max_start_probs=torch.max(start_probs, axis=1)  # -> [32,1] 
+          max_end_probs=torch.max(end_probs,axis=1)       # -> [32,1]
+
+          for idx,_ in enumerate(max_start_probs):
+            start_index = max_start_probs.indices[idx].item()
+            end_index = max_end_probs.indices[idx].item()
+
+            offset_mapping = batch["question_context_offset_mapping"][idx]
+            context = batch["context"][idx]
+
+            if (offset_mapping[start_index] is not None and offset_mapping[end_index] is not None):
+                start_char = offset_mapping[start_index][0]
+                end_char = offset_mapping[end_index][1]
+                decoded_answer = context[start_char:end_char]
+            
+            metrics.append(
+              compute_f1(batch["answer"][idx],decoded_answer)
+            )
+      
+      return np.array(metrics)
 
 
     def predict(self, batch):

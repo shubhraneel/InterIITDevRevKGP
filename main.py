@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
 from config import Config
-from src import BaselineQA, FewShotQA_Model,BaselineClf
+from src import BaselineQA, FewShotQA_Model,BaselineClf, BoostedBertForQuestionAnswering, boosting
 from utils import Trainer, set_seed, Retriever
 from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
 from utils import build_tf_idf_wrapper, store_contents
@@ -135,15 +135,16 @@ if __name__ == "__main__":
 			test_dataloader)
 		print(
 			f"QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
-
 	else:
 		model_clf=None
 		optimizer_clf=None
 		if config.model.two_step_loss:
 			model_clf=BaselineClf(config,device).to(device)
 			optimizer_clf= torch.optim.Adam(model_clf.parameters(), lr=config.training.lr)
-		
-		model = BaselineQA(config, device).to(device)
+		if config.use_boosting:
+			model = BoostedBertForQuestionAnswering(config, device).to(device)
+		else:
+			model = BaselineQA(config, device).to(device)
 		optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
 
 		if (config.load_model_optimizer):
@@ -172,19 +173,23 @@ if __name__ == "__main__":
               val_retriever=val_retriever,df_val=df_val,model_clf=model_clf,optimizer_clf=optimizer_clf)
 
 		if (config.train):
-			print("Creating train dataset")
-			train_ds = SQuAD_Dataset(config, df_train, tokenizer)
-			train_dataloader = DataLoader(
-				train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
-			print("length of train dataset: {}".format(train_ds.__len__()))
-
 			print("Creating val dataset")
 			val_ds = SQuAD_Dataset(config, df_val, tokenizer)
 			val_dataloader = DataLoader(
 				val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
 			print("length of val dataset: {}".format(val_ds.__len__()))
 
-			trainer.train(train_dataloader, val_dataloader)
+			if config.use_boosting: 
+				alpha=boosting(trainer,config,df_train,val_dataloader)
+				print("Boosting Alpha",alpha)
+			else:
+				print("Creating train dataset")
+				train_ds = SQuAD_Dataset(config, df_train, tokenizer)
+				train_dataloader = DataLoader(
+					train_ds, batch_size=config.data.train_batch_size, collate_fn=train_ds.collate_fn)
+				print("length of train dataset: {}".format(train_ds.__len__()))
+				
+				trainer.train(train_dataloader, val_dataloader)
 
 		if (config.save_model_optimizer):
 			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
