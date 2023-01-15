@@ -26,13 +26,13 @@ import onnxruntime
 import torch.onnx
 
 def sent_index(text, para, ans_pos):
-  if ans_pos == False:
-    return -1
-  ans = text[2:-2]
-  sents = sent_tokenize(para)
-  for sent in sents:
-    if ans in sent:
-      return (sents.index(sent))
+	if ans_pos == False:
+		return -1
+	ans = text[2:-2]
+	sents = sent_tokenize(para)
+	for sent in sents:
+		if ans in sent:
+			return (sents.index(sent))
 
 
 def load_mappings():
@@ -192,6 +192,14 @@ if __name__ == "__main__":
 			db_path = "data-dir/val/sqlite_con.db"
 			val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level)
 
+		if (config.save_model_optimizer):
+			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
+			os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
+			torch.save({
+				'model_state_dict': model.state_dict(),
+				'optimizer_state_dict': optimizer.state_dict(),
+			}, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
+
 		trainer = Trainer(config=config, model=model,
 						  optimizer=optimizer, device=device, tokenizer=tokenizer, ques2idx=ques2idx, 
 			  val_retriever=val_retriever,df_val=df_val)
@@ -211,13 +219,14 @@ if __name__ == "__main__":
 
 			trainer.train(train_dataloader, val_dataloader)
 
-		# if (config.save_model_optimizer):
-		# 	print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
-		# 	os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
-		# 	torch.save({
-		# 		'model_state_dict': model.state_dict(),
-		# 		'optimizer_state_dict': optimizer.state_dict(),
-		# 	}, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
+	  if (config.save_model_optimizer):
+		print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
+		os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
+		torch.save({
+		  'model_state_dict': model.state_dict(),
+		  'optimizer_state_dict': optimizer.state_dict(),
+		}, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
+
 
 		if (config.inference):
 			# print("Creating test dataset")
