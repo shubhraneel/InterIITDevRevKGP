@@ -219,7 +219,6 @@ if __name__ == "__main__":
 		# 		'optimizer_state_dict': optimizer.state_dict(),
 		# 	}, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
 
-
 		if (config.inference):
 			# print("Creating test dataset")
 			# test_ds = SQuAD_Dataset(config, df_test, tokenizer)
