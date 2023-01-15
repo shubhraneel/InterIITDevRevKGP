@@ -9,7 +9,7 @@ save_model_optimizer: True
 load_model_optimizer: False
 load_path: drqa-sentence-bert-medium-squad-v2-onnx-quantized
 use_drqa: True
-create_drqa_tfidf: False
+create_drqa_tfidf: True
 top_k: 5
 sentence_level: True
 quantize: True
