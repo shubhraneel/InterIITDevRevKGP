@@ -25,6 +25,16 @@ from onnxruntime.transformers import optimizer as onnx_optimizer
 import onnxruntime
 import torch.onnx
 
+def sent_index(text, para, ans_pos):
+  if ans_pos == False:
+    return -1
+  ans = text[2:-2]
+  sents = sent_tokenize(para)
+  for sent in sents:
+    if ans in sent:
+      return (sents.index(sent))
+
+
 def load_mappings():
 	with open("data-dir/con_idx_2_title_idx.pkl", "rb") as f:
 		con_idx_2_title_idx = pickle.load(f)
@@ -109,6 +119,7 @@ if __name__ == "__main__":
 	df_val = pd.read_pickle(config.data.val_data_path)
 	df_test = pd.read_pickle(config.data.test_data_path)
 
+
 	con_idx_2_title_idx, ques2idx, idx2ques, con2idx, idx2con, title2idx, idx2title = load_mappings()
 
 	if (config.use_drqa and config.create_drqa_tfidf):
@@ -167,13 +178,17 @@ if __name__ == "__main__":
 
 		retriever = None
 		if (config.use_drqa):
+			df_test['sentence_index'] = df_test.apply(lambda row : sent_index(row['answer_text'], row['context'], row['answerable']), axis = 1).fillna(0)
+			df_train['sentence_index'] = df_train.apply(lambda row : sent_index(row['answer_text'], row['context'], row['answerable']), axis = 1).fillna(0)
+			df_val['sentence_index'] = df_val.apply(lambda row : sent_index(row['answer_text'], row['context'], row['answerable']), axis = 1).fillna(0)
+
 			tfidf_path = "data-dir/test/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
-			questions_df = df_test[["question", "title_id"]]
+			questions_df = df_test[["question", "title_id","sentence_index"]]
 			db_path = "data-dir/test/sqlite_con.db"
 			test_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level)
 	  
 			tfidf_path = "data-dir/val/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
-			questions_df = df_val[["question", "title_id"]]
+			questions_df = df_val[["question", "title_id","sentence_index"]]
 			db_path = "data-dir/val/sqlite_con.db"
 			val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level)
 
