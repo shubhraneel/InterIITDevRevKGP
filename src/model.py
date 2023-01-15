@@ -79,7 +79,7 @@ class QA_with_head(nn.Module):
         self.loss_classifier = torch.nn.BCELoss()
         self.device = device
         
-        if config.model.two_step_training:
+        if config.model.train_mode:
             self.training_qa = 1
 
     def forward(self, batch):
@@ -116,9 +116,9 @@ class QA_with_head(nn.Module):
             answerable = torch.tensor(batch["answerable"],dtype = torch.float32).to(self.device)
             clf_loss = self.loss_classifier(cls_representations, answerable)
             
-            if config.model.training_mode == 0:
+            if self.config.model.train_mode == 0:
                 out.loss += clf_loss
-            elif config.model.training_mode == 1:
+            elif self.config.model.train_mode == 1:
                 pass
             else:
                 out.loss = clf_loss

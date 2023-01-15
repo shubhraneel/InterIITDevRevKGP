@@ -179,11 +179,16 @@ if __name__ == "__main__":
 				val_ds, batch_size=config.data.val_batch_size, collate_fn=val_ds.collate_fn)
 			print("length of val dataset: {}".format(val_ds.__len__()))
 
+			print("Training QA model")
 			trainer.train(train_dataloader, val_dataloader)
 
-			if config.model.training_mode == 1:
-				config.model.training_mode = 0
+			if config.model.train_mode == 1:
+				config.model.train_mode = 2
 				trainer.config = config
+				trainer.model.config = config
+				print("Freezing the QA model params to train the clf head")
+				for param in trainer.model.model.parameters():
+					param.requires_grad = False
 				trainer.train(train_dataloader, val_dataloader)
 
 		if (config.save_model_optimizer):

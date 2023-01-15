@@ -6,7 +6,7 @@ inference_device: cpu
 train: False
 inference: True
 save_model_optimizer: False
-load_model_optimizer: False
+load_model_optimizer: True
 load_path: v2-inference-testing
 use_drqa: True
 create_drqa_tfidf: False
@@ -28,7 +28,7 @@ data:
   tokenizer_batch_size: 32
 
 training:
-  epochs: 1
+  epochs: 10
   optimizer: adam
   lr: 0.00002
   sched_function: none
@@ -38,9 +38,10 @@ training:
   evaluate_every: 1
 
 model:
-  model_path: google/bert_uncased_L-2_H-128_A-2
+  model_path: google/bert_uncased_L-4_H-128_A-2
   params: {}
   non_pooler: False
   dim: 128
   two_step_loss: False
   train_mode: 1 # 0 if train both, 1 if train qa only, 2 if train clf
+  freeze_encoder_for_clf_training: True # Works only when train_mode == 1
