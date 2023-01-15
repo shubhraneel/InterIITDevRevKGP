@@ -175,7 +175,7 @@ class Retriever(object):
         # print(f"{self.con_title_id_dict['11']=}")
         # print(f"{[self.con_title_id_dict[doc] for doc in doc_names]=}")
         if self.sentence_level:
-            doc_names_filtered = [doc.split('_')[0] for doc in doc_names if self.con_title_id_dict[doc.split('_')[0]] == title_id]
+            doc_names_filtered = [doc for doc in doc_names if self.con_title_id_dict[doc.split('_')[0]] == title_id]
         else:
             doc_names_filtered = [doc for doc in doc_names if self.con_title_id_dict[doc] == title_id]
         
@@ -185,7 +185,7 @@ class Retriever(object):
             doc_names_filtered = doc_names_filtered[0:k]
 
         doc_text_filtered = [self.fetch_text(idx) for idx in doc_names_filtered]
-
+        doc_names_filtered = [doc.split('_')[0] for doc in doc_names_filtered]
         # print(self.con_title_id_dict)
 
         return doc_names_filtered, doc_text_filtered
