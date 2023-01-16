@@ -54,7 +54,7 @@ class BaselineQA(nn.Module):
             token_embeddings = out.hidden_states[-1]
             span_indices = torch.tensor([self.span_indices for _ in range(batch["question_context_input_ids"].shape[0])])
             span_indices = span_indices.to(self.device)
-            span_embeddings = self.span_extractor(token_embeddings, span_indices, sequence_mask=batch['question_context_attention_mask'])
+            span_embeddings = self.span_extractor(token_embeddings, span_indices, sequence_mask=batch['question_context_attention_mask'].to(self.device))
             mlp_out = self.span_mlp(span_embeddings).squeeze(-1)
             loss = F.cross_entropy(mlp_out, batch["span_indices"].to(self.device))
             out.loss = loss
