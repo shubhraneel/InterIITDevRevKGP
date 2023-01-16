@@ -13,6 +13,7 @@ create_drqa_tfidf: False
 top_k: 5
 quantize: False
 ONNX: False
+create_inf_table: False
 
 data:
   train_data_path: data-dir/train/df_train.pkl
@@ -37,7 +38,7 @@ training:
   evaluate_every: 1
 
 model:
-  model_path: google/bert_uncased_L-2_H-128_A-2
+  model_path: google/bert_uncased_L-4_H-128_A-2
   params: {}
   non_pooler: False
   dim: 128
