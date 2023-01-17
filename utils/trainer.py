@@ -169,15 +169,17 @@ class Trainer():
     def boosted_train(self,learner_id,train_dataloader,val_dataloader):
       self.model.train()
       for epoch in range(self.config.training.epochs):
-        self._boosted_train_step(train_dataloader, epoch,learner_id)
+        # self._boosted_train_step(train_dataloader, epoch,learner_id)
         
         if ((val_dataloader is not None) and (((epoch + 1) % self.config.training.evaluate_every)) == 0):
             self.model.eval()
-            self.evaluate(val_dataloader)
+            self.evaluate(val_dataloader,learner_id)
             if epoch==0:
-              self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
+              self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,
+                    do_prepare=True,learner_id=learner_id)
             else:
-              self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=False)
+              self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,
+                    do_prepare=False,learner_id=learner_id)
             self.model.train()
 
       return self.calculate_boosting_metric(train_dataloader,learner_id)
@@ -210,7 +212,7 @@ class Trainer():
 
         return (total_loss / (batch_idx + 1))
 
-    def evaluate(self, dataloader):
+    def evaluate(self, dataloader,learner_id=0):
         self.model.eval()
         total_loss = 0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
@@ -223,7 +225,7 @@ class Trainer():
                     if not self.config.model.non_pooler:
                         batch["question_context_token_type_ids"] = batch["question_context_token_type_ids"].unsqueeze(dim=0)
                     
-                out = self.model(batch)
+                out = self.model(batch,learner_id=learner_id)
                 loss = out.loss
 
                 total_loss += loss.item()
@@ -235,7 +237,7 @@ class Trainer():
 
     def calculate_boosting_metric(self,dataloader,learner_id):
       tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
-      tepoch.set_description(f"Calculating Boosting Metrics for {learner_id}")
+      tepoch.set_description(f"Calculating Boosting Metrics for {learner_id+1}")
       metrics=[]
       with torch.no_grad():
         for batch_idx, batch in enumerate(tepoch):
@@ -253,13 +255,14 @@ class Trainer():
           max_start_probs=torch.max(start_probs, axis=1)  # -> [32,1] 
           max_end_probs=torch.max(end_probs,axis=1)       # -> [32,1]
 
-          for idx,_ in enumerate(max_start_probs):
+          for idx,_ in enumerate(batch["question_id"]):
             start_index = max_start_probs.indices[idx].item()
             end_index = max_end_probs.indices[idx].item()
 
             offset_mapping = batch["question_context_offset_mapping"][idx]
             context = batch["context"][idx]
-
+            
+            decoded_answer=""
             if (offset_mapping[start_index] is not None and offset_mapping[end_index] is not None):
                 start_char = offset_mapping[start_index][0]
                 end_char = offset_mapping[end_index][1]
@@ -272,7 +275,7 @@ class Trainer():
       return np.array(metrics)
 
 
-    def predict(self, batch):
+    def predict(self, batch,learner_id=0):
 
         if (self.config.ONNX):
             # Set up inputs for the ONNX Runtime Invocation
@@ -307,7 +310,7 @@ class Trainer():
 
             return out
         
-        return self.model(batch)
+        return self.model(batch,learner_id=learner_id)
 
     def prepare_df_before_inference(self, df_test,retriever,prefix,device):
         title_id_list = df_test["title_id"].unique()
@@ -369,12 +372,12 @@ class Trainer():
         self.prepared_test_df_matched=df_test_matched
 
 
-    def inference(self, df_test,retriever,prefix,device,do_prepare):
+    def inference(self, df_test,retriever,prefix,device,do_prepare,learner_id=0, alpha = None):
         self.model.to(device)
         self.device = device
-        self.model.device = device
+        # self.model.device = device
         if self.config.model.two_step_loss:
-          self.model_clf.device=device
+          # self.model_clf.device=device
           self.model_clf.to(device)
 
         if do_prepare:
@@ -395,7 +398,17 @@ class Trainer():
                     qp_batch['question_context_token_type_ids'] = qp_batch['question_context_token_type_ids'].unsqueeze(dim=0)
             
             # para, para_id, theme, theme_id, question, question_id
-            pred = self.predict(qp_batch)
+            # TODO: Add weighted combination of hiddenstates and other keys
+            if prefix == "test":
+              pred = self.predict(qp_batch, learner_id = 0)
+              pred.start_logits *= alpha[0]
+              pred.end_logits *= alpha[0]
+              for i in range(1, self.config.num_learners):
+                pred_ = self.predict(qp_batch, learner_id = i)
+                pred.start_logits += (alpha[i] * pred_.start_logits)
+                pred.end_logits += (alpha[i] * pred_.end_logits)
+            else:
+              pred = self.predict(qp_batch,learner_id=learner_id)
 
             if self.config.model.two_step_loss:
               pred_clf=self.model_clf(qp_batch)
@@ -450,7 +463,7 @@ class Trainer():
           return question_prediction_dict,clf_prediction_dict
         return question_prediction_dict
 
-    def calculate_metrics(self, df_test,retriever,prefix,device,do_prepare):
+    def calculate_metrics(self, df_test,retriever,prefix,device,do_prepare,learner_id=0, alpha = None):
         """
             1. Run the inference script
             2. Calculate the time taken
@@ -463,10 +476,10 @@ class Trainer():
             torch.cuda.synchronize()
 
         if self.config.model.two_step_loss or self.config.model.clf_loss:
-          question_pred_dict,clf_preds_dict=self.inference(df_test,retriever,prefix,device,do_prepare)
+          question_pred_dict,clf_preds_dict=self.inference(df_test,retriever,prefix,device,do_prepare,learner_id=learner_id, alpha = alpha)
           clf_preds=[clf_preds_dict[q_id] for q_id in df_test['question_id']]
         else:
-          question_pred_dict= self.inference(df_test,retriever,prefix,device,do_prepare)
+          question_pred_dict= self.inference(df_test,retriever,prefix,device,do_prepare,learner_id=learner_id, alpha = alpha)
 
         predicted_answers=[question_pred_dict[q_id][1] for q_id in df_test['question_id']]
         gold_answers=df_test['answer_text'].tolist()

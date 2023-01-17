@@ -1,19 +1,19 @@
 task: qa
 seed: 3407
-wandb_path: v2-bert-clf-loss2-inf-cpu
+wandb_path: v2-boosting-test
 fewshot_qa: False
-inference_device: cpu
-train: False
+inference_device: cuda
+train: True
 inference: True
 save_model_optimizer: False
-load_model_optimizer: True
+load_model_optimizer: False
 load_path: v2-bert-clf-loss
 use_drqa: True
 create_drqa_tfidf: False
 top_k: 5
 quantize: False
 ONNX: False
-num_learners: 5
+num_learners: 2
 use_boosting: True
 
 data:
@@ -27,7 +27,7 @@ data:
   max_length: 512
   doc_stride: 0
   tokenizer_batch_size: 32
-  sample_percentage: 0.5
+  sample_percentage: 0.8
 
 training:
   epochs: 1
@@ -46,4 +46,4 @@ model:
   non_pooler: False
   two_step_loss: False
   overwrite_qa: True
-  clf_loss: True
+  clf_loss: False

@@ -1,5 +1,5 @@
 from transformers.models.bert.modeling_bert import BertPreTrainedModel,BertModel
-from transformers import AutoModel
+from transformers import AutoModel,AutoConfig
 from transformers.modeling_outputs import QuestionAnsweringModelOutput
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
@@ -11,16 +11,20 @@ class BoostedBertForQuestionAnswering(BertPreTrainedModel):
     _keys_to_ignore_on_load_unexpected = [r"pooler"]
 
     def __init__(self, config):
-        super().__init__(config)
-        self.num_labels = config.num_labels
+        bert_config=AutoConfig.from_pretrained(config.model.model_path)
+        super().__init__(bert_config)
 
         self.bert = AutoModel.from_pretrained(config.model.model_path)
+        self.num_labels = self.bert.config.num_labels
+        
+        
         self.qa_outputs = nn.ModuleList()
         for i in range(config.num_learners):
-            self.qa_outputs.append(nn.Linear(config.hidden_size, config.num_labels))
+            self.qa_outputs.append(nn.Linear(bert_config.hidden_size, bert_config.num_labels))
 
         # Initialize weights and apply final processing
         self.post_init()
+
 
     def forward(
         self,
@@ -44,11 +48,11 @@ class BoostedBertForQuestionAnswering(BertPreTrainedModel):
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        input_ids = batch["question_context_input_ids"].to(self.bert.device), 
-        attention_mask = batch["question_context_attention_mask"].to(self.bert.device),
-        token_type_ids = batch["question_context_token_type_ids"].to(self.bert.device),
-        start_positions = batch["start_positions"].to(self.bert.device),
-        end_positions = batch["end_positions"].to(self.bert.device),
+        input_ids = batch["question_context_input_ids"].to(self.bert.device)
+        attention_mask = batch["question_context_attention_mask"].to(self.bert.device)
+        token_type_ids = batch["question_context_token_type_ids"].to(self.bert.device)
+        start_positions = batch["start_positions"].to(self.bert.device)
+        end_positions = batch["end_positions"].to(self.bert.device)
         output_hidden_states=True
 
         outputs = self.bert(

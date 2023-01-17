@@ -5,6 +5,7 @@ import yaml
 import wandb
 import pickle
 import argparse
+import numpy as np
 import pandas as pd
 
 import torch
@@ -84,6 +85,8 @@ if __name__ == "__main__":
 
 	# TODO Explore pytorch.quantization also
 	assert not config.quantize or config.ONNX, "Quantizing without ONNX Runtime is not supported"
+	if config.use_boosting and config.inference:
+		assert config.train, "Please train before inference while using boosting"
 
 	print("Reading data csv")
 	df_train = pd.read_pickle(config.data.train_data_path)
@@ -142,7 +145,7 @@ if __name__ == "__main__":
 			model_clf=BaselineClf(config,device).to(device)
 			optimizer_clf= torch.optim.Adam(model_clf.parameters(), lr=config.training.lr)
 		if config.use_boosting:
-			model = BoostedBertForQuestionAnswering(config, device).to(device)
+			model = BoostedBertForQuestionAnswering(config).to(device)
 		else:
 			model = BaselineQA(config, device).to(device)
 		optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
@@ -172,6 +175,7 @@ if __name__ == "__main__":
 						  optimizer=optimizer, device=device, tokenizer=tokenizer, ques2idx=ques2idx, 
               val_retriever=val_retriever,df_val=df_val,model_clf=model_clf,optimizer_clf=optimizer_clf)
 
+		alpha = None
 		if (config.train):
 			print("Creating val dataset")
 			val_ds = SQuAD_Dataset(config, df_val, tokenizer)
@@ -215,7 +219,8 @@ if __name__ == "__main__":
 			# calculate_metrics(test_ds, test_dataloader, wandb_logger)
 			# test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
 			model.to(config.inference_device)
-			test_metrics = trainer.calculate_metrics(df_test,test_retriever,'test',config.inference_device,do_prepare=True)
+			test_metrics = trainer.calculate_metrics(df_test,test_retriever,'test',config.inference_device,
+                                              do_prepare=True, alpha = alpha)
 			model.to(config.inference_device)
 			print(test_metrics)
 
