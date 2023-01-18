@@ -1,18 +1,19 @@
 task: qa
 seed: 3407
-wandb_path: v2-best-val-testing
+wandb_path: drqa-sentence-bert-medium-squad-v2-onnx-quantized
 fewshot_qa: False
-inference_device: cuda
-train: True
+inference_device: cpu
+train: False
 inference: True
 save_model_optimizer: True
 load_model_optimizer: False
-load_path: v2-best-val-testing
+load_path: drqa-sentence-bert-medium-squad-v2-onnx-quantized
 use_drqa: True
-create_drqa_tfidf: False
+create_drqa_tfidf: True
 top_k: 5
-quantize: False
-ONNX: False
+sentence_level: True
+quantize: True
+ONNX: True
 
 data:
   train_data_path: data-dir/train/df_train.pkl
@@ -37,7 +38,7 @@ training:
   evaluate_every: 1
 
 model:
-  model_path: google/bert_uncased_L-2_H-128_A-2
+  model_path: mrm8488/bert-medium-finetuned-squadv2
   params: {}
   non_pooler: False
   dim: 128
