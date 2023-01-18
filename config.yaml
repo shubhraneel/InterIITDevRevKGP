@@ -13,7 +13,7 @@ create_drqa_tfidf: False
 top_k: 5
 quantize: False
 ONNX: False
-scheduler: "get_linear_schedule_with_warmup"
+scheduler: "linear"
 
 data:
   train_data_path: data-dir/train/df_train.pkl
@@ -36,7 +36,7 @@ training:
   sched_params:
     monitor: val_loss
   evaluate_every: 1
-  lr_flag : True
+  lr_flag : False
   
 
 model:
