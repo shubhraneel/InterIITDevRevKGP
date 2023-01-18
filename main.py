@@ -62,6 +62,7 @@ def load_mappings():
 
 def reformat_data_for_sqlite(df, split, use_sentence_level):
 	if (use_sentence_level):
+		# TODO: parallelise this using concurrent futures
 		context_doc_id_original = df[["context", "context_id"]].rename(
 			columns={"context": "text", "context_id": "id"})
 		context_doc_id_original = context_doc_id_original.drop_duplicates(subset=["text", "id"])
@@ -178,17 +179,17 @@ if __name__ == "__main__":
 
 		retriever = None
 		if (config.use_drqa):
-			df_test['sentence_index'] = df_test.apply(lambda row : sent_index(row['answer_text'], row['context'], row['answerable']), axis = 1).fillna(0)
-			df_train['sentence_index'] = df_train.apply(lambda row : sent_index(row['answer_text'], row['context'], row['answerable']), axis = 1).fillna(0)
-			df_val['sentence_index'] = df_val.apply(lambda row : sent_index(row['answer_text'], row['context'], row['answerable']), axis = 1).fillna(0)
+			# df_test['sentence_index'] = df_test.apply(lambda row : sent_index(row['answer_text'], row['context'], row['answerable']), axis = 1).fillna(0)
+			# df_train['sentence_index'] = df_train.apply(lambda row : sent_index(row['answer_text'], row['context'], row['answerable']), axis = 1).fillna(0)
+			# df_val['sentence_index'] = df_val.apply(lambda row : sent_index(row['answer_text'], row['context'], row['answerable']), axis = 1).fillna(0)
 
 			tfidf_path = "data-dir/test/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
-			questions_df = df_test[["question", "title_id","sentence_index"]]
+			questions_df = df_test[["question", "title_id"]]
 			db_path = "data-dir/test/sqlite_con.db"
 			test_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level)
 	  
 			tfidf_path = "data-dir/val/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
-			questions_df = df_val[["question", "title_id","sentence_index"]]
+			questions_df = df_val[["question", "title_id"]]
 			db_path = "data-dir/val/sqlite_con.db"
 			val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level)
 
