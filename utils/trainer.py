@@ -401,7 +401,6 @@ class Trainer():
           self.model_clf.to(device)
 
         if do_prepare:
-        if do_prepare:
           self.prepare_df_before_inference(df_test,retriever,prefix,device)
        
         start_time=time.time()
