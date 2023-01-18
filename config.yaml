@@ -14,8 +14,9 @@ top_k: 5
 quantize: False
 ONNX: False
 num_learners: 2
-use_boosting: True
+use_boosting: False
 sentence_level: True
+use_bagging: True
 
 data:
   train_data_path: data-dir/train/df_train.pkl

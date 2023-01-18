@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
 from config import Config
-from src import BaselineQA, FewShotQA_Model,BaselineClf, BoostedBertForQuestionAnswering, boosting
+from src import BaselineQA, FewShotQA_Model,BaselineClf, BoostedBertForQuestionAnswering, boosting, bagging
 from utils import Trainer, set_seed, Retriever
 from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
 from utils import build_tf_idf_wrapper, store_contents
@@ -117,6 +117,7 @@ if __name__ == "__main__":
 	assert not config.quantize or config.ONNX, "Quantizing without ONNX Runtime is not supported"
 	if config.use_boosting and config.inference:
 		assert config.train, "Please train before inference while using boosting"
+	assert (not (config.use_bagging and config.use_boosting)) or (not config.use_bagging and not config.use_boosting), "Do not use bagging with boosting"
 
 	print("Reading data csv")
 	df_train = pd.read_pickle(config.data.train_data_path)
@@ -228,6 +229,8 @@ if __name__ == "__main__":
 			if config.use_boosting: 
 				alpha=boosting(trainer,config,df_train,val_dataloader)
 				print("Boosting Alpha",alpha)
+			elif config.use_bagging:
+				alpha=bagging(trainer,config,df_train,val_dataloader)
 			else:
 				print("Creating train dataset")
 				train_ds = SQuAD_Dataset(config, df_train, tokenizer)
