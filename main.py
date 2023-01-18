@@ -117,7 +117,6 @@ if __name__ == "__main__":
 	assert not config.quantize or config.ONNX, "Quantizing without ONNX Runtime is not supported"
 	if config.use_boosting and config.inference:
 		assert config.train, "Please train before inference while using boosting"
-	assert (not (config.use_bagging and config.use_boosting)) or (not config.use_bagging and not config.use_boosting), "Do not use bagging with boosting"
 
 	print("Reading data csv")
 	df_train = pd.read_pickle(config.data.train_data_path)
@@ -175,7 +174,7 @@ if __name__ == "__main__":
 		if config.model.two_step_loss:
 			model_clf=BaselineClf(config,device).to(device)
 			optimizer_clf= torch.optim.Adam(model_clf.parameters(), lr=config.training.lr)
-		if config.use_boosting:
+		if config.use_boosting or config.use_bagging:
 			model = BoostedBertForQuestionAnswering(config).to(device)
 		else:
 			model = BaselineQA(config, device).to(device)

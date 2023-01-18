@@ -177,7 +177,7 @@ class Trainer():
     def boosted_train(self,learner_id,train_dataloader,val_dataloader):
       self.model.train()
       for epoch in range(self.config.training.epochs):
-        # self._boosted_train_step(train_dataloader, epoch,learner_id)
+        self._boosted_train_step(train_dataloader, epoch,learner_id)
         
         if ((val_dataloader is not None) and (((epoch + 1) % self.config.training.evaluate_every)) == 0):
             self.model.eval()
