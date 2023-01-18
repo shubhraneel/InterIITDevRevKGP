@@ -261,8 +261,6 @@ class Trainer():
                     if (len(original_context_idx) == 0):    
                         # print(f"original paragraph not in top k {unmatched}")
                         unmatched+=1
-                        # don't uncomment this
-                        # df_contexts = pd.concat([df_contexts, pd.DataFrame(row)], axis=0, ignore_index=True)
                     else:
                         row_dict = row.to_dict()
                         df_contexts.loc[df_contexts["context_id"] == context_id, row_dict.keys()] = row_dict.values()
