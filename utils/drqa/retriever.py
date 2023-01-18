@@ -144,7 +144,7 @@ class TfidfDocRanker(object):
 
 
 class Retriever(object):
-    def __init__(self, tfidf_path, questions_df, con_idx_2_title_idx, db_path):
+    def __init__(self, tfidf_path, questions_df, con_idx_2_title_idx, db_path, sentence_level=False):
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
         fmt = logging.Formatter('%(asctime)s: [ %(message)s ]', '%m/%d/%Y %I:%M:%S %p')
@@ -156,6 +156,7 @@ class Retriever(object):
         self.ranker = TfidfDocRanker(tfidf_path=tfidf_path)
 
         # all at once
+        self.sentence_level=sentence_level
         self.df_q = questions_df
         self.top_3_contexts = []
         self.con_title_id_dict = con_idx_2_title_idx
@@ -173,7 +174,10 @@ class Retriever(object):
         # print("type(title_id)", type(title_id))
         # print(f"{self.con_title_id_dict['11']=}")
         # print(f"{[self.con_title_id_dict[doc] for doc in doc_names]=}")
-        doc_names_filtered = [doc for doc in doc_names if self.con_title_id_dict[doc] == title_id]
+        if self.sentence_level:
+            doc_names_filtered = [doc for doc in doc_names if self.con_title_id_dict[doc.split('_')[0]] == title_id]
+        else:
+            doc_names_filtered = [doc for doc in doc_names if self.con_title_id_dict[doc] == title_id]
         
         # print(doc_names_filtered)
 
@@ -181,10 +185,31 @@ class Retriever(object):
             doc_names_filtered = doc_names_filtered[0:k]
 
         doc_text_filtered = [self.fetch_text(idx) for idx in doc_names_filtered]
-
+        doc_names_filtered = [doc.split('_')[0] for doc in doc_names_filtered]
         # print(self.con_title_id_dict)
 
         return doc_names_filtered, doc_text_filtered
+
+    def retriever_accuracy_experiment(self,k=5):
+        if(self.sentence_level):
+            print("only for answerable questions")
+            num_tot=0
+            num_cor=0
+            tsince = int(round(time.time()*1000))
+            for idx, row in self.df_q.iterrows():
+                if row['answerable']:
+                    num_tot+=1
+                    doc_names = self.retrieve_top_k(
+                        row['Question'], title=str(row['title_id']), k=k)
+                    if f"{row['context_id']}_{row['Sentence Index']}" in doc_names:
+                        num_cor+=1
+            ttime_elapsed = int(round(time.time()*1000)) - tsince
+            ttime_per_example = ttime_elapsed/self.df_q.shape[0]
+            print(f"Accuracy {num_cor/num_tot}")
+            print(f'test time elapsed {ttime_elapsed} ms')
+            print(f'test time elapsed per example {ttime_per_example} ms')
+        else:
+            print("not implemented use classical/task1/")
 
     def predict_all(self, k=3):
         self.top_3_contexts_ids = []
