@@ -134,7 +134,7 @@ def reformat_data_for_sqlite(df, split, drqa_mode):
 		context_doc_id_original["id"] = context_doc_id_original["id"].astype(str)
 		context_doc_id_original.to_json(
 			"data-dir/{}/contexts.json".format(split), orient="records", lines=True)
-		context_doc_id.to_json(
+		context_doc_id[["text", "id"]].to_json(
 			"data-dir/{}/sentences.json".format(split), orient="records", lines=True)
 	else:
 		context_doc_id = df[["context", "context_id"]].rename(

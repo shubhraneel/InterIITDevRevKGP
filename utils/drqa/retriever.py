@@ -46,12 +46,15 @@ class TfidfDocRanker(object):
         """Convert doc_index --> doc_id"""
         return self.doc_dict[1][doc_index]
 
-    def closest_docs(self, query, k=1):
+    def closest_docs(self, query, k=1, filter=None):
         """Closest docs by dot product between query and documents
         in tfidf weighted word vector space.
         """
         spvec = self.text2spvec(query)
-        res = spvec * self.doc_mat
+        if filter is None:
+            res = spvec * self.doc_mat
+        else:
+            res = spvec * self.doc_mat[filter]
 
         # print(f"{res.data.shape=}")
         # print(f"{type(res)=}")
@@ -63,7 +66,10 @@ class TfidfDocRanker(object):
             o_sort = o[np.argsort(-res.data[o])]
 
         doc_scores = res.data[o_sort]
-        doc_ids = [self.get_doc_id(i) for i in res.indices[o_sort]]
+        if filter is None:
+            doc_ids = [self.get_doc_id(i) for i in res.indices[o_sort]]
+        else:
+            doc_ids = [self.get_doc_id(filter[i]) for i in res.indices[o_sort]]
         return doc_ids, doc_scores
 
     def batch_closest_docs(self, queries, k=1, num_workers=None):
@@ -165,8 +171,8 @@ class Retriever(object):
         self.PROCESS_DB = DocDB(db_path=db_path)
         Finalize(self.PROCESS_DB, self.PROCESS_DB.close, exitpriority=100)
 
-    def retrieve_top_k(self, question, title_id, k=1):
-        doc_names, doc_scores = self.ranker.closest_docs(question, 100000)
+    def retrieve_top_k(self, question, title_id, k=1, filter=None):
+        doc_names, doc_scores = self.ranker.closest_docs(question, 100000, filter=filter)
         # print(f"{self.ranker.doc_mat.shape=}")
         # print(f"{doc_names=}")
         # # print("len(doc_names)", len(doc_names))

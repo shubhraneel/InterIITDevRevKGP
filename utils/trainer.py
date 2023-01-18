@@ -48,6 +48,12 @@ class Trainer():
 
         self.best_val_loss=1e9
 
+        if self.config.drqa_mode == "both":
+            with open("data-dir/val/con_id_2_sent_ids.json") as f:
+                self.val_con_id_2_sent_ids = json.load(f)
+            with open("data-dir/test/con_id_2_sent_ids.json") as f:
+                self.test_con_id_2_sent_ids = json.load(f)
+
 
         # setup onnx runtime if config.onnx is true
         self.onnx_runtime_session = None
@@ -243,9 +249,20 @@ class Trainer():
                     question = row["question"]
                     question_id = row["question_id"]
                     context_id = row["context_id"]
-                    doc_idx_filtered, doc_text_filtered = para_retriever.retrieve_top_k(question, str(title_id), k=self.config.top_k_para)
-                    # TODO: get sentences
-
+                    doc_con_idx_filtered, doc_con_text_filtered = para_retriever.retrieve_top_k(question, str(title_id), k=self.config.top_k_para)
+                    filter_sents = []
+                    for idx in doc_con_idx_filtered:
+                        filter_sents.extend(self.test_con_id_2_sent_ids[idx])
+                    doc_idx_filtered, doc_text_filtered = sent_retriever.retrieve_top_k(question, str(title_id), k=self.config.top_k_sent, filter=filter_sents)
+                    # TODO: confirm this part
+                    df_contexts =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=1,random_state=self.config.seed)
+                    df_contexts.loc[:, "question"] = question
+                    df_contexts.loc[:, "question_id"] = question_id
+                    df_contexts.loc[:, "answerable"] = False
+                    df_contexts.loc[:, "answer_start"] = ""
+                    df_contexts.loc[:, "answer_text"] = ""
+                    df_contexts.loc[:, "context"] = "".join(doc_text_filtered)
+                    df_contexts.loc[:,"context_id"] = "+".join(doc_text_filtered)
                 else:
                     question = row["question"]
                     question_id = row["question_id"]
