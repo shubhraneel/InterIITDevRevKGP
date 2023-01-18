@@ -225,7 +225,7 @@ class Trainer():
             # can initialise theme specific retriever here 
             for idx, row in df_temp.iterrows():
                 df_contexts=pd.DataFrame()
-                if retriever is not None and self.config.sentence_level:
+                if retriever is not None and self.config.drqa_mode == "sentence":
                     question = row["question"]
                     question_id = row["question_id"]
                     context_id = row["context_id"]
@@ -238,6 +238,14 @@ class Trainer():
                     df_contexts.loc[:, "answer_text"] = ""
                     df_contexts.loc[:, "context"] = "".join(doc_text_filtered)
                     df_contexts.loc[:,"context_id"] = "+".join(doc_text_filtered)
+                elif retriever is not None and self.config.drqa_mode == "both":
+                    para_retriever, sent_retriever = retriever
+                    question = row["question"]
+                    question_id = row["question_id"]
+                    context_id = row["context_id"]
+                    doc_idx_filtered, doc_text_filtered = para_retriever.retrieve_top_k(question, str(title_id), k=self.config.top_k_para)
+                    # TODO: get sentences
+
                 else:
                     question = row["question"]
                     question_id = row["question_id"]

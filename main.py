@@ -327,7 +327,10 @@ if __name__ == "__main__":
 			# calculate_metrics(test_ds, test_dataloader, wandb_logger)
 			# test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
 			model.to(config.inference_device)
-			test_metrics = trainer.calculate_metrics(df_test,test_retriever,'test',config.inference_device,do_prepare=True)
+			if config.drqa_mode == "both":
+				test_metrics = trainer.calculate_metrics(df_test,[test_retriever, test_retriever_sent],'test',config.inference_device,do_prepare=True)
+			else:
+				test_metrics = trainer.calculate_metrics(df_test,test_retriever,'test',config.inference_device,do_prepare=True)
 			print(test_metrics)
 
 
