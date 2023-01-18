@@ -2,7 +2,7 @@ task: qa
 seed: 3407
 wandb_path: v2-boosting-test
 fewshot_qa: False
-inference_device: cuda
+inference_device: cpu
 train: True
 inference: True
 save_model_optimizer: True
@@ -13,7 +13,7 @@ create_drqa_tfidf: False
 top_k: 5
 quantize: False
 ONNX: False
-num_learners: 2
+num_learners: 5
 use_boosting: True
 sentence_level: True
 
@@ -28,10 +28,10 @@ data:
   max_length: 512
   doc_stride: 0
   tokenizer_batch_size: 32
-  sample_percentage: 0.8
+  sample_percentage: 0.7
 
 training:
-  epochs: 1
+  epochs: 6
   optimizer: adam
   lr: 0.00002
   sched_function: none
