@@ -219,26 +219,26 @@ if __name__ == "__main__":
 
 			trainer.train(train_dataloader, val_dataloader)
 
-		if (config.save_model_optimizer):
-			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
-			os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
-			torch.save({
-			'model_state_dict': model.state_dict(),
-			'optimizer_state_dict': optimizer.state_dict(),
-			}, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
+	if (config.save_model_optimizer):
+		print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
+		os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
+		torch.save({
+		'model_state_dict': model.state_dict(),
+		'optimizer_state_dict': optimizer.state_dict(),
+		}, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
 
 
-		if (config.inference):
-			# print("Creating test dataset")
-			# test_ds = SQuAD_Dataset(config, df_test, tokenizer)
-			# test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
-			# print("length of test dataset: {}".format(test_ds.__len__()))
+	if (config.inference):
+		# print("Creating test dataset")
+		# test_ds = SQuAD_Dataset(config, df_test, tokenizer)
+		# test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
+		# print("length of test dataset: {}".format(test_ds.__len__()))
 
-			# calculate_metrics(test_ds, test_dataloader, wandb_logger)
-			# test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
-			model.to(config.inference_device)
-			test_metrics = trainer.calculate_metrics(df_test,test_retriever,'test',config.inference_device,do_prepare=True)
-			print(test_metrics)
+		# calculate_metrics(test_ds, test_dataloader, wandb_logger)
+		# test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
+		model.to(config.inference_device)
+		test_metrics = trainer.calculate_metrics(df_test,test_retriever,'test',config.inference_device,do_prepare=True)
+		print(test_metrics)
 
 
 		# model = AutoModel_Classifier_QA(config, tokenizer=tokenizer, logger=wandb_logger)
