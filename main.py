@@ -17,10 +17,23 @@ from src import BaselineQA, FewShotQA_Model
 from utils import Trainer, set_seed, Retriever
 from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
 from utils import build_tf_idf_wrapper, store_contents
+from nltk.tokenize import sent_tokenize
+import nltk  
+from tqdm import tqdm
 
 from onnxruntime.transformers import optimizer as onnx_optimizer
 import onnxruntime
 import torch.onnx
+
+def sent_index(text, para, ans_pos):
+	if ans_pos == False:
+		return -1
+	ans = text[2:-2]
+	sents = sent_tokenize(para)
+	for sent in sents:
+		if ans in sent:
+			return (sents.index(sent))
+
 
 def load_mappings():
 	with open("data-dir/con_idx_2_title_idx.pkl", "rb") as f:
@@ -47,18 +60,35 @@ def load_mappings():
 		return con_idx_2_title_idx, ques2idx, idx2ques, con2idx, idx2con, title2idx, idx2title
 
 
-def reformat_data_for_sqlite(df, split):
-
-	context_doc_id = df[["context", "context_id"]].rename(
-		columns={"context": "text", "context_id": "id"})
-	context_doc_id = context_doc_id.drop_duplicates(subset=["text", "id"])
-	context_doc_id["id"] = context_doc_id["id"].astype(str)
+def reformat_data_for_sqlite(df, split, use_sentence_level):
+	if (use_sentence_level):
+		# TODO: parallelise this using concurrent futures
+		context_doc_id_original = df[["context", "context_id"]].rename(
+			columns={"context": "text", "context_id": "id"})
+		context_doc_id_original = context_doc_id_original.drop_duplicates(subset=["text", "id"])
+		context_doc_id=pd.DataFrame()
+		for idx, row in tqdm(context_doc_id_original.iterrows()):
+			context=row['text']
+			context_id=row['id']
+			# print(context_id,context)
+			sent_list=list(sent_tokenize(context))
+			sent_id_list= [f"{context_id}_{x}" for x in range(len(sent_list))]
+			df_local=pd.DataFrame(list(zip(sent_list,sent_id_list)),columns=['text','id'])
+			df_local=df_local.dropna()
+			context_doc_id=pd.concat([context_doc_id,df_local],axis=0)
+		print(context_doc_id.head())
+		context_doc_id = context_doc_id.drop_duplicates(subset=["text", "id"])	
+	else:
+		context_doc_id = df[["context", "context_id"]].rename(
+			columns={"context": "text", "context_id": "id"})
+		context_doc_id = context_doc_id.drop_duplicates(subset=["text", "id"])
+		context_doc_id["id"] = context_doc_id["id"].astype(str)
 	context_doc_id.to_json(
 		"data-dir/{}/contexts.json".format(split), orient="records", lines=True)
 
 
-def prepare_retriever(df, db_path, split):
-	reformat_data_for_sqlite(df, f"{split}")
+def prepare_retriever(df, db_path, split, use_sentence_level):
+	reformat_data_for_sqlite(df, f"{split}",use_sentence_level)
 	if (os.path.exists(f"data-dir/{split}/{db_path}")):
 		os.remove(f"data-dir/{split}/{db_path}")
 
@@ -69,7 +99,7 @@ def prepare_retriever(df, db_path, split):
 
 
 if __name__ == "__main__":
-
+	nltk.download('punkt')
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--config', default="config.yaml", help="Config File")
 
@@ -90,14 +120,14 @@ if __name__ == "__main__":
 	df_val = pd.read_pickle(config.data.val_data_path)
 	df_test = pd.read_pickle(config.data.test_data_path)
 
+
 	con_idx_2_title_idx, ques2idx, idx2ques, con2idx, idx2con, title2idx, idx2title = load_mappings()
 
 	if (config.use_drqa and config.create_drqa_tfidf):
 		print("using drqa")
-
-		prepare_retriever(df_train, "sqlite_con.db", "train")
-		prepare_retriever(df_val, "sqlite_con.db", "val")
-		prepare_retriever(df_test, "sqlite_con.db", "test")
+		prepare_retriever(df_val, "sqlite_con.db", "val",config.sentence_level)
+		prepare_retriever(df_train, "sqlite_con.db", "train",False)
+		prepare_retriever(df_test, "sqlite_con.db", "test",config.sentence_level)
 
 	# add local_files_only=local_files_only if using server
 	tokenizer = AutoTokenizer.from_pretrained(
@@ -149,19 +179,31 @@ if __name__ == "__main__":
 
 		retriever = None
 		if (config.use_drqa):
+			# df_test['sentence_index'] = df_test.apply(lambda row : sent_index(row['answer_text'], row['context'], row['answerable']), axis = 1).fillna(0)
+			# df_train['sentence_index'] = df_train.apply(lambda row : sent_index(row['answer_text'], row['context'], row['answerable']), axis = 1).fillna(0)
+			# df_val['sentence_index'] = df_val.apply(lambda row : sent_index(row['answer_text'], row['context'], row['answerable']), axis = 1).fillna(0)
+
 			tfidf_path = "data-dir/test/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
 			questions_df = df_test[["question", "title_id"]]
 			db_path = "data-dir/test/sqlite_con.db"
-			test_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path)
-      
+			test_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level)
+	  
 			tfidf_path = "data-dir/val/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
 			questions_df = df_val[["question", "title_id"]]
 			db_path = "data-dir/val/sqlite_con.db"
-			val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path)
+			val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level)
+
+		if (config.save_model_optimizer):
+			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
+			os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
+			torch.save({
+				'model_state_dict': model.state_dict(),
+				'optimizer_state_dict': optimizer.state_dict(),
+			}, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
 
 		trainer = Trainer(config=config, model=model,
 						  optimizer=optimizer, device=device, tokenizer=tokenizer, ques2idx=ques2idx, 
-              val_retriever=val_retriever,df_val=df_val)
+			  val_retriever=val_retriever,df_val=df_val)
 
 		if (config.train):
 			print("Creating train dataset")
@@ -178,26 +220,26 @@ if __name__ == "__main__":
 
 			trainer.train(train_dataloader, val_dataloader)
 
-		if (config.save_model_optimizer):
-			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
-			os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
-			torch.save({
-	        	'model_state_dict': model.state_dict(),
-	        	'optimizer_state_dict': optimizer.state_dict(),
-	        }, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
+	if (config.save_model_optimizer):
+		print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
+		os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
+		torch.save({
+		'model_state_dict': model.state_dict(),
+		'optimizer_state_dict': optimizer.state_dict(),
+		}, "checkpoints/{}/model_optimizer.pt".format(config.load_path))
 
 
-		if (config.inference):
-			# print("Creating test dataset")
-			# test_ds = SQuAD_Dataset(config, df_test, tokenizer)
-			# test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
-			# print("length of test dataset: {}".format(test_ds.__len__()))
+	if (config.inference):
+		# print("Creating test dataset")
+		# test_ds = SQuAD_Dataset(config, df_test, tokenizer)
+		# test_dataloader = DataLoader(test_ds, batch_size=config.data.val_batch_size, collate_fn=test_ds.collate_fn)
+		# print("length of test dataset: {}".format(test_ds.__len__()))
 
-			# calculate_metrics(test_ds, test_dataloader, wandb_logger)
-			# test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
-			model.to(config.inference_device)
-			test_metrics = trainer.calculate_metrics(df_test,test_retriever,'test',config.inference_device,do_prepare=True)
-			print(test_metrics)
+		# calculate_metrics(test_ds, test_dataloader, wandb_logger)
+		# test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
+		model.to(config.inference_device)
+		test_metrics = trainer.calculate_metrics(df_test,test_retriever,'test',config.inference_device,do_prepare=True)
+		print(test_metrics)
 
 
 		# model = AutoModel_Classifier_QA(config, tokenizer=tokenizer, logger=wandb_logger)

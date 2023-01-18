@@ -1,19 +1,20 @@
 task: qa
 seed: 3407
-wandb_path: v2-inference-testing
+wandb_path: drqa-sentence-bert-medium-squad-v2-onnx-quantized
 fewshot_qa: False
 inference_device: cpu
 train: False
 inference: True
-save_model_optimizer: False
+save_model_optimizer: True
 load_model_optimizer: False
-load_path: v2-inference-testing
+load_path: drqa-sentence-bert-medium-squad-v2-onnx-quantized
 use_drqa: True
-create_drqa_tfidf: False
+create_drqa_tfidf: True
 top_k: 5
-quantize: False
-ONNX: False
 scheduler: "linear"
+sentence_level: True
+quantize: True
+ONNX: True
 
 data:
   train_data_path: data-dir/train/df_train.pkl
@@ -28,7 +29,7 @@ data:
   tokenizer_batch_size: 32
 
 training:
-  epochs: 1
+  epochs: 3
   optimizer: adam
   lr: 0.00002
   sched_function: none
@@ -40,7 +41,7 @@ training:
   
 
 model:
-  model_path: google/bert_uncased_L-2_H-128_A-2
+  model_path: mrm8488/bert-medium-finetuned-squadv2
   params: {}
   non_pooler: False
   dim: 128

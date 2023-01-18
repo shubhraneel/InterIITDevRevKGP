@@ -8,6 +8,7 @@ from sklearn.metrics import f1_score, accuracy_score, classification_report
 
 import sys
 import torch
+import os
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -45,7 +46,11 @@ class Trainer():
 
         self.prepared_test_loader=None
         self.prepared_test_df_matched=None
+        
         if self.config.training.lr_flag: self.scheduler = get_scheduler(self.config.scheduler,self.optimizer, num_warmup_steps=0, num_training_steps=1840*self.config.training.epochs)
+
+        self.best_val_loss=1e9
+
 
         # setup onnx runtime if config.onnx is true
         self.onnx_runtime_session = None
@@ -136,11 +141,19 @@ class Trainer():
             self._train_step(train_dataloader, epoch)
             
             if ((val_dataloader is not None) and (((epoch + 1) % self.config.training.evaluate_every)) == 0):
-                self.evaluate(val_dataloader)
+                val_loss=self.evaluate(val_dataloader)
                 if epoch==0:
-                  self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
+                  metrics=self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=True)
                 else:
-                  self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=False)
+                  metrics=self.calculate_metrics(self.df_val,self.val_retriever,'val',self.device,do_prepare=False)
+                if self.best_val_loss>=val_loss and self.config.save_model_optimizer:
+                  self.best_val_loss=val_loss
+                  print("saving best model and optimizer at checkpoints/{}/model_optimizer.pt".format(self.config.load_path))
+                  os.makedirs("checkpoints/{}/".format(self.config.load_path), exist_ok=True)
+                  torch.save({
+                        'model_state_dict': self.model.state_dict(),
+                        'optimizer_state_dict': self.optimizer.state_dict(),
+                      }, "checkpoints/{}/model_optimizer.pt".format(self.config.load_path))
                 self.model.train()
 
 
@@ -216,36 +229,48 @@ class Trainer():
         start_time = time.time()
         for title_id in title_id_list:
             df_temp = gb_title.get_group(title_id)
-            
+            # can initialise theme specific retriever here 
             for idx, row in df_temp.iterrows():
-                question = row["question"]
-                question_id = row["question_id"]
-                context_id = row["context_id"]
-
                 df_contexts=pd.DataFrame()
-                if retriever is not None:
+                if retriever is not None and self.config.sentence_level:
+                    question = row["question"]
+                    question_id = row["question_id"]
+                    context_id = row["context_id"]
                     doc_idx_filtered, doc_text_filtered = retriever.retrieve_top_k(question, str(title_id), k=self.config.top_k)
-                    df_contexts_og = df_unique_con.loc[df_unique_con["context_id"].isin([int(doc_idx) for doc_idx in doc_idx_filtered])].copy()
-                    # TODO: we can endup sampling things in doc_idx_filtered again
-                    df_contexts_random =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=max(0,self.config.top_k-len(doc_idx_filtered)),random_state=self.config.seed)
-                    df_contexts = pd.concat([df_contexts_og, df_contexts_random], axis=0, ignore_index=True)
+                    df_contexts =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=1,random_state=self.config.seed)
+                    df_contexts.loc[:, "question"] = question
+                    df_contexts.loc[:, "question_id"] = question_id
+                    df_contexts.loc[:, "answerable"] = False
+                    df_contexts.loc[:, "answer_start"] = ""
+                    df_contexts.loc[:, "answer_text"] = ""
+                    df_contexts.loc[:, "context"] = "".join(doc_text_filtered)
+                    df_contexts.loc[:,"context_id"] = "+".join(doc_text_filtered)
                 else:
-                    df_contexts =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=self.config.top_k,random_state=self.config.seed)
-                df_contexts.loc[:, "question"] = question
-                df_contexts.loc[:, "question_id"] = question_id
-                df_contexts.loc[:, "answerable"] = False
-                df_contexts.loc[:, "answer_start"] = ""
-                df_contexts.loc[:, "answer_text"] = ""
-                
-                original_context_idx = df_contexts.loc[df_contexts["context_id"] == context_id]
-                if (len(original_context_idx) == 0):    
-                    # print(f"original paragraph not in top k {unmatched}")
-                    unmatched+=1
-                    # don't uncomment this
-                    # df_contexts = pd.concat([df_contexts, pd.DataFrame(row)], axis=0, ignore_index=True)
-                else:
-                    row_dict = row.to_dict()
-                    df_contexts.loc[df_contexts["context_id"] == context_id, row_dict.keys()] = row_dict.values()
+                    question = row["question"]
+                    question_id = row["question_id"]
+                    context_id = row["context_id"]
+                    
+                    if retriever is not None:
+                        doc_idx_filtered, doc_text_filtered = retriever.retrieve_top_k(question, str(title_id), k=self.config.top_k)
+                        df_contexts_og = df_unique_con.loc[df_unique_con["context_id"].isin([int(doc_idx) for doc_idx in doc_idx_filtered])].copy()
+                        # TODO: we can endup sampling things in doc_idx_filtered again
+                        df_contexts_random =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=max(0,self.config.top_k-len(doc_idx_filtered)),random_state=self.config.seed)
+                        df_contexts = pd.concat([df_contexts_og, df_contexts_random], axis=0, ignore_index=True)
+                    else:
+                        df_contexts =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=self.config.top_k,random_state=self.config.seed)
+                    df_contexts.loc[:, "question"] = question
+                    df_contexts.loc[:, "question_id"] = question_id
+                    df_contexts.loc[:, "answerable"] = False
+                    df_contexts.loc[:, "answer_start"] = ""
+                    df_contexts.loc[:, "answer_text"] = ""
+                    
+                    original_context_idx = df_contexts.loc[df_contexts["context_id"] == context_id]
+                    if (len(original_context_idx) == 0):    
+                        # print(f"original paragraph not in top k {unmatched}")
+                        unmatched+=1
+                    else:
+                        row_dict = row.to_dict()
+                        df_contexts.loc[df_contexts["context_id"] == context_id, row_dict.keys()] = row_dict.values()
                 df_test_matched = pd.concat([df_test_matched, df_contexts], axis=0, ignore_index=True)
 
         # print(f"original paragraph not in top k {unmatched}")
