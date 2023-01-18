@@ -36,8 +36,6 @@ training:
   sched_params:
     monitor: val_loss
   evaluate_every: 1
-  lr_start_factor : 0.5
-  lr_total_iters : 4
   lr_flag : True
   
 
