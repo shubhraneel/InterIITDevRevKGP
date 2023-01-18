@@ -12,6 +12,7 @@ import os
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from transformers import get_scheduler
 
 from utils import compute_f1
 from data import SQuAD_Dataset
@@ -35,7 +36,7 @@ class Trainer():
         self.optimizer = optimizer
         self.model = model
 
-
+        
         wandb.watch(self.model)
 
         self.ques2idx = ques2idx
@@ -45,6 +46,8 @@ class Trainer():
 
         self.prepared_test_loader=None
         self.prepared_test_df_matched=None
+        
+        if self.config.training.lr_flag: self.scheduler = get_scheduler(self.config.scheduler,self.optimizer, num_warmup_steps=0, num_training_steps=1840*self.config.training.epochs)
 
         self.best_val_loss=1e9
 
@@ -53,6 +56,7 @@ class Trainer():
         self.onnx_runtime_session = None
         if (self.config.ONNX):
             self.model.export_to_onnx(tokenizer)
+
             # TODO Handle this case when using quantization without ONNX using torch.quantization
         
             if (self.config.quantize):
@@ -68,6 +72,7 @@ class Trainer():
     def _train_step(self, dataloader, epoch):
         total_loss = 0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
+        
         for batch_idx, batch in enumerate(tepoch):
             tepoch.set_description(f"Epoch {epoch + 1}")
             if (len(batch["question_context_input_ids"].shape) == 1):
@@ -86,7 +91,9 @@ class Trainer():
             tepoch.set_postfix(loss = total_loss / (batch_idx + 1))
             wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
             
+            
             self.optimizer.step()
+            if self.config.training.lr_flag: self.scheduler.step()
             self.optimizer.zero_grad()
 
         wandb.log({"train_epoch_loss": total_loss / (batch_idx + 1)})

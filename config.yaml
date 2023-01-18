@@ -11,6 +11,7 @@ load_path: drqa-sentence-bert-medium-squad-v2-onnx-quantized
 use_drqa: True
 create_drqa_tfidf: True
 top_k: 5
+scheduler: "linear"
 sentence_level: True
 quantize: True
 ONNX: True
@@ -36,6 +37,8 @@ training:
   sched_params:
     monitor: val_loss
   evaluate_every: 1
+  lr_flag : False
+  
 
 model:
   model_path: mrm8488/bert-medium-finetuned-squadv2
