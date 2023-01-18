@@ -45,7 +45,7 @@ class Trainer():
 
         self.prepared_test_loader=None
         self.prepared_test_df_matched=None
-
+        if self.config.training.lr_flag: self.scheduler = get_scheduler(self.config.scheduler,self.optimizer, num_warmup_steps=0, num_training_steps=1840*self.config.training.epochs)
 
         # setup onnx runtime if config.onnx is true
         self.onnx_runtime_session = None
@@ -67,7 +67,7 @@ class Trainer():
     def _train_step(self, dataloader, epoch):
         total_loss = 0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
-        if self.config.training.lr_flag: self.scheduler = get_scheduler(self.config.scheduler,self.optimizer, num_warmup_steps=0.2*len(dataloader), num_training_steps=len(dataloader))
+        
         for batch_idx, batch in enumerate(tepoch):
             tepoch.set_description(f"Epoch {epoch + 1}")
             if (len(batch["question_context_input_ids"].shape) == 1):
