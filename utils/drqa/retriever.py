@@ -384,7 +384,7 @@ class RetrieverTwoLevel(object):
         if (len(para_names_filtered) > k):
             para_names_filtered = para_names_filtered[0:k]
 
-        sent_names, sent_scores = self.ranker.closest_docs(question, 100000)
+        sent_names, sent_scores = self.ranker_sent.closest_docs(question, 100000)
         sent_names_filtered = [sent for sent in sent_names if sent.split('_')[0] in para_names_filtered]
         
         if (len(sent_names_filtered) > k):
