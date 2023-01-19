@@ -83,7 +83,7 @@ def reformat_data_for_sqlite(df, split, drqa_mode):
 			# # dataframe with sentence and sentence id
 			# context_doc_id=pd.concat([context_doc_id,df_local],axis=0)
 			# TODO: do not concat df
-		context_doc_id = pd.Dataframe.from_dict({
+		context_doc_id = pd.DataFrame.from_dict({
 			"text": sent_list_all,
 			"id": sent_id_all
 		})
@@ -117,7 +117,7 @@ def reformat_data_for_sqlite(df, split, drqa_mode):
 			# # dataframe with sentence and sentence id
 			# context_doc_id=pd.concat([context_doc_id,df_local],axis=0)
 			# TODO: do not concat df
-		context_doc_id = pd.Dataframe.from_dict({
+		context_doc_id = pd.DataFrame.from_dict({
 			"text": sent_list_all,
 			"id": sent_id_all,
 			"con_id": con_id_all
@@ -130,7 +130,7 @@ def reformat_data_for_sqlite(df, split, drqa_mode):
 		for i in set(context_doc_id['con_id']):
 			con_id_2_sent_ids[i] = list(context_doc_id[context_doc_id['con_id'] == i]['sent_id'])
 		with open("data-dir/{}/con_id_2_sent_ids.json".format(split), "w+") as f:
-			json.dump(f, con_id_2_sent_ids)
+			json.dump(con_id_2_sent_ids, f)
 		context_doc_id_original["id"] = context_doc_id_original["id"].astype(str)
 		context_doc_id_original.to_json(
 			"data-dir/{}/contexts.json".format(split), orient="records", lines=True)
@@ -147,23 +147,25 @@ def reformat_data_for_sqlite(df, split, drqa_mode):
 
 
 def prepare_retriever(df, db_path, split, drqa_mode):
-	# reformats and saves the df
-	reformat_data_for_sqlite(df, f"{split}", drqa_mode)
-	if (os.path.exists(f"data-dir/{split}/{db_path}")):
-		os.remove(f"data-dir/{split}/{db_path}")
-	# creates database from stored json
-	store_contents(data_path=f"data-dir/{split}/contexts.json",
-				   save_path=f"data-dir/{split}/{db_path}", preprocess=None, num_workers=2)
-	build_tf_idf_wrapper(db_path=f"data-dir/{split}/{db_path}",
-						 out_dir=f"data-dir/{split}", ngram=3, hash_size=(2**25), num_workers=2)
-	if drqa_mode == "both":
-		store_contents(data_path=f"data-dir/{split}/sentences.json",
-				   save_path=f"data-dir/{split}/sen_{db_path}", preprocess=None, num_workers=2)
-		build_tf_idf_wrapper(db_path=f"data-dir/{split}/sen_{db_path}",
-							out_dir=f"data-dir/{split}", ngram=3, hash_size=(2**25), num_workers=2)
+    # reformats and saves the df
+    reformat_data_for_sqlite(df, f"{split}", drqa_mode)
+    if (os.path.exists(f"data-dir/{split}/{db_path}")):
+        os.remove(f"data-dir/{split}/{db_path}")
+    # creates database from stored json
+    store_contents(data_path=f"data-dir/{split}/contexts.json",
+                   save_path=f"data-dir/{split}/{db_path}", preprocess=None, num_workers=2)
+    build_tf_idf_wrapper(db_path=f"data-dir/{split}/{db_path}",
+                         out_dir=f"data-dir/{split}", ngram=3, hash_size=(2**25), num_workers=2)
+    if drqa_mode == "both":
+        if (os.path.exists(f"data-dir/{split}/sen_{db_path}")):
+            os.remove(f"data-dir/{split}/sen_{db_path}")
+        store_contents(data_path=f"data-dir/{split}/sentences.json",
+                   save_path=f"data-dir/{split}/sen_{db_path}", preprocess=None, num_workers=2)
+        build_tf_idf_wrapper(db_path=f"data-dir/{split}/sen_{db_path}",
+                            out_dir=f"data-dir/{split}", ngram=3, hash_size=(2**25), num_workers=2)
 
-	# TODO: build tf-idf for both context and sentence
-	# store context id to sentence id mapping in metadata
+    # TODO: build tf-idf for both context and sentence
+    # store context id to sentence id mapping in metadata
 
 
 if __name__ == "__main__":
@@ -255,12 +257,12 @@ if __name__ == "__main__":
 				tfidf_path = "data-dir/test/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
 				questions_df = df_test[["question", "title_id","sentence_index"]]
 				db_path = "data-dir/test/sqlite_con.db"
-				test_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level)
+				test_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=(config.drqa_mode=="sentence"))
 		
 				tfidf_path = "data-dir/val/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
 				questions_df = df_val[["question", "title_id","sentence_index"]]
 				db_path = "data-dir/val/sqlite_con.db"
-				val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level)
+				val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=(config.drqa_mode=="sentence"))
 			elif config.drqa_mode == "both":
 				tfidf_path = "data-dir/test/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
 				questions_df = df_test[["question", "title_id","sentence_index"]]

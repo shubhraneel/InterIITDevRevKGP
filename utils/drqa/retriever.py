@@ -52,24 +52,36 @@ class TfidfDocRanker(object):
         """
         spvec = self.text2spvec(query)
         if filter is None:
+            print("spvec.shape", spvec.shape)
+            print("self.doc_mat.shape", self.doc_mat.shape)
             res = spvec * self.doc_mat
         else:
-            res = spvec * self.doc_mat[filter]
+            print("spvec.shape", spvec.shape)
+            print("len(filter)", len(filter))
+            print("self.doc_mat[:, filter].shape", self.doc_mat[:, filter].shape)
+            res = spvec * self.doc_mat[:, filter]
 
         # print(f"{res.data.shape=}")
         # print(f"{type(res)=}")
 
         if len(res.data) <= k:
+            print("resdatashape (less k)", res.data.shape)
             o_sort = np.argsort(-res.data)
         else:
+            print("resdatashape", res.data.shape)
+            print("resdatashape_argp", np.argpartition(-res.data, k).shape)
             o = np.argpartition(-res.data, k)[0:k]
             o_sort = o[np.argsort(-res.data[o])]
 
         doc_scores = res.data[o_sort]
+        print("osort", o_sort)
+        print("res.indices[o_sort]", res.indices[o_sort])
         if filter is None:
             doc_ids = [self.get_doc_id(i) for i in res.indices[o_sort]]
         else:
             doc_ids = [self.get_doc_id(filter[i]) for i in res.indices[o_sort]]
+        print("doc_ids", doc_ids)
+        print("doc_scores", doc_scores)
         return doc_ids, doc_scores
 
     def batch_closest_docs(self, queries, k=1, num_workers=None):
@@ -193,6 +205,9 @@ class Retriever(object):
         doc_text_filtered = [self.fetch_text(idx) for idx in doc_names_filtered]
         doc_names_filtered = [doc.split('_')[0] for doc in doc_names_filtered]
         # print(self.con_title_id_dict)
+
+        print(doc_text_filtered)
+        print(doc_names_filtered)
 
         return doc_names_filtered, doc_text_filtered
 

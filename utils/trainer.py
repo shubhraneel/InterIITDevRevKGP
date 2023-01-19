@@ -250,10 +250,16 @@ class Trainer():
                     question_id = row["question_id"]
                     context_id = row["context_id"]
                     doc_con_idx_filtered, doc_con_text_filtered = para_retriever.retrieve_top_k(question, str(title_id), k=self.config.top_k_para)
+                    print("context filtered")
                     filter_sents = []
                     for idx in doc_con_idx_filtered:
                         filter_sents.extend(self.test_con_id_2_sent_ids[idx])
+                    print(filter_sents)
+                    print(doc_con_idx_filtered)
                     doc_idx_filtered, doc_text_filtered = sent_retriever.retrieve_top_k(question, str(title_id), k=self.config.top_k_sent, filter=filter_sents)
+                    print("sentence filtered")
+                    print(doc_idx_filtered)
+                    print(doc_text_filtered)
                     # TODO: confirm this part
                     df_contexts =  df_unique_con.loc[df_unique_con['title_id']==title_id].sample(n=1,random_state=self.config.seed)
                     df_contexts.loc[:, "question"] = question
