@@ -235,9 +235,9 @@ if __name__ == "__main__":
 
     if config.use_drqa and config.create_drqa_tfidf:
         print("using drqa")
-        prepare_retriever(df_val, "sqlite_con.db", "val", config.sentence_level)
-        prepare_retriever(df_train, "sqlite_con.db", "train", False)
-        prepare_retriever(df_test, "sqlite_con.db", "test", config.sentence_level)
+        prepare_retriever(df_val, "sqlite_con.db", "val", config.sentence_level,config.two_level_drqa)
+        prepare_retriever(df_train, "sqlite_con.db", "train",False, False)
+        prepare_retriever(df_test, "sqlite_con.db", "test", config.sentence_level,config.two_level_drqa)
 
     if config.create_dense_embeddings:
         print("Creating dense embeddings")
