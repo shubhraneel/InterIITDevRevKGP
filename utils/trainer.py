@@ -204,7 +204,8 @@ class Trainer():
             out = QuestionAnsweringModelOutput(
                 # loss = torch.tensor(ort_outputs[0]),
                 start_logits = torch.tensor(ort_outputs[0]),
-                end_logits = torch.tensor(ort_outputs[1])
+                end_logits = torch.tensor(ort_outputs[1]),
+                hidden_states = torch.unbind(torch.tensor(np.array(ort_outputs[2:])))
             )
 
             return out

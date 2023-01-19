@@ -5,13 +5,23 @@ from transformers import AutoModelForQuestionAnswering
 from pathlib import Path
 from transformers.onnx import FeaturesManager
 import transformers
+from collections import OrderedDict
+
+# Hardcoding the Feature Object to output hidden_states as well
+transformers.onnx.config.OnnxConfig._tasks_to_common_outputs['question-answering'] = OrderedDict(
+    {
+        "hidden_states": {0: "seq_len", 1: "batch", 2: "sequence", 3: "hidden_size"},
+        "start_logits": {0: "batch", 1: "sequence"},
+        "end_logits": {0: "batch", 1: "sequence"},
+    }
+)
 
 class BaselineQA(nn.Module):
     def __init__(self, config, device):
         super(BaselineQA, self).__init__()
 
         self.config = config 
-        self.model = AutoModelForQuestionAnswering.from_pretrained(self.config.model.model_path)
+        self.model = AutoModelForQuestionAnswering.from_pretrained(self.config.model.model_path, output_hidden_states=True)
         if config.model.two_step_loss:
             self.score=nn.Linear(config.model.dim,1)
             self.loss_fct=nn.BCEWithLogitsLoss()
