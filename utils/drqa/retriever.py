@@ -381,8 +381,8 @@ class RetrieverTwoLevel(object):
         para_names, para_scores = self.ranker_para.closest_docs(question, 100000)
         para_names_filtered = [para for para in para_names if self.con_title_id_dict[para] == title_id]
         
-        if (len(para_names_filtered) > k):
-            para_names_filtered = para_names_filtered[0:k]
+        if (len(para_names_filtered) > 3*k):
+            para_names_filtered = para_names_filtered[0:3*k]
 
         sent_names, sent_scores = self.ranker_sent.closest_docs(question, 100000)
         sent_names_filtered = [sent for sent in sent_names if sent.split('_')[0] in para_names_filtered]
@@ -404,8 +404,8 @@ class RetrieverTwoLevel(object):
             if row['answerable']:
                 num_tot+=1
                 doc_names,_ = self.retrieve_top_k(
-                    row['Question'], title=str(row['title_id']), k=k)
-                if f"{row['context_id']}_{row['Sentence Index']}" in doc_names:
+                    row['question'], title_id=str(row['title_id']), k=k)
+                if f"{row['context_id']}_{int(row['Sentence Index'])}" in doc_names:
                     num_cor+=1
         ttime_elapsed = int(round(time.time()*1000)) - tsince
         ttime_per_example = ttime_elapsed/self.df_q.shape[0]
