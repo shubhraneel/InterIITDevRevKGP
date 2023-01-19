@@ -259,14 +259,6 @@ class Trainer():
         
         test_ds = SQuAD_Dataset(self.config, df_test_matched, self.tokenizer) #, hide_tqdm=True
 
-        # Print the dataset
-
-        op = open('dataframe.txt', 'w')
-
-        for counter in range(len(test_ds)):
-            op.write(test_ds.print_row(counter, return_dict=True))
-        op.close()
-
         test_dataloader = DataLoader(test_ds, batch_size=self.config.data.val_batch_size, collate_fn=test_ds.collate_fn)
         time_test_dataloader_generation=1000*(time.time() - start_time)
         print(time_test_dataloader_generation)
