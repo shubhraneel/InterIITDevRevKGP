@@ -396,25 +396,22 @@ class RetrieverTwoLevel(object):
         return sent_names_filtered, sent_text_filtered
 
     def retriever_accuracy_experiment(self,k=5):
-        if(self.sentence_level):
-            print("only for answerable questions")
-            num_tot=0
-            num_cor=0
-            tsince = int(round(time.time()*1000))
-            for idx, row in self.df_q.iterrows():
-                if row['answerable']:
-                    num_tot+=1
-                    doc_names = self.retrieve_top_k(
-                        row['Question'], title=str(row['title_id']), k=k)
-                    if f"{row['context_id']}_{row['Sentence Index']}" in doc_names:
-                        num_cor+=1
-            ttime_elapsed = int(round(time.time()*1000)) - tsince
-            ttime_per_example = ttime_elapsed/self.df_q.shape[0]
-            print(f"Accuracy {num_cor/num_tot}")
-            print(f'test time elapsed {ttime_elapsed} ms')
-            print(f'test time elapsed per example {ttime_per_example} ms')
-        else:
-            print("not implemented use classical/task1/")
-
+        print("only for answerable questions")
+        num_tot=0
+        num_cor=0
+        tsince = int(round(time.time()*1000))
+        for idx, row in self.df_q.iterrows():
+            if row['answerable']:
+                num_tot+=1
+                doc_names,_ = self.retrieve_top_k(
+                    row['Question'], title=str(row['title_id']), k=k)
+                if f"{row['context_id']}_{row['Sentence Index']}" in doc_names:
+                    num_cor+=1
+        ttime_elapsed = int(round(time.time()*1000)) - tsince
+        ttime_per_example = ttime_elapsed/self.df_q.shape[0]
+        print(f"Accuracy {num_cor/num_tot}")
+        print(f'test time elapsed {ttime_elapsed} ms')
+        print(f'test time elapsed per example {ttime_per_example} ms')
+    
     def fetch_text(self, doc_id):
         return self.PROCESS_DB_SENT.get_doc_text(doc_id)
