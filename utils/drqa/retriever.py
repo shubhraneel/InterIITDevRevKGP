@@ -353,3 +353,68 @@ class Retriever(object):
 
 
 # RetrieverFinal().predict_all()
+
+class RetrieverTwoLevel(object):
+    def __init__(self, tfidf_path_sent, tfidf_path_para, questions_df, con_idx_2_title_idx, db_path_sent):
+        logger = logging.getLogger()
+        logger.setLevel(logging.INFO)
+        fmt = logging.Formatter('%(asctime)s: [ %(message)s ]', '%m/%d/%Y %I:%M:%S %p')
+        console = logging.StreamHandler()
+        console.setFormatter(fmt)
+        logger.addHandler(console)
+        logger.info('Initializing ranker...')
+
+        self.ranker_para = TfidfDocRanker(tfidf_path=tfidf_path_para)
+        self.ranker_sent = TfidfDocRanker(tfidf_path=tfidf_path_sent)
+
+        # all at once
+        
+        self.df_q = questions_df
+        
+        self.con_title_id_dict = con_idx_2_title_idx
+        self.con_title_id_dict = {str(key): str(val) for key, val in self.con_title_id_dict.items()}
+
+        self.PROCESS_DB_SENT = DocDB(db_path=db_path_sent)
+        Finalize(self.PROCESS_DB_SENT, self.PROCESS_DB_SENT.close, exitpriority=100)
+
+    def retrieve_top_k(self, question, title_id, k=1):
+        para_names, para_scores = self.ranker_para.closest_docs(question, 100000)
+        para_names_filtered = [para for para in para_names if self.con_title_id_dict[para] == title_id]
+        
+        if (len(para_names_filtered) > k):
+            para_names_filtered = para_names_filtered[0:k]
+
+        sent_names, sent_scores = self.ranker.closest_docs(question, 100000)
+        sent_names_filtered = [sent for sent in sent_names if sent.split('_')[0] in para_names_filtered]
+        
+        if (len(sent_names_filtered) > k):
+            sent_names_filtered = sent_names_filtered[0:k]
+
+        sent_text_filtered = [self.fetch_text(idx) for idx in sent_names_filtered]
+        # sent_names_filtered = [sent.split('_')[0] for sent in sent_names_filtered]
+        
+        return sent_names_filtered, sent_text_filtered
+
+    def retriever_accuracy_experiment(self,k=5):
+        if(self.sentence_level):
+            print("only for answerable questions")
+            num_tot=0
+            num_cor=0
+            tsince = int(round(time.time()*1000))
+            for idx, row in self.df_q.iterrows():
+                if row['answerable']:
+                    num_tot+=1
+                    doc_names = self.retrieve_top_k(
+                        row['Question'], title=str(row['title_id']), k=k)
+                    if f"{row['context_id']}_{row['Sentence Index']}" in doc_names:
+                        num_cor+=1
+            ttime_elapsed = int(round(time.time()*1000)) - tsince
+            ttime_per_example = ttime_elapsed/self.df_q.shape[0]
+            print(f"Accuracy {num_cor/num_tot}")
+            print(f'test time elapsed {ttime_elapsed} ms')
+            print(f'test time elapsed per example {ttime_per_example} ms')
+        else:
+            print("not implemented use classical/task1/")
+
+    def fetch_text(self, doc_id):
+        return self.PROCESS_DB_SENT.get_doc_text(doc_id)
