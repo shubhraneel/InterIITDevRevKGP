@@ -58,7 +58,7 @@ class BaselineQA(nn.Module):
             mlp_out = self.span_mlp(span_embeddings).squeeze(-1)
             loss = F.cross_entropy(mlp_out, batch["span_indices"].to(self.device))
             out.loss = loss
-            return out, torch.nn.functional.softmax(mlp_out, dim=1)
+            return out, mlp_out
 
         return out  
 
