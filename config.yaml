@@ -30,7 +30,7 @@ data:
   answer_max_len: 10
 
 training:
-  epochs: 3
+  epochs: 10
   optimizer: adam
   lr: 0.00002
   sched_function: none
