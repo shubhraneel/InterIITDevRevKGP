@@ -14,7 +14,7 @@ class BaselineQA(nn.Module):
         self.model = AutoModelForQuestionAnswering.from_pretrained(self.config.model.model_path)
         if config.model.two_step_loss:
             self.score=nn.Linear(config.model.dim,1)
-            self.loss_fct=nn.BCEWithLogitsLoss()
+            self.loss_fct=nn.BCELoss()
 
         self.device = device
 
@@ -100,17 +100,17 @@ class QA_with_head(nn.Module):
 
             return (out,torch.nn.functional.softmax(scores))
 
+        cls_representations = out["hidden_states"][-1][:, 0, :]
+        cls_representations = self.classifier_hidden(cls_representations)
+        cls_representations = self.classifier_dropout(cls_representations)
+        cls_representations = self.output_layer(cls_representations)
+        cls_representations = cls_representations.squeeze(dim=-1)
+        cls_representations = self.sigmoid(cls_representations)
+        out["confidence"] = cls_representations
         if out.loss != None :
-            cls_representations = out["hidden_states"][-1][:, 0, :]
-            cls_representations = self.classifier_hidden(cls_representations)
-            cls_representations = self.classifier_dropout(cls_representations)
-            cls_representations = self.output_layer(cls_representations)
-            cls_representations = cls_representations.squeeze(dim=-1)
-            cls_representations = self.sigmoid(cls_representations)
             answerable = torch.tensor(batch["answerable"],dtype = torch.float32).to(self.device)
             clf_loss = self.loss_classifier(cls_representations, answerable)
             out.loss += clf_loss
-
         return out  
 
     def export_to_onnx(self, tokenizer):

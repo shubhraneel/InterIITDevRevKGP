@@ -259,7 +259,6 @@ class Trainer():
         self.prepared_test_loader=test_dataloader
         self.prepared_test_df_matched=df_test_matched
 
-
     def inference(self, df_test,retriever,prefix,device,do_prepare):
         self.model.to(device)
         self.device = device
@@ -317,7 +316,80 @@ class Trainer():
         
         return question_prediction_dict
 
-    def calculate_metrics(self, df_test,retriever,prefix,device,do_prepare):
+    def inference_new(self, df_test,retriever,prefix,device,do_prepare):
+        self.model.to(device)
+        self.device = device
+        self.model.device = device
+        
+        if do_prepare:
+          self.prepare_df_before_inference(df_test,retriever,prefix,device)
+        
+        start_time=time.time()
+        
+        question_prediction_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
+        
+        # TODO: without sequentional batch iteration
+        for qp_batch_id, qp_batch in tqdm(enumerate(self.prepared_test_loader),total=len(self.prepared_test_loader)):
+            if (len(qp_batch['question_context_input_ids'].shape) == 1):
+                qp_batch['question_context_input_ids'] = qp_batch['question_context_input_ids'].unsqueeze(dim=0)
+                qp_batch['question_context_attention_mask'] = qp_batch['question_context_attention_mask'].unsqueeze(dim=0)
+                if not self.config.model.non_pooler:
+                    qp_batch['question_context_token_type_ids'] = qp_batch['question_context_token_type_ids'].unsqueeze(dim=0)
+            # para, para_id, theme, theme_id, question, question_id
+            pred = self.predict(qp_batch)
+            # print(pred.start_logits.shape) -> [32,512]
+            start_probs=F.softmax(pred.start_logits,dim=1)  # -> [32,512]
+            end_probs=F.softmax(pred.end_logits,dim=1)    # -> [32,512]
+            
+            start_probs.to("cpu")
+            end_probs.to("cpu")
+            
+            max_start_probs=torch.max(start_probs, axis=1)  # -> [32,1]
+            max_end_probs=torch.max(end_probs,axis=1)       # -> [32,1]
+            
+            confidence_scores=max_end_probs.values*max_start_probs.values  # -> [32,1]
+            
+            for batch_idx,q_id in enumerate(qp_batch["question_id"]):
+                  # using the context in the qp_pair get extract the span using max_start_prob and max_end_prob
+                  context = qp_batch["context"][batch_idx]
+                  offset_mapping = qp_batch["question_context_offset_mapping"][batch_idx]
+                  decoded_answer = ""
+                  start_index = None
+                  end_index = None
+                  s_probs = start_probs[batch_idx]
+                  e_probs = end_probs[batch_idx]
+                  right = [len(e_probs)-1]*len(e_probs)
+                  max_probs = 0.0
+                  for i in range(len(e_probs)-2, -1, -1):
+                    right[i]=right[i+1]
+                    if e_probs[right[i]]<e_probs[i] :
+                      right[i] = i
+                  for i in range(len(s_probs)):
+                    val1 = s_probs[i]
+                    val2 = e_probs[right[i]]
+                    if val1*val2 > max_probs:
+                      max_probs = val1*val2
+                      start_index = i
+                      end_index = right[i]
+                  
+                  if question_prediction_dict[q_id][0]<max_probs and abs(max_probs - confidence_scores[batch_idx])<0.1:
+                    if start_index is not None and (offset_mapping[start_index] is not None and offset_mapping[end_index] is not None):
+                        start_char = offset_mapping[start_index][0]
+                        end_char = offset_mapping[end_index][1]
+                        decoded_answer = context[start_char:end_char]
+                    if(len(decoded_answer)>0):
+                        question_prediction_dict[q_id]=(confidence_scores[batch_idx].item(),decoded_answer)
+        
+        time_inference_generation=1000*(time.time()-start_time)
+        
+        print(time_inference_generation)
+        print(time_inference_generation/df_test.shape[0])
+        wandb.log({prefix+"_time_inference_generation": time_inference_generation})
+        wandb.log({prefix+"_per_q_time_inference_generation": time_inference_generation/df_test.shape[0]})
+        
+        return question_prediction_dict
+
+    def calculate_metrics(self, df_test,retriever,prefix,device,do_prepare, version="new"):
         """
             1. Run the inference script
             2. Calculate the time taken
@@ -328,9 +400,24 @@ class Trainer():
         # TODO: check if this way of calculating the time is correct
         if device == 'cuda':
             torch.cuda.synchronize()
-        question_pred_dict= self.inference(df_test,retriever,prefix,device,do_prepare)
-        predicted_answers=[question_pred_dict[q_id][1] for q_id in df_test['question_id']]
-        gold_answers=df_test['answer_text'].tolist()
+        
+        predicted_answers = None
+        gold_answers = None
+        
+        if version == "new":
+          question_pred_dict= self.inference_new(df_test,retriever,prefix,device,do_prepare)
+          predicted_answers=[question_pred_dict[q_id][1] for q_id in df_test['question_id']]
+          gold_answers=df_test['answer_text'].tolist()
+          df = pd.DataFrame(list(zip(predicted_answers, gold_answers)),
+               columns =['Predicted_answers', 'Gold Labels'])
+          df.to_csv("new_version.csv")
+        else:
+          question_pred_dict= self.inference(df_test,retriever,prefix,device,do_prepare)
+          predicted_answers=[question_pred_dict[q_id][1] for q_id in df_test['question_id']]
+          gold_answers=df_test['answer_text'].tolist()
+          df = pd.DataFrame(list(zip(predicted_answers, gold_answers)),
+               columns =['Predicted_answers', 'Gold Labels'])
+          df.to_csv("old_version.csv")
         
         assert len(predicted_answers)==len(gold_answers)
         squad_f1_per_span = [compute_f1(predicted_answers[i],gold_answers[i])  for i in range(len(predicted_answers))]

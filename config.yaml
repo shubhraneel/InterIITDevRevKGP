@@ -1,13 +1,13 @@
 task: qa
 seed: 3407
-wandb_path: v2-inference-testing
+wandb_path: v2-clf_head_v4
 fewshot_qa: False
-inference_device: cpu
+inference_device: cuda
 train: False
 inference: True
 save_model_optimizer: False
-load_model_optimizer: False
-load_path: v2-inference-testing
+load_model_optimizer: True
+load_path: v2-clf_head_v4
 use_drqa: True
 create_drqa_tfidf: False
 top_k: 5
@@ -20,7 +20,7 @@ data:
   val_data_path: data-dir/val/df_val.pkl
   test_data_path: data-dir/test/df_test.pkl
   train_batch_size: 32
-  val_batch_size: 2
+  val_batch_size: 32
   apply_aliasing: False
   pad_on_right: True
   max_length: 512
@@ -28,7 +28,7 @@ data:
   tokenizer_batch_size: 32
 
 training:
-  epochs: 1
+  epochs: 10
   optimizer: adam
   lr: 0.00002
   sched_function: none
@@ -38,7 +38,7 @@ training:
   evaluate_every: 1
 
 model:
-  model_path: google/bert_uncased_L-2_H-128_A-2
+  model_path: google/bert_uncased_L-4_H-128_A-2
   params: {}
   non_pooler: False
   dim: 128
