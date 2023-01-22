@@ -9,6 +9,7 @@ save_model_optimizer: False
 load_model_optimizer: True
 load_path: drqa-sentence-bert-medium-squad-v2-onnx-quantized
 use_drqa: True
+use_dpr: False
 create_drqa_tfidf: False
 top_k: 5
 scheduler: "linear"
@@ -50,3 +51,7 @@ model:
   dim: 128
   span_level: False
   two_step_loss: False
+
+retriever:
+  query_model: "facebook/dpr-question_encoder-single-nq-base"
+  passage_model: "facebook/dpr-ctx_encoder-single-nq-base"
