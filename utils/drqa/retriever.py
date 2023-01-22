@@ -14,7 +14,11 @@ from functools import partial
 import numpy as np
 import scipy.sparse as sp
 import json
-
+import faiss
+from transformers import AutoTokenizer, AutoModel
+from allennlp.modules.span_extractors.endpoint_span_extractor import EndpointSpanExtractor
+import torch
+from sentence_transformers import SentenceTransformer, util
 
 class TfidfDocRanker(object):
     """Loads a pre-weighted inverted index of token/document terms.
@@ -118,6 +122,88 @@ class TfidfDocRanker(object):
 
         return spvec
 
+class BERTEmbeddingsRanker(object):
+    """Loads a pre-weighted inverted index of token/document terms.
+    Scores new queries by taking sparse dot products.
+    """
+
+    def __init__(self, tfidf_path, strict=False):
+        """
+        Args:
+            tfidf_path: path to saved model file
+            strict: fail on empty queries or continue (and return empty result)
+        """
+        self.normalize = True
+        if self.normalize:
+            self.doc_mat = torch.load("data-dir/test/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.pt")
+            self.doc_mat = self.doc_mat.cpu().numpy()
+
+        else:
+            doc_mat = np.load("data-dir/test/cls_embeddings.npy")
+
+        _ , metadata = docranker_utils.load_sparse_csr(tfidf_path)
+        # TODO Ojasv: Pass the path as a parameter
+        self.doc_dict = metadata['doc_dict']
+        self.num_docs = len(self.doc_dict[0])
+        self.strict = strict
+        # TODO Ojasv: Pass the path as a parameter
+        self.model = SentenceTransformer('sentence-transformers/multi-qa-distilbert-cos-v1')
+        self.tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+        d = self.doc_mat.shape[-1]
+
+        self.index = faiss.IndexFlatIP(d) 
+        self.index.add(self.doc_mat)
+        self.span_extractor = EndpointSpanExtractor(input_dim=768, combination="x,y")
+
+    def get_doc_index(self, doc_id):
+        """Convert doc_id --> doc_index"""
+        return self.doc_dict[0][doc_id]
+
+    def get_doc_id(self, doc_index):
+        """Convert doc_index --> doc_id"""
+        return self.doc_dict[1][doc_index]
+
+    def closest_docs(self, query, k=1):
+        """Closest docs by dot product between query and documents
+        in tfidf weighted word vector space.
+        """
+        text_embedding = self.model.encode(query, convert_to_tensor=True).cpu().numpy()
+        # scores = util.dot_score(text_embedding, self.doc_mat)[0].cpu().numpy()
+        # if self.normalize:
+        #     text_embedding = text_embedding / np.linalg.norm(text_embedding, axis=1, keepdims=True)
+        D, I = self.index.search(np.expand_dims(text_embedding, axis=0), self.num_docs)
+        D = D[0]
+        I = I[0]
+
+        doc_ids = [self.get_doc_id(i) for i in I]
+        doc_scores = D
+        # doc_score_pairs = list(zip(self.doc_dict[1], scores))
+        # doc_score_pairs = sorted(doc_score_pairs, key=lambda x: x[1], reverse=True)
+        # doc_ids = [x[0] for x in doc_score_pairs]
+        # doc_scores = [x[1] for x in doc_score_pairs]
+
+        return doc_ids, doc_scores
+
+    def get_embeddings(self, text):
+        encoded_input = self.tokenizer(text, padding=False, truncation=True, return_tensors='pt')
+        with torch.no_grad():
+            model_output = self.model(**encoded_input)
+        return model_output.last_hidden_state
+
+    def get_endpoint_span_embeddings(self, text):
+        embeddings = self.get_embeddings(text)
+        # extract the span from start till end, do it without gradient calculation
+        with torch.no_grad():
+            span_embeddings = self.span_extractor(embeddings, torch.tensor([[0, embeddings.shape[1]-1]]))
+        return span_embeddings
+
+    def return_cls_embedding(self, texts):
+        return self.get_embeddings(texts)[:,0,:]
+
+    def return_sentence_transformer_embeddings(self, texts):
+        return self.model.encode(texts, convert_to_tensor=True)
+
+
 
 
 # Theme-wise
@@ -153,7 +239,8 @@ class Retriever(object):
         logger.addHandler(console)
         logger.info('Initializing ranker...')
 
-        self.ranker = TfidfDocRanker(tfidf_path=tfidf_path)
+        # TODO Ojasv pass this as a parameter
+        self.ranker = BERTEmbeddingsRanker(tfidf_path=tfidf_path)
 
         # all at once
         self.sentence_level=sentence_level
@@ -185,7 +272,7 @@ class Retriever(object):
             doc_names_filtered = doc_names_filtered[0:k]
 
         doc_text_filtered = [self.fetch_text(idx) for idx in doc_names_filtered]
-        doc_names_filtered = [doc.split('_')[0] for doc in doc_names_filtered]
+        # doc_names_filtered = [doc.split('_')[0] for doc in doc_names_filtered]
         # print(self.con_title_id_dict)
 
         return doc_names_filtered, doc_text_filtered
@@ -199,9 +286,10 @@ class Retriever(object):
             for idx, row in self.df_q.iterrows():
                 if row['answerable']:
                     num_tot+=1
-                    doc_names = self.retrieve_top_k(
-                        row['Question'], title=str(row['title_id']), k=k)
-                    if f"{row['context_id']}_{row['Sentence Index']}" in doc_names:
+                    doc_names,_ = self.retrieve_top_k(
+                        row['question'], title_id=str(row['title_id']), k=k)
+                    # print(doc_names,f"{row['context_id']}_{int(row['Sentence Index'])}") 
+                    if f"{row['context_id']}_{int(row['Sentence Index'])}" in doc_names:
                         num_cor+=1
             ttime_elapsed = int(round(time.time()*1000)) - tsince
             ttime_per_example = ttime_elapsed/self.df_q.shape[0]
