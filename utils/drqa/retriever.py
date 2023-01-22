@@ -1,25 +1,24 @@
-
-from .DocRanker import DocDB
-from multiprocessing.util import Finalize
-import time
-import pandas as pd
+import json
 import logging
+import os
+import time
+from functools import partial
+from multiprocessing.pool import ThreadPool
+from multiprocessing.util import Finalize
+
+import faiss
+
 # import prettytable
 import numpy as np
+import pandas as pd
 import scipy.sparse as sp
-from .DocRanker import docranker_utils
-from .DocRanker.tokenizer import CoreNLPTokenizer
-from multiprocessing.pool import ThreadPool
-from functools import partial
-import numpy as np
-import scipy.sparse as sp
-import json
-import faiss
-from transformers import AutoTokenizer, AutoModel
-from allennlp.modules.span_extractors.endpoint_span_extractor import EndpointSpanExtractor
 import torch
 from sentence_transformers import SentenceTransformer, util
-import os
+from transformers import AutoModel, AutoTokenizer
+
+from .DocRanker import DocDB, docranker_utils
+from .DocRanker.tokenizer import CoreNLPTokenizer
+
 
 class TfidfDocRanker(object):
     """Loads a pre-weighted inverted index of token/document terms.
@@ -35,11 +34,11 @@ class TfidfDocRanker(object):
 
         matrix, metadata = docranker_utils.load_sparse_csr(tfidf_path)
         self.doc_mat = matrix
-        self.ngrams = metadata['ngram']
-        self.hash_size = metadata['hash_size']
+        self.ngrams = metadata["ngram"]
+        self.hash_size = metadata["hash_size"]
         self.tokenizer = CoreNLPTokenizer()
-        self.doc_freqs = metadata['doc_freqs'].squeeze()
-        self.doc_dict = metadata['doc_dict']
+        self.doc_freqs = metadata["doc_freqs"].squeeze()
+        self.doc_dict = metadata["doc_dict"]
         self.num_docs = len(self.doc_dict[0])
         self.strict = strict
 
@@ -84,8 +83,9 @@ class TfidfDocRanker(object):
         """Parse the query into tokens (either ngrams or tokens)."""
         # print(query)
         tokens = self.tokenizer.tokenize(query)
-        return tokens.ngrams(n=self.ngrams, uncased=True,
-                             filter_fn=docranker_utils.filter_ngram)
+        return tokens.ngrams(
+            n=self.ngrams, uncased=True, filter_fn=docranker_utils.filter_ngram
+        )
 
     def text2spvec(self, query):
         """Create a sparse tfidf-weighted word vector from query.
@@ -98,9 +98,9 @@ class TfidfDocRanker(object):
 
         if len(wids) == 0:
             if self.strict:
-                raise RuntimeError('No valid word in: %s' % query)
+                raise RuntimeError("No valid word in: %s" % query)
             else:
-                print('No valid word in: %s' % query)
+                print("No valid word in: %s" % query)
                 return sp.csr_matrix((1, self.hash_size))
 
         # Count TF
@@ -117,11 +117,10 @@ class TfidfDocRanker(object):
 
         # One row, sparse csr matrix
         indptr = np.array([0, len(wids_unique)])
-        spvec = sp.csr_matrix(
-            (data, wids_unique, indptr), shape=(1, self.hash_size)
-        )
+        spvec = sp.csr_matrix((data, wids_unique, indptr), shape=(1, self.hash_size))
 
         return spvec
+
 
 class DenseRanker(object):
     """Loads a pre-weighted inverted index of token/document terms.
@@ -134,25 +133,30 @@ class DenseRanker(object):
             tfidf_path: path to saved model file
             strict: fail on empty queries or continue (and return empty result)
         """
-        assert os.path.exists("data-dir/test/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy"), f"Dense test embedding path does not exist"
+        assert os.path.exists(
+            "data-dir/test/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy"
+        ), f"Dense test embedding path does not exist"
 
         # check if tfidf_path exists
         assert os.path.exists(tfidf_path), f"tfidf_path does not exist"
 
-        self.doc_mat = np.load("data-dir/test/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy")
+        self.doc_mat = np.load(
+            "data-dir/test/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy"
+        )
 
-        _ , metadata = docranker_utils.load_sparse_csr(tfidf_path)
+        _, metadata = docranker_utils.load_sparse_csr(tfidf_path)
         # TODO Ojasv: Pass the path as a parameter
-        self.doc_dict = metadata['doc_dict']
+        self.doc_dict = metadata["doc_dict"]
         self.num_docs = len(self.doc_dict[0])
         self.strict = strict
         # TODO Ojasv: Pass the path as a parameter
-        self.model = SentenceTransformer('sentence-transformers/multi-qa-distilbert-cos-v1')
+        self.model = SentenceTransformer(
+            "sentence-transformers/multi-qa-distilbert-cos-v1"
+        )
         d = self.doc_mat.shape[-1]
 
-        self.index = faiss.IndexFlatIP(d) 
+        self.index = faiss.IndexFlatIP(d)
         self.index.add(self.doc_mat)
-        self.span_extractor = EndpointSpanExtractor(input_dim=768, combination="x,y")
 
     def get_doc_index(self, doc_id):
         """Convert doc_id --> doc_index"""
@@ -176,7 +180,9 @@ class DenseRanker(object):
         return doc_ids, doc_scores
 
     def get_embeddings(self, text):
-        encoded_input = self.tokenizer(text, padding=False, truncation=True, return_tensors='pt')
+        encoded_input = self.tokenizer(
+            text, padding=False, truncation=True, return_tensors="pt"
+        )
         with torch.no_grad():
             model_output = self.model(**encoded_input)
         return model_output.last_hidden_state
@@ -185,16 +191,16 @@ class DenseRanker(object):
         embeddings = self.get_embeddings(text)
         # extract the span from start till end, do it without gradient calculation
         with torch.no_grad():
-            span_embeddings = self.span_extractor(embeddings, torch.tensor([[0, embeddings.shape[1]-1]]))
+            span_embeddings = self.span_extractor(
+                embeddings, torch.tensor([[0, embeddings.shape[1] - 1]])
+            )
         return span_embeddings
 
     def return_cls_embedding(self, texts):
-        return self.get_embeddings(texts)[:,0,:]
+        return self.get_embeddings(texts)[:, 0, :]
 
     def return_sentence_transformer_embeddings(self, texts):
         return self.model.encode(texts, convert_to_tensor=True)
-
-
 
 
 # Theme-wise
@@ -221,27 +227,37 @@ class DenseRanker(object):
 
 
 class Retriever(object):
-    def __init__(self, tfidf_path, questions_df, con_idx_2_title_idx, db_path, sentence_level=False, retriever_type='dense'):
+    def __init__(
+        self,
+        tfidf_path,
+        questions_df,
+        con_idx_2_title_idx,
+        db_path,
+        sentence_level=False,
+        retriever_type="dense",
+    ):
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
-        fmt = logging.Formatter('%(asctime)s: [ %(message)s ]', '%m/%d/%Y %I:%M:%S %p')
+        fmt = logging.Formatter("%(asctime)s: [ %(message)s ]", "%m/%d/%Y %I:%M:%S %p")
         console = logging.StreamHandler()
         console.setFormatter(fmt)
         logger.addHandler(console)
-        logger.info('Initializing ranker...')
+        logger.info("Initializing ranker...")
 
         # TODO Ojasv pass this as a parameter
-        if retriever_type == 'dense':
+        if retriever_type == "dense":
             self.ranker = DenseRanker(tfidf_path=tfidf_path)
         else:
             self.ranker = TfidfDocRanker(tfidf_path=tfidf_path)
 
         # all at once
-        self.sentence_level=sentence_level
+        self.sentence_level = sentence_level
         self.df_q = questions_df
         self.top_3_contexts = []
         self.con_title_id_dict = con_idx_2_title_idx
-        self.con_title_id_dict = {str(key): str(val) for key, val in self.con_title_id_dict.items()}
+        self.con_title_id_dict = {
+            str(key): str(val) for key, val in self.con_title_id_dict.items()
+        }
 
         self.PROCESS_DB = DocDB(db_path=db_path)
         Finalize(self.PROCESS_DB, self.PROCESS_DB.close, exitpriority=100)
@@ -256,13 +272,19 @@ class Retriever(object):
         # print(f"{self.con_title_id_dict['11']=}")
         # print(f"{[self.con_title_id_dict[doc] for doc in doc_names]=}")
         if self.sentence_level:
-            doc_names_filtered = [doc for doc in doc_names if self.con_title_id_dict[doc.split('_')[0]] == title_id]
+            doc_names_filtered = [
+                doc
+                for doc in doc_names
+                if self.con_title_id_dict[doc.split("_")[0]] == title_id
+            ]
         else:
-            doc_names_filtered = [doc for doc in doc_names if self.con_title_id_dict[doc] == title_id]
-        
+            doc_names_filtered = [
+                doc for doc in doc_names if self.con_title_id_dict[doc] == title_id
+            ]
+
         # print(doc_names_filtered)
 
-        if (len(doc_names_filtered) > k):
+        if len(doc_names_filtered) > k:
             doc_names_filtered = doc_names_filtered[0:k]
 
         doc_text_filtered = [self.fetch_text(idx) for idx in doc_names_filtered]
@@ -271,25 +293,26 @@ class Retriever(object):
 
         return doc_names_filtered, doc_text_filtered
 
-    def retriever_accuracy_experiment(self,k=5):
-        if(self.sentence_level):
+    def retriever_accuracy_experiment(self, k=5):
+        if self.sentence_level:
             print("only for answerable questions")
-            num_tot=0
-            num_cor=0
-            tsince = int(round(time.time()*1000))
+            num_tot = 0
+            num_cor = 0
+            tsince = int(round(time.time() * 1000))
             for idx, row in self.df_q.iterrows():
-                if row['answerable']:
-                    num_tot+=1
-                    doc_names,_ = self.retrieve_top_k(
-                        row['question'], title_id=str(row['title_id']), k=k)
-                    # print(doc_names,f"{row['context_id']}_{int(row['Sentence Index'])}") 
+                if row["answerable"]:
+                    num_tot += 1
+                    doc_names, _ = self.retrieve_top_k(
+                        row["question"], title_id=str(row["title_id"]), k=k
+                    )
+                    # print(doc_names,f"{row['context_id']}_{int(row['Sentence Index'])}")
                     if f"{row['context_id']}_{int(row['Sentence Index'])}" in doc_names:
-                        num_cor+=1
-            ttime_elapsed = int(round(time.time()*1000)) - tsince
-            ttime_per_example = ttime_elapsed/self.df_q.shape[0]
+                        num_cor += 1
+            ttime_elapsed = int(round(time.time() * 1000)) - tsince
+            ttime_per_example = ttime_elapsed / self.df_q.shape[0]
             print(f"Accuracy {num_cor/num_tot}")
-            print(f'test time elapsed {ttime_elapsed} ms')
-            print(f'test time elapsed per example {ttime_per_example} ms')
+            print(f"test time elapsed {ttime_elapsed} ms")
+            print(f"test time elapsed per example {ttime_per_example} ms")
         else:
             print("not implemented use classical/task1/")
 
@@ -297,9 +320,10 @@ class Retriever(object):
         self.top_3_contexts_ids = []
         for idx, row in self.df_q.iterrows():
             doc_names = self.retrieve_top_k(
-                row['Question'], title=str(row['title_id']), k=k)
+                row["Question"], title=str(row["title_id"]), k=k
+            )
             self.top_3_contexts_ids.append(doc_names)
-        
+
         return self.top_3_contexts_ids
 
     def fetch_text(self, doc_id):
@@ -326,5 +350,6 @@ class Retriever(object):
     #     print(f'Batched test time elapsed {ttime_elapsed} ms')
     #     print(
     #         f'Batched test time elapsed per example {ttime_per_example} ms')
+
 
 # RetrieverFinal().predict_all()

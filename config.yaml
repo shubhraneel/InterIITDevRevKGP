@@ -2,7 +2,7 @@ task: qa
 seed: 3407
 wandb_path: drqa-sentence-bert-medium-squad-v2-onnx-quantized
 fewshot_qa: False
-inference_device: cuda
+inference_device: cpu
 train: False
 inference: True
 save_model_optimizer: False
@@ -15,7 +15,7 @@ scheduler: "linear"
 sentence_level: True
 quantize: False
 ONNX: False
-create_dense_embeddings: False
+create_dense_embeddings: True
 retriever_type: dense # dense or tfidf
 
 data:

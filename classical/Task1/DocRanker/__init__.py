@@ -1,7 +1,6 @@
-from . import utils
 import os
-DEFAULTS = {
-    'corenlp_classpath': os.getenv('CLASSPATH')
-}
-from .doc_db import DocDB
 
+from . import utils
+
+DEFAULTS = {"corenlp_classpath": os.getenv("CLASSPATH")}
+from .doc_db import DocDB
