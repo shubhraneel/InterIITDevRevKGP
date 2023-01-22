@@ -15,7 +15,8 @@ scheduler: "linear"
 sentence_level: True
 quantize: False
 ONNX: False
-normalize_embeddings: False
+create_dense_embeddings: False
+retriever_type: dense # dense or tfidf
 
 data:
   train_data_path: data-dir/train/df_train.pkl

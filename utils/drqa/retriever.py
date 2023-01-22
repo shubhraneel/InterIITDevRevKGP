@@ -19,6 +19,7 @@ from transformers import AutoTokenizer, AutoModel
 from allennlp.modules.span_extractors.endpoint_span_extractor import EndpointSpanExtractor
 import torch
 from sentence_transformers import SentenceTransformer, util
+import os
 
 class TfidfDocRanker(object):
     """Loads a pre-weighted inverted index of token/document terms.
@@ -122,7 +123,7 @@ class TfidfDocRanker(object):
 
         return spvec
 
-class BERTEmbeddingsRanker(object):
+class DenseRanker(object):
     """Loads a pre-weighted inverted index of token/document terms.
     Scores new queries by taking sparse dot products.
     """
@@ -133,13 +134,12 @@ class BERTEmbeddingsRanker(object):
             tfidf_path: path to saved model file
             strict: fail on empty queries or continue (and return empty result)
         """
-        self.normalize = True
-        if self.normalize:
-            self.doc_mat = torch.load("data-dir/test/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.pt")
-            self.doc_mat = self.doc_mat.cpu().numpy()
+        assert os.path.exists("data-dir/test/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy"), f"Dense test embedding path does not exist"
 
-        else:
-            doc_mat = np.load("data-dir/test/cls_embeddings.npy")
+        # check if tfidf_path exists
+        assert os.path.exists(tfidf_path), f"tfidf_path does not exist"
+
+        self.doc_mat = np.load("data-dir/test/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy")
 
         _ , metadata = docranker_utils.load_sparse_csr(tfidf_path)
         # TODO Ojasv: Pass the path as a parameter
@@ -148,7 +148,6 @@ class BERTEmbeddingsRanker(object):
         self.strict = strict
         # TODO Ojasv: Pass the path as a parameter
         self.model = SentenceTransformer('sentence-transformers/multi-qa-distilbert-cos-v1')
-        self.tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
         d = self.doc_mat.shape[-1]
 
         self.index = faiss.IndexFlatIP(d) 
@@ -168,20 +167,12 @@ class BERTEmbeddingsRanker(object):
         in tfidf weighted word vector space.
         """
         text_embedding = self.model.encode(query, convert_to_tensor=True).cpu().numpy()
-        # scores = util.dot_score(text_embedding, self.doc_mat)[0].cpu().numpy()
-        # if self.normalize:
-        #     text_embedding = text_embedding / np.linalg.norm(text_embedding, axis=1, keepdims=True)
         D, I = self.index.search(np.expand_dims(text_embedding, axis=0), self.num_docs)
         D = D[0]
         I = I[0]
 
         doc_ids = [self.get_doc_id(i) for i in I]
         doc_scores = D
-        # doc_score_pairs = list(zip(self.doc_dict[1], scores))
-        # doc_score_pairs = sorted(doc_score_pairs, key=lambda x: x[1], reverse=True)
-        # doc_ids = [x[0] for x in doc_score_pairs]
-        # doc_scores = [x[1] for x in doc_score_pairs]
-
         return doc_ids, doc_scores
 
     def get_embeddings(self, text):
@@ -230,7 +221,7 @@ class BERTEmbeddingsRanker(object):
 
 
 class Retriever(object):
-    def __init__(self, tfidf_path, questions_df, con_idx_2_title_idx, db_path, sentence_level=False):
+    def __init__(self, tfidf_path, questions_df, con_idx_2_title_idx, db_path, sentence_level=False, retriever_type='dense'):
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
         fmt = logging.Formatter('%(asctime)s: [ %(message)s ]', '%m/%d/%Y %I:%M:%S %p')
@@ -240,7 +231,10 @@ class Retriever(object):
         logger.info('Initializing ranker...')
 
         # TODO Ojasv pass this as a parameter
-        self.ranker = BERTEmbeddingsRanker(tfidf_path=tfidf_path)
+        if retriever_type == 'dense':
+            self.ranker = DenseRanker(tfidf_path=tfidf_path)
+        else:
+            self.ranker = TfidfDocRanker(tfidf_path=tfidf_path)
 
         # all at once
         self.sentence_level=sentence_level

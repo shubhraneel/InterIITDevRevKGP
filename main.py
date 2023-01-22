@@ -20,10 +20,14 @@ from utils import build_tf_idf_wrapper, store_contents
 from nltk.tokenize import sent_tokenize
 import nltk  
 from tqdm import tqdm
+from utils.drqa.DocRanker import docranker_utils
+from utils.drqa.DocRanker.tokenizer import CoreNLPTokenizer
 
 from onnxruntime.transformers import optimizer as onnx_optimizer
 import onnxruntime
 import torch.onnx
+from sentence_transformers import SentenceTransformer
+import numpy as np
 
 def sent_index(text, para, ans_pos):
 	if ans_pos == False:
@@ -33,6 +37,13 @@ def sent_index(text, para, ans_pos):
 	for sent in sents:
 		if ans in sent:
 			return (sents.index(sent))
+
+def read_jsonl(file_path):
+	with open(file_path, 'r') as f:
+		data = []
+		for line in f:
+			data.append(json.loads(line))
+	return data
 
 
 def load_mappings():
@@ -97,6 +108,35 @@ def prepare_retriever(df, db_path, split, use_sentence_level):
 	build_tf_idf_wrapper(db_path=f"data-dir/{split}/{db_path}",
 						 out_dir=f"data-dir/{split}", ngram=3, hash_size=(2**25), num_workers=2)
 
+def prepare_dense_retriever(tfidf_path, use_sentence_level):
+
+	if "val" in tfidf_path:
+		mode = "val"
+	else:
+		mode = "test"
+
+	assert use_sentence_level, "Dense retriever only works with sentence level"
+	assert os.path.exists(tfidf_path), "tfidf_path does not exist"
+
+	_ , metadata = docranker_utils.load_sparse_csr(tfidf_path)
+	
+	test_data = read_jsonl(f"data-dir/{mode}/contexts.json")
+
+	texts = []
+	for id in metadata['doc_dict'][1]:
+		for point in test_data:
+			if point['id'] == id:
+				texts.append(point['text'])
+
+	# check the deivce
+	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+	model = SentenceTransformer('sentence-transformers/multi-qa-distilbert-cos-v1').to(device)
+	embeddings = model.encode(texts, show_progress_bar=True, convert_to_tensor=True).cpu().numpy()
+
+	# save the embeddings
+	np.save(f"data-dir/{mode}/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy", embeddings)
+
 
 if __name__ == "__main__":
 	nltk.download('punkt')
@@ -128,6 +168,11 @@ if __name__ == "__main__":
 		prepare_retriever(df_val, "sqlite_con.db", "val",config.sentence_level)
 		prepare_retriever(df_train, "sqlite_con.db", "train",False)
 		prepare_retriever(df_test, "sqlite_con.db", "test",config.sentence_level)
+
+	if config.create_dense_embeddings:
+		print("Creating dense embeddings")
+		prepare_dense_retriever("data-dir/val/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz",config.sentence_level)
+		prepare_dense_retriever("data-dir/test/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz",config.sentence_level)
 
 	# add local_files_only=local_files_only if using server
 	tokenizer = AutoTokenizer.from_pretrained(
@@ -186,13 +231,12 @@ if __name__ == "__main__":
 			tfidf_path = "data-dir/test/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
 			questions_df = df_test[["question", "title_id", "Sentence Index","context_id","answerable"]]
 			db_path = "data-dir/test/sqlite_con.db"
-			test_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level)
-			test_retriever.retriever_accuracy_experiment(k=10)
-			sys.exit(0)
+			test_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level, retriever_type=config.retriever_type)
+			test_retriever.retriever_accuracy_experiment(k=config.top_k)
 			tfidf_path = "data-dir/val/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
 			questions_df = df_val[["question", "title_id"]]
 			db_path = "data-dir/val/sqlite_con.db"
-			val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level)
+			val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level, retriever_type=config.retriever_type)
 
 		if (config.save_model_optimizer):
 			print("saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(config.load_path))
