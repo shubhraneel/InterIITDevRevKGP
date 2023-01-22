@@ -9,7 +9,7 @@ save_model_optimizer: True
 load_model_optimizer: False
 load_path: drqa-sentence-bert-medium-squad-v2-onnx-quantized
 use_drqa: True
-create_drqa_tfidf: True
+create_drqa_tfidf: False
 top_k: 5
 scheduler: "linear"
 sentence_level: True
@@ -27,9 +27,10 @@ data:
   max_length: 512
   doc_stride: 0
   tokenizer_batch_size: 32
+  answer_max_len: 10
 
 training:
-  epochs: 3
+  epochs: 10
   optimizer: adam
   lr: 0.00002
   sched_function: none
@@ -37,7 +38,7 @@ training:
   sched_params:
     monitor: val_loss
   evaluate_every: 1
-  lr_flag : False
+  lr_flag : True
   
 
 model:
@@ -48,4 +49,5 @@ model:
   noise_lambda: 0.15
   non_pooler: False
   dim: 128
+  span_level: False
   two_step_loss: False

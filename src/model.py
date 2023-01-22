@@ -1,10 +1,12 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from transformers import AutoModelForQuestionAnswering
 
 from pathlib import Path
 from transformers.onnx import FeaturesManager
 import transformers
+from allennlp.modules.span_extractors import EndpointSpanExtractor
 
 class BaselineQA(nn.Module):
     def __init__(self, config, device):
@@ -15,6 +17,15 @@ class BaselineQA(nn.Module):
         if config.model.two_step_loss:
             self.score=nn.Linear(config.model.dim,1)
             self.loss_fct=nn.BCEWithLogitsLoss()
+        elif config.model.span_level:
+            self.span_extractor = EndpointSpanExtractor(
+                input_dim = config.model.dim, 
+                num_width_embeddings = 10,
+                span_width_embedding_dim = config.model.dim
+            )
+            seq_indices = list(range(self.config.data.answer_max_len))
+            self.span_indices = [[x, y] for x in seq_indices for y in seq_indices if y - x >= 0 and y - x <= config.data.answer_max_len]
+            self.span_mlp = nn.Linear(config.model.dim*3, 1)
 
         self.device = device
 
@@ -38,6 +49,16 @@ class BaselineQA(nn.Module):
             out.loss+=self.loss_fct(scores,batch["answerable"])
 
             return (out,torch.nn.functional.softmax(scores))
+
+        elif self.config.model.span_level:
+            token_embeddings = out.hidden_states[-1]
+            span_indices = torch.tensor([self.span_indices for _ in range(batch["question_context_input_ids"].shape[0])])
+            span_indices = span_indices.to(self.device)
+            span_embeddings = self.span_extractor(token_embeddings, span_indices, sequence_mask=batch['question_context_attention_mask'].to(self.device))
+            mlp_out = self.span_mlp(span_embeddings).squeeze(-1)
+            loss = F.cross_entropy(mlp_out, batch["span_indices"].to(self.device))
+            out.loss = loss
+            return out, mlp_out
 
         return out  
 
