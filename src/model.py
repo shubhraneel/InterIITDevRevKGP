@@ -34,6 +34,7 @@ class BaselineQA(nn.Module):
                 if y - x >= 0 and y - x <= config.data.answer_max_len
             ]
             self.span_mlp = nn.Linear(config.model.dim * 3, 1)
+            self.loss_fct = nn.BCEWithLogitsLoss()
 
         self.device = device
 
@@ -77,7 +78,9 @@ class BaselineQA(nn.Module):
                 sequence_mask=batch["question_context_attention_mask"].to(self.device),
             )
             mlp_out = self.span_mlp(span_embeddings).squeeze(-1)
-            loss = F.cross_entropy(mlp_out, batch["span_indices"].to(self.device))
+            # loss = F.cross_entropy(mlp_out, batch["span_indices"].to(self.device))
+            binary_labels = F.one_hot(batch["span_indices"], num_classes=len(self.span_indices))
+            loss = self.loss_fct(mlp_out, binary_labels.to(device))
             out.loss = loss
             return out, mlp_out
 
