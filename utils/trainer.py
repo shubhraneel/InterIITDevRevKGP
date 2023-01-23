@@ -151,7 +151,7 @@ class Trainer:
             context = batch["context"][i]
 
             if self.config.model.span_level:
-                probs = F.softmax(out[1], dim=1)
+                probs = F.sigmoid(out[1], dim=1)
                 max_probs = torch.max(probs, axis=1)
 
                 idx = max_probs.indices[i].item()
@@ -476,7 +476,7 @@ class Trainer:
 
             # print(pred.start_logits.shape) -> [32,512]
             if self.config.model.span_level:
-                probs = F.softmax(pred[1], dim=1)
+                probs = F.sigmoid(pred[1], dim=1)
                 max_probs = torch.max(probs, axis=1)
                 confidence_scores = max_probs.values
             else:
