@@ -46,11 +46,7 @@ training:
   
 
 model:
-<<<<<<< HEAD
   model_path: mrm8488/bert-medium-finetuned-squadv2
-=======
-  model_path: google/bert_uncased_L-4_H-128_A-2
->>>>>>> 9072c4a5ff0e53ffca6b7bb791f1f25f4157cb0e
   params: {}
   non_pooler: False
   dim: 128
