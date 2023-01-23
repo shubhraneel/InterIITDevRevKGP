@@ -401,6 +401,9 @@ class Trainer:
                             df_contexts["context_id"] == context_id, row_dict.keys()
                         ] = row_dict.values()
                 elif self.config.use_dpr:
+                    question = row["question"]
+                    question_id = row["question_id"]
+                    context_id = row["context_id"]
                     contexts = retriever.retrieve(question, top_k=self.config.top_k)
                     contexts = [x.content for x in contexts]
                     df_contexts = df_unique_con.loc[
