@@ -5,18 +5,18 @@ fewshot_qa: False
 inference_device: cpu
 train: False
 inference: True
-save_model_optimizer: False
-load_model_optimizer: True
+save_model_optimizer: True
+load_model_optimizer: False
 load_path: drqa-sentence-bert-medium-squad-v2-onnx-quantized
-use_drqa: True
-use_dpr: False
+use_drqa: False
+use_dpr: True
 create_drqa_tfidf: False
 top_k: 5
 scheduler: "linear"
 sentence_level: True
 quantize: False
 ONNX: False
-create_dense_embeddings: True
+create_dense_embeddings: False
 retriever_type: dense # dense or tfidf
 
 data:
