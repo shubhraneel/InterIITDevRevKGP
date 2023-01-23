@@ -532,8 +532,8 @@ class Trainer:
             match_df = pd.DataFrame(columns=['match'])
             for index in df1.iloc[0].index:
                 flag=0
-                question_id2 = df1.iloc[0]
-                context_id2 = df1.iloc[1]
+                question_id2 = df1['question_id']
+                context_id2 = df1['context_id']
                 converted_tuple = tuple(int(p) for p in (question_id2[index], context_id2[index]))
                 for i in range(len(df['question_id'])):
                     question_id1 = df['question_id']
