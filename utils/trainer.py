@@ -447,13 +447,11 @@ class Trainer:
         self.model.device = device
 
         if do_prepare:
-            self.prepare_df_before_inference(df_test, retriever, prefix, device)
-
-        start_time = time.time()
-        question_prediction_dict = {
-            q_id: (0, "")
-            for q_id in self.prepared_test_df_matched["question_id"].unique()
-        }
+          self.prepare_df_before_inference(df_test,retriever,prefix,device)
+       
+        start_time=time.time()
+        question_prediction_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
+        results_dict = {}
 
         # TODO: without sequentional batch iteration
         for qp_batch_id, qp_batch in tqdm(
@@ -513,13 +511,46 @@ class Trainer:
                         start_char = offset_mapping[start_index][0]
                         end_char = offset_mapping[end_index][1]
                         decoded_answer = context[start_char:end_char]
-                    if len(decoded_answer) > 0:
-                        question_prediction_dict[q_id] = (
-                            confidence_scores[batch_idx].item(),
-                            decoded_answer,
-                        )
-
-        time_inference_generation = 1000 * (time.time() - start_time)
+                        if (self.config.create_inf_table):  
+                          context_id = qp_batch["context_id"][batch_idx]
+                          answer = qp_batch["answer"][batch_idx]
+                          squad_f1_per_span = compute_f1(decoded_answer,answer)
+                          mean_squad_f1 = np.mean(squad_f1_per_span)
+                          results_dict[qp_batch_id] = {'question_id': q_id, 'context_id': context_id,
+                                                      'max_start_probs': max_start_probs.values[batch_idx].item(),
+                                                      'max_end_probs': max_end_probs.values[batch_idx].item(),
+                                                      'confidence_scores': confidence_scores[batch_idx].item(),
+                                                      'org_answer': answer,
+                                                      'decoded_answer': decoded_answer,
+                                                      'mean_squad_f1': mean_squad_f1}
+                          df1 = pd.DataFrame(results_dict)
+                        
+                    if(len(decoded_answer)>0):
+                        question_prediction_dict[q_id]=(confidence_scores[batch_idx].item(),decoded_answer)
+        if (self.config.create_inf_table):
+            df=pd.read_pickle("data-dir/test/df_test.pkl")
+            match_df = pd.DataFrame(columns=['match'])
+            for index in df1.iloc[0].index:
+                flag=0
+                question_id2 = df1.iloc[0]
+                context_id2 = df1.iloc[1]
+                converted_tuple = tuple(int(p) for p in (question_id2[index], context_id2[index]))
+                for i in range(len(df['question_id'])):
+                    question_id1 = df['question_id']
+                    context_id1 = df['context_id']
+                    if converted_tuple == (question_id1[i], context_id1[i]):
+                        match_df = match_df.append({'match': True}, ignore_index=True)
+                        flag=1
+                        break
+                if flag==0:
+                    match_df = match_df.append({'match': False}, ignore_index=True)
+            df1=df1.T
+            match_df.index = df1.index
+            df1['correct_pair']=match_df['match']
+            col = df1.pop(df1.columns[-1])
+            df1.insert(2, col.name, col)
+            wandb.log({"Inference Results": wandb.Table(data=df1)})
+        time_inference_generation=1000*(time.time()-start_time)
         print(time_inference_generation)
         print(time_inference_generation / df_test.shape[0])
         wandb.log({prefix + "_time_inference_generation": time_inference_generation})
