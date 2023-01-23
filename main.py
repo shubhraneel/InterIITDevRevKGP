@@ -15,6 +15,8 @@ import wandb
 import yaml
 
 from config import Config
+from src import BaselineQA, FewShotQA_Model
+from utils import Trainer, set_seed, Retriever,RetrieverTwoLevel
 from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
 from nltk.tokenize import sent_tokenize
 
@@ -81,58 +83,77 @@ def load_mappings():
         )
 
 
-def reformat_data_for_sqlite(df, split, use_sentence_level):
-    if use_sentence_level:
+def reformat_data_for_sqlite(df, split, use_sentence_level,two_level_drqa=False):
+    if (two_level_drqa):
+        context_doc_id_original = df[["context", "context_id"]].rename(
+            columns={"context": "text", "context_id": "id"})
+        context_doc_id_original = context_doc_id_original.drop_duplicates(subset=["text", "id"])
+        context_doc_id=pd.DataFrame()
+        for idx, row in tqdm(context_doc_id_original.iterrows()):
+            context=row['text']
+            context_id=row['id']
+            # print(context_id,context)
+            sent_list=list(sent_tokenize(context))
+            sent_id_list= [f"{context_id}_{x}" for x in range(len(sent_list))]
+            df_local=pd.DataFrame(list(zip(sent_list,sent_id_list)),columns=['text','id'])
+            df_local=df_local.dropna()
+            context_doc_id=pd.concat([context_doc_id,df_local],axis=0)
+        print(context_doc_id.head())
+        context_doc_id = context_doc_id.drop_duplicates(subset=["text", "id"])	
+        context_doc_id.to_json("data-dir/{}/contexts_sentences.json".format(split), orient="records", lines=True)
+        context_doc_id = df[["context", "context_id"]].rename(
+            columns={"context": "text", "context_id": "id"})
+        context_doc_id = context_doc_id.drop_duplicates(subset=["text", "id"])
+        context_doc_id["id"] = context_doc_id["id"].astype(str)
+        context_doc_id.to_json("data-dir/{}/contexts_paragraphs.json".format(split), orient="records", lines=True)
+    elif (use_sentence_level):
         # TODO: parallelise this using concurrent futures
         context_doc_id_original = df[["context", "context_id"]].rename(
-            columns={"context": "text", "context_id": "id"}
-        )
-        context_doc_id_original = context_doc_id_original.drop_duplicates(
-            subset=["text", "id"]
-        )
-        context_doc_id = pd.DataFrame()
+            columns={"context": "text", "context_id": "id"})
+        context_doc_id_original = context_doc_id_original.drop_duplicates(subset=["text", "id"])
+        context_doc_id=pd.DataFrame()
         for idx, row in tqdm(context_doc_id_original.iterrows()):
-            context = row["text"]
-            context_id = row["id"]
+            context=row['text']
+            context_id=row['id']
             # print(context_id,context)
-            sent_list = list(sent_tokenize(context))
-            sent_id_list = [f"{context_id}_{x}" for x in range(len(sent_list))]
-            df_local = pd.DataFrame(
-                list(zip(sent_list, sent_id_list)), columns=["text", "id"]
-            )
-            df_local = df_local.dropna()
-            context_doc_id = pd.concat([context_doc_id, df_local], axis=0)
+            sent_list=list(sent_tokenize(context))
+            sent_id_list= [f"{context_id}_{x}" for x in range(len(sent_list))]
+            df_local=pd.DataFrame(list(zip(sent_list,sent_id_list)),columns=['text','id'])
+            df_local=df_local.dropna()
+            context_doc_id=pd.concat([context_doc_id,df_local],axis=0)
         print(context_doc_id.head())
-        context_doc_id = context_doc_id.drop_duplicates(subset=["text", "id"])
+        context_doc_id = context_doc_id.drop_duplicates(subset=["text", "id"])	
     else:
         context_doc_id = df[["context", "context_id"]].rename(
-            columns={"context": "text", "context_id": "id"}
-        )
+            columns={"context": "text", "context_id": "id"})
         context_doc_id = context_doc_id.drop_duplicates(subset=["text", "id"])
         context_doc_id["id"] = context_doc_id["id"].astype(str)
     context_doc_id.to_json(
-        "data-dir/{}/contexts.json".format(split), orient="records", lines=True
-    )
+        "data-dir/{}/contexts.json".format(split), orient="records", lines=True)
 
 
-def prepare_retriever(df, db_path, split, use_sentence_level):
-    reformat_data_for_sqlite(df, f"{split}", use_sentence_level)
-    if os.path.exists(f"data-dir/{split}/{db_path}"):
-        os.remove(f"data-dir/{split}/{db_path}")
+def prepare_retriever(df, db_path, split,use_sentence_level,two_level_drqa=False):
+    if (two_level_drqa):
+        reformat_data_for_sqlite(df, f"{split}",use_sentence_level,True)
+        if (os.path.exists(f"data-dir/{split}/sentence_{db_path}")):
+            os.remove(f"data-dir/{split}/sentence_{db_path}")
+        
+        store_contents(data_path=f"data-dir/{split}/contexts_sentences.json",save_path=f"data-dir/{split}/sentence_{db_path}", preprocess=None, num_workers=2)
+        build_tf_idf_wrapper(db_path=f"data-dir/{split}/sentence_{db_path}",
+                            out_dir=f"data-dir/{split}", ngram=3, hash_size=(2**25), num_workers=2)
 
-    store_contents(
-        data_path=f"data-dir/{split}/contexts.json",
-        save_path=f"data-dir/{split}/{db_path}",
-        preprocess=None,
-        num_workers=2,
-    )
-    build_tf_idf_wrapper(
-        db_path=f"data-dir/{split}/{db_path}",
-        out_dir=f"data-dir/{split}",
-        ngram=3,
-        hash_size=(2**25),
-        num_workers=2,
-    )
+        if (os.path.exists(f"data-dir/{split}/paragraph_{db_path}")):
+            os.remove(f"data-dir/{split}/paragraph_{db_path}")
+        
+        store_contents(data_path=f"data-dir/{split}/contexts_paragraphs.json",save_path=f"data-dir/{split}/paragraph_{db_path}", preprocess=None, num_workers=2)
+        build_tf_idf_wrapper(db_path=f"data-dir/{split}/paragraph_{db_path}",
+                            out_dir=f"data-dir/{split}", ngram=3, hash_size=(2**25), num_workers=2)	
+    else:
+        reformat_data_for_sqlite(df, f"{split}",use_sentence_level)
+        if (os.path.exists(f"data-dir/{split}/{db_path}")):
+            os.remove(f"data-dir/{split}/{db_path}")
+        store_contents(data_path=f"data-dir/{split}/contexts.json", save_path=f"data-dir/{split}/{db_path}", preprocess=None, num_workers=2)
+        build_tf_idf_wrapper(db_path=f"data-dir/{split}/{db_path}",out_dir=f"data-dir/{split}",ngram=3,hash_size=(2**25),num_workers=2)
 
 
 def prepare_dense_retriever(tfidf_path, use_sentence_level):
@@ -195,9 +216,7 @@ if __name__ == "__main__":
     set_seed(config.seed)
 
     # TODO Explore pytorch.quantization also
-    assert (
-        not config.quantize or config.ONNX
-    ), "Quantizing without ONNX Runtime is not supported"
+    assert (not config.quantize or config.ONNX), "Quantizing without ONNX Runtime is not supported"
 
     print("Reading data csv")
     df_train = pd.read_pickle(config.data.train_data_path)
@@ -216,9 +235,9 @@ if __name__ == "__main__":
 
     if config.use_drqa and config.create_drqa_tfidf:
         print("using drqa")
-        prepare_retriever(df_val, "sqlite_con.db", "val", config.sentence_level)
-        prepare_retriever(df_train, "sqlite_con.db", "train", False)
-        prepare_retriever(df_test, "sqlite_con.db", "test", config.sentence_level)
+        prepare_retriever(df_val, "sqlite_con.db", "val", config.sentence_level,config.two_level_drqa)
+        prepare_retriever(df_train, "sqlite_con.db", "train",False, False)
+        prepare_retriever(df_test, "sqlite_con.db", "test", config.sentence_level,config.two_level_drqa)
 
     if config.create_dense_embeddings:
         print("Creating dense embeddings")
@@ -295,41 +314,29 @@ if __name__ == "__main__":
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
         retriever = None
-        if config.use_drqa:
-            df_test["Sentence Index"] = df_test.apply(
-                lambda row: sent_index(
-                    row["answer_text"], row["context"], row["answerable"]
-                ),
-                axis=1,
-            ).fillna(0)
-            # df_train['sentence_index'] = df_train.apply(lambda row : sent_index(row['answer_text'], row['context'], row['answerable']), axis = 1).fillna(0)
-            # df_val['sentence_index'] = df_val.apply(lambda row : sent_index(row['answer_text'], row['context'], row['answerable']), axis = 1).fillna(0)
-
+        if (config.two_level_drqa):
+            tfidf_path_para = "data-dir/test/paragraph_sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
+            tfidf_path_sent = "data-dir/test/sentence_sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
+            questions_df = df_test[["question", "title_id"]]
+            db_path_sent = "data-dir/test/sentence_sqlite_con.db"
+            test_retriever = RetrieverTwoLevel(tfidf_path_sent=tfidf_path_sent, tfidf_path_para=tfidf_path_para, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path_sent=db_path_sent)
+      
+            tfidf_path_para = "data-dir/val/paragraph_sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
+            tfidf_path_sent = "data-dir/val/sentence_sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
+            questions_df = df_val[["question", "title_id"]]
+            db_path_sent = "data-dir/val/sentence_sqlite_con.db"
+            val_retriever = RetrieverTwoLevel(tfidf_path_sent=tfidf_path_sent, tfidf_path_para=tfidf_path_para, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path_sent=db_path_sent)
+            
+        elif (config.use_drqa):
             tfidf_path = "data-dir/test/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
-            questions_df = df_test[
-                ["question", "title_id", "Sentence Index", "context_id", "answerable"]
-            ]
+            questions_df = df_test[["question", "title_id"]]
             db_path = "data-dir/test/sqlite_con.db"
-            test_retriever = Retriever(
-                tfidf_path=tfidf_path,
-                questions_df=questions_df,
-                con_idx_2_title_idx=con_idx_2_title_idx,
-                db_path=db_path,
-                sentence_level=config.sentence_level,
-                retriever_type=config.retriever_type,
-            )
-            test_retriever.retriever_accuracy_experiment(k=config.top_k)
+            test_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level,retriever_type=config.retriever_type)
+      
             tfidf_path = "data-dir/val/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
             questions_df = df_val[["question", "title_id"]]
             db_path = "data-dir/val/sqlite_con.db"
-            val_retriever = Retriever(
-                tfidf_path=tfidf_path,
-                questions_df=questions_df,
-                con_idx_2_title_idx=con_idx_2_title_idx,
-                db_path=db_path,
-                sentence_level=config.sentence_level,
-                retriever_type=config.retriever_type,
-            )
+            val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level)
 
         if config.save_model_optimizer:
             print(
