@@ -416,6 +416,7 @@ class Trainer:
                     df_contexts.loc[:, "answer_start"] = ""
                     df_contexts.loc[:, "answer_text"] = ""
                     df_contexts["context"] = contexts
+                print(df_contexts)
                 df_test_matched = pd.concat(
                     [df_test_matched, df_contexts], axis=0, ignore_index=True
                 )
