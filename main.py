@@ -31,6 +31,9 @@ from utils import build_tf_idf_wrapper, Retriever, set_seed, store_contents, Tra
 from utils.drqa.DocRanker import docranker_utils
 from utils.drqa.DocRanker.tokenizer import CoreNLPTokenizer
 
+from haystack.utils import clean_wiki_text, convert_files_to_docs
+from haystack.nodes import DensePassageRetriever
+from haystack.document_stores import FAISSDocumentStore
 
 def sent_index(text, para, ans_pos):
     if ans_pos == False:
@@ -337,6 +340,55 @@ if __name__ == "__main__":
             questions_df = df_val[["question", "title_id"]]
             db_path = "data-dir/val/sqlite_con.db"
             val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level)
+
+        elif config.use_dpr:
+            unique_data = df_test.drop_duplicates(subset='context', keep="first")
+            UniqueParaList = unique_data.context.to_list()
+            ThemeList = unique_data.title.to_list()
+            if not os.path.exists("data-dir/test_paragraphs/"):
+                os.mkdir("data-dir/test_paragraphs/")
+            for i in range(len(UniqueParaList)):
+                with open("data-dir/test_paragraphs/Paragraph_" + str(i) + ".txt", 'w+') as fp:
+                    fp.write("%s\n" % UniqueParaList[i])
+            test_document_store = FAISSDocumentStore(faiss_index_factory_str="Flat", sql_url="sqlite:///data-dir/faiss_document_store_test.db")
+            test_docs = convert_files_to_docs(dir_path="data-dir/test_paragraphs/", clean_func=clean_wiki_text, split_paragraphs=True)
+            test_document_store.write_documents(test_docs)
+
+            unique_data = df_val.drop_duplicates(subset='context', keep="first")
+            UniqueParaList = unique_data.context.to_list()
+            ThemeList = unique_data.title.to_list()
+            if not os.path.exists("data-dir/val_paragraphs/"):
+                os.mkdir("data-dir/val_paragraphs/")
+            for i in range(len(UniqueParaList)):
+                with open("data-dir/val_paragraphs/Paragraph_" + str(i) + ".txt", 'w+') as fp:
+                    fp.write("%s\n" % UniqueParaList[i])
+            val_document_store = FAISSDocumentStore(faiss_index_factory_str="Flat", sql_url="sqlite:///data-dir/faiss_document_store_val.db")
+            val_docs = convert_files_to_docs(dir_path="data-dir/val_paragraphs/", clean_func=clean_wiki_text, split_paragraphs=True)
+            val_document_store.write_documents(val_docs)
+
+            query_model = config.retriever.query_model
+            passage_model = config.retriever.passage_model
+
+            test_retriever = DensePassageRetriever(
+                document_store=test_document_store,
+                query_embedding_model=query_model,
+                passage_embedding_model=passage_model,
+                max_seq_len_query=64,
+                max_seq_len_passage=512,
+            )
+
+            val_retriever = DensePassageRetriever(
+                document_store=val_document_store,
+                query_embedding_model=query_model,
+                passage_embedding_model=passage_model,
+                max_seq_len_query=64,
+                max_seq_len_passage=512,
+            )
+            
+            test_document_store.update_embeddings(test_retriever)
+            val_document_store.update_embeddings(val_retriever)
+
+            
 
         if config.save_model_optimizer:
             print(
