@@ -13,7 +13,7 @@ create_drqa_tfidf: False
 top_k: 5
 scheduler: "linear"
 sentence_level: True
-two_level_drqa: True
+two_level_drqa: False
 quantize: False
 ONNX: False
 create_dense_embeddings: True
