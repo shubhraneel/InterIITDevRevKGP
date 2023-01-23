@@ -18,6 +18,7 @@ quantize: False
 ONNX: False
 create_dense_embeddings: True
 retriever_type: dense # dense or tfidf
+create_inf_table: False
 
 data:
   train_data_path: data-dir/train/df_train.pkl
