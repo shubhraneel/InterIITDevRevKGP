@@ -352,6 +352,7 @@ class Trainer:
                     df_contexts.loc[:, "answer_start"] = ""
                     df_contexts.loc[:, "answer_text"] = ""
                     df_contexts.loc[:, "context"] = "".join(doc_text_filtered)
+                    # TODO: change to ids or smth
                     df_contexts.loc[:, "context_id"] = "+".join(doc_text_filtered)
                 else:
                     question = row["question"]
