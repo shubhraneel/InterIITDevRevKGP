@@ -1,35 +1,36 @@
 task: qa
 seed: 3407
-wandb_path: drqa-sentence-bert-medium-squad-v2-onnx-quantized
+wandb_path: contrastive-adaptive-loss
 fewshot_qa: False
-inference_device: cpu
+inference_device: cuda
 train: False
 inference: True
-save_model_optimizer: True
-load_model_optimizer: False
-load_path: drqa-sentence-bert-medium-squad-v2-onnx-quantized
+save_model_optimizer: False
+load_model_optimizer: True
+load_path: contrastive-adaptive-loss
 use_drqa: True
-create_drqa_tfidf: True
+create_drqa_tfidf: False
 top_k: 5
 scheduler: "linear"
 sentence_level: True
-quantize: True
-ONNX: True
+quantize: False
+ONNX: False
 
 data:
   train_data_path: data-dir/train/df_train.pkl
   val_data_path: data-dir/val/df_val.pkl
   test_data_path: data-dir/test/df_test.pkl
-  train_batch_size: 32
-  val_batch_size: 2
+  train_batch_size: 16
+  val_batch_size: 16
   apply_aliasing: False
   pad_on_right: True
   max_length: 512
   doc_stride: 0
   tokenizer_batch_size: 32
+  answer_max_len: 10
 
 training:
-  epochs: 3
+  epochs: 5
   optimizer: adam
   lr: 0.00002
   sched_function: none
@@ -38,6 +39,8 @@ training:
     monitor: val_loss
   evaluate_every: 1
   lr_flag : False
+  can_loss: True  # Contrastive_Adaptive_Loss
+  can_loss_beta: 0.01  # 0.00000001
   
 
 model:
@@ -46,3 +49,4 @@ model:
   non_pooler: False
   dim: 128
   two_step_loss: False
+  span_level: False

@@ -6,7 +6,6 @@ from transformers import AutoModelForQuestionAnswering
 from pathlib import Path
 from transformers.onnx import FeaturesManager
 import transformers
-from allennlp.modules.span_extractors import EndpointSpanExtractor
 
 class BaselineQA(nn.Module):
     def __init__(self, config, device):
@@ -17,16 +16,6 @@ class BaselineQA(nn.Module):
         if config.model.two_step_loss:
             self.score=nn.Linear(config.model.dim,1)
             self.loss_fct=nn.BCEWithLogitsLoss()
-        elif config.model.span_level:
-            self.span_extractor = EndpointSpanExtractor(
-                input_dim = config.model.dim, 
-                num_width_embeddings = 10,
-                span_width_embedding_dim = config.model.dim
-            )
-            seq_indices = list(range(self.config.data.answer_max_len))
-            self.span_indices = [[x, y] for x in seq_indices for y in seq_indices if y - x >= 0 and y - x <= config.data.answer_max_len]
-            self.span_mlp = nn.Linear(config.model.dim*3, 1)
-
         self.device = device
 
     def forward(self, batch):
