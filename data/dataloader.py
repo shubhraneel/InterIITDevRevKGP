@@ -1,11 +1,12 @@
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
 
 from data.preprocess import preprocess_fn
+
 
 # TODO: memory optimization
 class SQuAD_Dataset(Dataset):
@@ -19,13 +20,25 @@ class SQuAD_Dataset(Dataset):
         self.data = preprocess_fn(self.df)
         # self.theme_para_id_mapping = self._get_theme_para_id_mapping()
 
-        data_keys = ["answers", "context", "question",
-                     "title", "question_id", "context_id", "title_id"]
-        
-        tokenized_keys = ["question_context_input_ids", "question_context_attention_mask",
-                    "start_positions", "end_positions", "answerable",
-                    "question_context_offset_mapping", "span_indices"
-                    ]
+        data_keys = [
+            "answers",
+            "context",
+            "question",
+            "title",
+            "question_id",
+            "context_id",
+            "title_id",
+        ]
+
+        tokenized_keys = [
+            "question_context_input_ids",
+            "question_context_attention_mask",
+            "start_positions",
+            "end_positions",
+            "answerable",
+            "question_context_offset_mapping",
+            "span_indices",
+        ]
 
         if not self.config.model.non_pooler:
             tokenized_keys.append("question_context_token_type_ids")
@@ -33,8 +46,14 @@ class SQuAD_Dataset(Dataset):
         for key in tokenized_keys:
             self.data[key] = []
 
-        for idx in tqdm(range(0, len(self.data["question"]), self.config.data.tokenizer_batch_size), disable=hide_tqdm):
-            example = {key: self.data[key][idx:idx+self.config.data.tokenizer_batch_size] for key in data_keys}
+        for idx in tqdm(
+            range(0, len(self.data["question"]), self.config.data.tokenizer_batch_size),
+            disable=hide_tqdm,
+        ):
+            example = {
+                key: self.data[key][idx : idx + self.config.data.tokenizer_batch_size]
+                for key in data_keys
+            }
 
             tokenized_inputs = self._tokenize(example)
 
@@ -43,7 +62,7 @@ class SQuAD_Dataset(Dataset):
 
     # def _get_theme_para_id_mapping(self):
     #     """
-    #     Get the indices of all paragraphs of a particular theme  
+    #     Get the indices of all paragraphs of a particular theme
     #     """
     #     map_ = {}
     #     title_list = list(set(self.data["title"]))
@@ -66,11 +85,11 @@ class SQuAD_Dataset(Dataset):
             examples["context" if self.config.data.pad_on_right else "question"],
             truncation="only_second" if self.config.data.pad_on_right else "only_first",
             max_length=self.config.data.max_length,
-            stride=0,#self.config.data.doc_stride,
+            stride=0,  # self.config.data.doc_stride,
             return_overflowing_tokens=False,
             return_offsets_mapping=True,
             padding="max_length",
-            return_token_type_ids=True
+            return_token_type_ids=True,
         )
 
         # Since one example might give us several features if it has a long context, we need a map from a feature to
@@ -99,7 +118,7 @@ class SQuAD_Dataset(Dataset):
             sample_index = i
             answers = examples["answers"][sample_index]
             # If no answers are given, set the cls_index as answer.
-            if (answers["answer_start"] == ""):
+            if answers["answer_start"] == "":
                 inputs["start_positions"].append(cls_index)
                 inputs["end_positions"].append(cls_index)
                 inputs["answerable"].append(0)
@@ -111,22 +130,32 @@ class SQuAD_Dataset(Dataset):
 
                 # Start token index of the current span in the text.
                 token_start_index = 0
-                while sequence_ids[token_start_index] != (1 if self.config.data.pad_on_right else 0):
+                while sequence_ids[token_start_index] != (
+                    1 if self.config.data.pad_on_right else 0
+                ):
                     token_start_index += 1
 
                 # End token index of the current span in the text.
                 token_end_index = len(input_ids) - 1
-                while sequence_ids[token_end_index] != (1 if self.config.data.pad_on_right else 0):
+                while sequence_ids[token_end_index] != (
+                    1 if self.config.data.pad_on_right else 0
+                ):
                     token_end_index -= 1
 
                 # Detect if the answer is out of the span (in which case this feature is labeled with the CLS index).
-                if not (offsets[token_start_index][0] <= start_char and offsets[token_end_index][1] >= end_char):
+                if not (
+                    offsets[token_start_index][0] <= start_char
+                    and offsets[token_end_index][1] >= end_char
+                ):
                     inputs["start_positions"].append(cls_index)
                     inputs["end_positions"].append(cls_index)
                 else:
                     # Otherwise move the token_start_index and token_end_index to the two ends of the answer.
                     # Note: we could go after the last offset if the answer is the last word (edge case).
-                    while token_start_index < len(offsets) and offsets[token_start_index][0] <= start_char:
+                    while (
+                        token_start_index < len(offsets)
+                        and offsets[token_start_index][0] <= start_char
+                    ):
                         token_start_index += 1
                     inputs["start_positions"].append(token_start_index - 1)
                     while offsets[token_end_index][1] >= end_char:
@@ -153,26 +182,28 @@ class SQuAD_Dataset(Dataset):
             ]
 
         seq_indices = list(range(self.config.data.answer_max_len))
-        seq_pair_indices = [(x, y) for x in seq_indices for y in seq_indices if y - x >= 0 and y - x <= self.config.data.answer_max_len]
+        seq_pair_indices = [
+            (x, y)
+            for x in seq_indices
+            for y in seq_indices
+            if y - x >= 0 and y - x <= self.config.data.answer_max_len
+        ]
         seq_pair_iddict = {(x, y): i for i, (x, y) in enumerate(seq_pair_indices)}
-        inputs['span_indices'] = [seq_pair_iddict[(x, y)] 
-            if (x, y) in seq_pair_iddict else 0
+        inputs["span_indices"] = [
+            seq_pair_iddict[(x, y)] if (x, y) in seq_pair_iddict else 0
             for x, y in zip(inputs["start_positions"], inputs["end_positions"])
         ]
 
         inputs["start_positions"] = torch.tensor(inputs["start_positions"])
         inputs["end_positions"] = torch.tensor(inputs["end_positions"])
         inputs["answerable"] = torch.tensor(inputs["answerable"])
-        inputs['span_indices'] = torch.tensor(inputs['span_indices'])
+        inputs["span_indices"] = torch.tensor(inputs["span_indices"])
 
         inputs["question_context_input_ids"] = inputs.pop("input_ids")
-        inputs["question_context_attention_mask"] = inputs.pop(
-            "attention_mask")
+        inputs["question_context_attention_mask"] = inputs.pop("attention_mask")
         if not self.config.model.non_pooler:
-            inputs["question_context_token_type_ids"] = inputs.pop(
-                "token_type_ids")
-        inputs["question_context_offset_mapping"] = inputs.pop(
-            "offset_mapping")
+            inputs["question_context_token_type_ids"] = inputs.pop("token_type_ids")
+        inputs["question_context_offset_mapping"] = inputs.pop("offset_mapping")
 
         return inputs
 
@@ -186,27 +217,36 @@ class SQuAD_Dataset(Dataset):
         # batch = {key: torch.stack([x[key] for x in items], dim = 0).squeeze() for key in self.items.keys()}
         # return batch
         batch = {
-            "question_context_input_ids":           torch.stack([torch.tensor(x["question_context_input_ids"]) for x in items], dim=0).squeeze(),
-            "question_context_attention_mask":      torch.stack([torch.tensor(x["question_context_attention_mask"]) for x in items], dim=0).squeeze(),
-            "question_context_offset_mapping":      [x["question_context_offset_mapping"] for x in items],
-
-            "answerable":                           torch.stack([x["answerable"] for x in items], dim=0),
-            "start_positions":                      torch.stack([x["start_positions"] for x in items], dim=0),
-            "end_positions":                        torch.stack([x["end_positions"] for x in items], dim=0),
-            "span_indices":                         torch.stack([x['span_indices'] for x in items], dim=0),
-
-            "title":								[x["title"] for x in items],
-            "question":								[x["question"] for x in items],
-            "context":								[x["context"] for x in items],
-            "question_id":							[x["question_id"] for x in items],
-            "context_id":							[x["context_id"] for x in items],
-            "title_id":								[x["title_id"] for x in items],
-            "answer":								[x["answers"]["text"] for x in items],
+            "question_context_input_ids": torch.stack(
+                [torch.tensor(x["question_context_input_ids"]) for x in items], dim=0
+            ).squeeze(),
+            "question_context_attention_mask": torch.stack(
+                [torch.tensor(x["question_context_attention_mask"]) for x in items],
+                dim=0,
+            ).squeeze(),
+            "question_context_offset_mapping": [
+                x["question_context_offset_mapping"] for x in items
+            ],
+            "answerable": torch.stack([x["answerable"] for x in items], dim=0),
+            "start_positions": torch.stack(
+                [x["start_positions"] for x in items], dim=0
+            ),
+            "end_positions": torch.stack([x["end_positions"] for x in items], dim=0),
+            "span_indices": torch.stack([x["span_indices"] for x in items], dim=0),
+            "title": [x["title"] for x in items],
+            "question": [x["question"] for x in items],
+            "context": [x["context"] for x in items],
+            "question_id": [x["question_id"] for x in items],
+            "context_id": [x["context_id"] for x in items],
+            "title_id": [x["title_id"] for x in items],
+            "answer": [x["answers"]["text"] for x in items],
         }
 
         if not self.config.model.non_pooler:
-            batch["question_context_token_type_ids"] = torch.stack([torch.tensor(
-                x["question_context_token_type_ids"]) for x in items], dim=0).squeeze()
+            batch["question_context_token_type_ids"] = torch.stack(
+                [torch.tensor(x["question_context_token_type_ids"]) for x in items],
+                dim=0,
+            ).squeeze()
 
         return batch
 
@@ -223,7 +263,7 @@ class SQuAD_Dataset(Dataset):
         end_index = example["end_positions"].item()
 
         decoded_answer = ""
-        if (start_index != 0 and end_index != 0):
+        if start_index != 0 and end_index != 0:
             start_char = offset_mapping[start_index][0]
             end_char = offset_mapping[end_index][1]
 
@@ -231,7 +271,7 @@ class SQuAD_Dataset(Dataset):
 
         print_dict["answer_text_decoded"] = decoded_answer
 
-        if (not return_dict):
+        if not return_dict:
             print(print_dict)
         else:
             return print_dict

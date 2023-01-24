@@ -1,5 +1,7 @@
 import sqlite3
+
 from . import utils
+
 
 class DocDB(object):
     """Sqlite backed document storage.
@@ -7,7 +9,7 @@ class DocDB(object):
     """
 
     def __init__(self, db_path):
-        self.path = db_path 
+        self.path = db_path
         self.connection = sqlite3.connect(self.path, check_same_thread=False)
 
     def __enter__(self):
@@ -36,8 +38,7 @@ class DocDB(object):
         """Fetch the raw text of the doc for 'doc_id'."""
         cursor = self.connection.cursor()
         cursor.execute(
-            "SELECT text FROM documents WHERE id = ?",
-            (utils.normalize(doc_id),)
+            "SELECT text FROM documents WHERE id = ?", (utils.normalize(doc_id),)
         )
         result = cursor.fetchone()
         cursor.close()

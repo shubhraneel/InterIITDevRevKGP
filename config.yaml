@@ -13,8 +13,12 @@ create_drqa_tfidf: False
 top_k: 5
 scheduler: "linear"
 sentence_level: True
+two_level_drqa: False
 quantize: False
 ONNX: False
+create_dense_embeddings: True
+retriever_type: dense # dense or tfidf
+create_inf_table: False
 
 data:
   train_data_path: data-dir/train/df_train.pkl
@@ -30,7 +34,7 @@ data:
   answer_max_len: 10
 
 training:
-  epochs: 5
+  epochs: 10
   optimizer: adam
   lr: 0.00002
   sched_function: none
@@ -38,7 +42,7 @@ training:
   sched_params:
     monitor: val_loss
   evaluate_every: 1
-  lr_flag : False
+  lr_flag : True
   can_loss: True  # Contrastive_Adaptive_Loss
   can_loss_beta: 0.01  # 0.00000001
   
@@ -46,7 +50,11 @@ training:
 model:
   model_path: mrm8488/bert-medium-finetuned-squadv2
   params: {}
+  non_pooler: True
+  noise_tuner: False
+  noise_lambda: 0.15
   non_pooler: False
   dim: 128
+  span_level: False
   two_step_loss: False
   span_level: False

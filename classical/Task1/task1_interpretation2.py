@@ -1,19 +1,16 @@
-
-from DocRanker import DocDB
-from multiprocessing.util import Finalize
-import time
-import pandas as pd
-import logging
-import prettytable
-import numpy as np
-import scipy.sparse as sp
-from DocRanker import utils
-from DocRanker.tokenizer import CoreNLPTokenizer
-from multiprocessing.pool import ThreadPool
-from functools import partial
-import numpy as np
-import scipy.sparse as sp
 import json
+import logging
+import time
+from functools import partial
+from multiprocessing.pool import ThreadPool
+from multiprocessing.util import Finalize
+
+import numpy as np
+import pandas as pd
+import prettytable
+import scipy.sparse as sp
+from DocRanker import DocDB, utils
+from DocRanker.tokenizer import CoreNLPTokenizer
 
 
 class TfidfDocRanker(object):
@@ -30,11 +27,11 @@ class TfidfDocRanker(object):
 
         matrix, metadata = utils.load_sparse_csr(tfidf_path)
         self.doc_mat = matrix
-        self.ngrams = metadata['ngram']
-        self.hash_size = metadata['hash_size']
+        self.ngrams = metadata["ngram"]
+        self.hash_size = metadata["hash_size"]
         self.tokenizer = CoreNLPTokenizer()
-        self.doc_freqs = metadata['doc_freqs'].squeeze()
-        self.doc_dict = metadata['doc_dict']
+        self.doc_freqs = metadata["doc_freqs"].squeeze()
+        self.doc_dict = metadata["doc_dict"]
         self.num_docs = len(self.doc_dict[0])
         self.strict = strict
 
@@ -76,8 +73,7 @@ class TfidfDocRanker(object):
         """Parse the query into tokens (either ngrams or tokens)."""
         # print(query)
         tokens = self.tokenizer.tokenize(query)
-        return tokens.ngrams(n=self.ngrams, uncased=True,
-                             filter_fn=utils.filter_ngram)
+        return tokens.ngrams(n=self.ngrams, uncased=True, filter_fn=utils.filter_ngram)
 
     def text2spvec(self, query):
         """Create a sparse tfidf-weighted word vector from query.
@@ -90,9 +86,9 @@ class TfidfDocRanker(object):
 
         if len(wids) == 0:
             if self.strict:
-                raise RuntimeError('No valid word in: %s' % query)
+                raise RuntimeError("No valid word in: %s" % query)
             else:
-                print('No valid word in: %s' % query)
+                print("No valid word in: %s" % query)
                 return sp.csr_matrix((1, self.hash_size))
 
         # Count TF
@@ -109,20 +105,18 @@ class TfidfDocRanker(object):
 
         # One row, sparse csr matrix
         indptr = np.array([0, len(wids_unique)])
-        spvec = sp.csr_matrix(
-            (data, wids_unique, indptr), shape=(1, self.hash_size)
-        )
+        spvec = sp.csr_matrix((data, wids_unique, indptr), shape=(1, self.hash_size))
 
         return spvec
 
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-fmt = logging.Formatter('%(asctime)s: [ %(message)s ]', '%m/%d/%Y %I:%M:%S %p')
+fmt = logging.Formatter("%(asctime)s: [ %(message)s ]", "%m/%d/%Y %I:%M:%S %p")
 console = logging.StreamHandler()
 console.setFormatter(fmt)
 logger.addHandler(console)
-logger.info('Initializing ranker...')
+logger.info("Initializing ranker...")
 
 
 # Theme-wise
@@ -151,18 +145,19 @@ logger.info('Initializing ranker...')
 class RetrieverFinal(object):
     def __init__(self):
         self.ranker = TfidfDocRanker(
-            tfidf_path="data-dir/sqlite_para-tfidf-ngram=2-hash=16777216-tokenizer=corenlp.npz")
+            tfidf_path="data-dir/sqlite_para-tfidf-ngram=2-hash=16777216-tokenizer=corenlp.npz"
+        )
 
         # all at once
         self.df_q = pd.read_csv("data-dir/questions_only.csv")
         self.top_3_contexts = []
-        with open('data-dir/para_theme.json') as json_file:
+        with open("data-dir/para_theme.json") as json_file:
             self.para_theme_id_dict = json.load(json_file)
 
         self.PROCESS_DB = DocDB(db_path="data-dir/sqlite_para.db")
         Finalize(self.PROCESS_DB, self.PROCESS_DB.close, exitpriority=100)
 
-    def process(self, query, theme,  k=1):
+    def process(self, query, theme, k=1):
         doc_names, doc_scores = self.ranker.closest_docs(query, 100000)
 
         # table = prettytable.PrettyTable(
@@ -172,40 +167,41 @@ class RetrieverFinal(object):
         #     table.add_row([i + 1, doc_names[i], '%.5g' % doc_scores[i]])
         # print(table)
 
-        doc_names_filtered = [doc for doc in doc_names if self.para_theme_id_dict[doc] == theme]
-        
+        doc_names_filtered = [
+            doc for doc in doc_names if self.para_theme_id_dict[doc] == theme
+        ]
+
         if len(doc_names_filtered) > k:
             return doc_names_filtered[0:k]
         return doc_names_filtered
         # return doc_names
 
     def predict_all(self):
-        tsince = int(round(time.time()*1000))
+        tsince = int(round(time.time() * 1000))
         num_app = 0
         num_app_answerable = 0
         num_answerable = 0
         top_3_contexts_ids = []
         for idx, row in self.df_q.iterrows():
-            doc_names = self.process(
-                row['Question'], theme=str(row['theme_id']), k=3)
+            doc_names = self.process(row["Question"], theme=str(row["theme_id"]), k=3)
             top_3_contexts_ids.append(doc_names)
 
-            if str(row['id']) in doc_names:
+            if str(row["id"]) in doc_names:
                 num_app += 1
-                if row['Answer_possible']:
+                if row["Answer_possible"]:
                     num_answerable += 1
                     num_app_answerable += 1
-            elif row['Answer_possible']:
+            elif row["Answer_possible"]:
                 num_answerable += 1
 
             # break
-        ttime_elapsed = int(round(time.time()*1000)) - tsince
-        ttime_per_example = ttime_elapsed/self.df_q.shape[0]
-        print(f'test time elapsed {ttime_elapsed} ms')
-        print(f'test time elapsed per example {ttime_per_example} ms')
-        print(f'Acc = {num_app/self.df_q.shape[0]}')
-        print(f'num_answerable = {num_answerable}')
-        print(f'answerable acc= {num_app_answerable/num_answerable}')
+        ttime_elapsed = int(round(time.time() * 1000)) - tsince
+        ttime_per_example = ttime_elapsed / self.df_q.shape[0]
+        print(f"test time elapsed {ttime_elapsed} ms")
+        print(f"test time elapsed per example {ttime_per_example} ms")
+        print(f"Acc = {num_app/self.df_q.shape[0]}")
+        print(f"num_answerable = {num_answerable}")
+        print(f"answerable acc= {num_app_answerable/num_answerable}")
 
         def fetch_text(doc_id):
             return self.PROCESS_DB.get_doc_text(doc_id)
@@ -218,17 +214,18 @@ class RetrieverFinal(object):
                 self.top_3_contexts.append(para_list)
                 # break
             # print(len(top_3_contexts[0]))
-            self.df_q['contexts'] = self.top_3_contexts
+            self.df_q["contexts"] = self.top_3_contexts
             self.df_q.to_csv("data-dir/top3_contexts.csv")
 
         def batched_all(self):
-            tsince = int(round(time.time()*1000))
+            tsince = int(round(time.time() * 1000))
             self.ranker.batch_closest_docs(
-                queries=self.df_q['Question'].tolist(), k=10, num_workers=2)
-            ttime_elapsed = int(round(time.time()*1000)) - tsince
-            ttime_per_example = ttime_elapsed/self.df_q.shape[0]
-            print(f'Batched test time elapsed {ttime_elapsed} ms')
-            print(
-                f'Batched test time elapsed per example {ttime_per_example} ms')
+                queries=self.df_q["Question"].tolist(), k=10, num_workers=2
+            )
+            ttime_elapsed = int(round(time.time() * 1000)) - tsince
+            ttime_per_example = ttime_elapsed / self.df_q.shape[0]
+            print(f"Batched test time elapsed {ttime_elapsed} ms")
+            print(f"Batched test time elapsed per example {ttime_per_example} ms")
+
 
 RetrieverFinal().predict_all()

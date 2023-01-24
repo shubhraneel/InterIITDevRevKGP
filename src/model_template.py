@@ -1,11 +1,13 @@
-import numpy as np 
+import numpy as np
+
+import pytorch_lightning as pl
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import pytorch_lightning as pl
 from . import Base_Model
+
 
 class Custom_Model(Base_Model):
     """
@@ -15,7 +17,7 @@ class Custom_Model(Base_Model):
     def __init__(self):
         # TODO
         pass
-        
+
     def __train__(self):
         # TODO
         pass

@@ -1,4 +1,3 @@
-
 # Copyright 2017-present, Facebook, Inc.
 # All rights reserved.
 #
@@ -6,24 +5,25 @@
 # LICENSE file in the root directory of this source tree.
 """A script to build the tf-idf document matrices for retrieval."""
 
-import pandas as pd
-import numpy as np
-import scipy.sparse as sp
 import argparse
-import os
-import math
 import logging
+import math
+import os
+from collections import Counter
+from functools import partial
 from multiprocessing import Pool as ProcessPool
 from multiprocessing.util import Finalize
-from functools import partial
-from collections import Counter
-from .DocRanker import docranker_utils
-from .DocRanker import DocDB
+
+import numpy as np
+import pandas as pd
+import scipy.sparse as sp
+
+from .DocRanker import DocDB, docranker_utils
 from .DocRanker.tokenizer import CoreNLPTokenizer
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-fmt = logging.Formatter('%(asctime)s: [ %(message)s ]', '%m/%d/%Y %I:%M:%S %p')
+fmt = logging.Formatter("%(asctime)s: [ %(message)s ]", "%m/%d/%Y %I:%M:%S %p")
 console = logging.StreamHandler()
 console.setFormatter(fmt)
 logger.addHandler(console)
@@ -75,8 +75,7 @@ def count(ngram, hash_size, doc_id):
     )
 
     # Hash ngrams and count occurences
-    counts = Counter([docranker_utils.hash(gram, hash_size)
-                     for gram in ngrams])
+    counts = Counter([docranker_utils.hash(gram, hash_size) for gram in ngrams])
 
     # Return in sparse matrix data format.
     row.extend(counts.keys())
@@ -100,20 +99,17 @@ def get_count_matrix(ngram, hash_size, num_workers, db, db_opts):
     # Setup worker pool
     tok_class = CoreNLPTokenizer
     workers = ProcessPool(
-        num_workers,
-        initializer=init,
-        initargs=(tok_class, db_class, db_opts)
+        num_workers, initializer=init, initargs=(tok_class, db_class, db_opts)
     )
 
     # Compute the count matrix in steps (to keep in memory)
-    logger.info('Mapping...')
+    logger.info("Mapping...")
     row, col, data = [], [], []
     step = max(int(len(doc_ids) / 10), 1)
-    batches = [doc_ids[i:i + step] for i in range(0, len(doc_ids), step)]
+    batches = [doc_ids[i : i + step] for i in range(0, len(doc_ids), step)]
     _count = partial(count, ngram, hash_size)
     for i, batch in enumerate(batches):
-        logger.info('-' * 25 + 'Batch %d/%d' %
-                    (i + 1, len(batches)) + '-' * 25)
+        logger.info("-" * 25 + "Batch %d/%d" % (i + 1, len(batches)) + "-" * 25)
         for b_row, b_col, b_data in workers.imap_unordered(_count, batch):
             row.extend(b_row)
             col.extend(b_col)
@@ -121,10 +117,8 @@ def get_count_matrix(ngram, hash_size, num_workers, db, db_opts):
     workers.close()
     workers.join()
 
-    logger.info('Creating sparse matrix...')
-    count_matrix = sp.csr_matrix(
-        (data, (row, col)), shape=(hash_size, len(doc_ids))
-    )
+    logger.info("Creating sparse matrix...")
+    count_matrix = sp.csr_matrix((data, (row, col)), shape=(hash_size, len(doc_ids)))
     count_matrix.sum_duplicates()
     return count_matrix, (DOC2IDX, doc_ids)
 
@@ -162,34 +156,31 @@ def get_doc_freqs(cnts):
 # Main.
 # ------------------------------------------------------------------------------
 
+
 def build_tf_idf_wrapper(db_path, out_dir, ngram=3, hash_size=(2**25), num_workers=2):
     os.makedirs(out_dir, exist_ok=True)
 
-    print(f'Counting words...')
+    print(f"Counting words...")
     count_matrix, doc_dict = get_count_matrix(
-        ngram, hash_size, num_workers, 'sqlite', {
-            'db_path': db_path}
+        ngram, hash_size, num_workers, "sqlite", {"db_path": db_path}
     )
 
-    print('Making tfidf vectors...')
+    print("Making tfidf vectors...")
     tfidf = get_tfidf_matrix(count_matrix)
 
-    print('Getting word-doc frequencies...')
+    print("Getting word-doc frequencies...")
     freqs = get_doc_freqs(count_matrix)
 
-    basename = os.path.splitext(os.path.basename(
-        db_path))[0]
-    basename += ('-tfidf-ngram=%d-hash=%d-tokenizer=%s' %
-                (ngram, hash_size, 'corenlp'))
-    filename = os.path.join(
-        out_dir, basename)
+    basename = os.path.splitext(os.path.basename(db_path))[0]
+    basename += "-tfidf-ngram=%d-hash=%d-tokenizer=%s" % (ngram, hash_size, "corenlp")
+    filename = os.path.join(out_dir, basename)
 
-    print('Saving to %s.npz' % filename)
+    print("Saving to %s.npz" % filename)
     metadata = {
-        'doc_freqs': freqs,
-        'tokenizer': 'corenlp',
-        'hash_size': hash_size,
-        'ngram': ngram,
-        'doc_dict': doc_dict
+        "doc_freqs": freqs,
+        "tokenizer": "corenlp",
+        "hash_size": hash_size,
+        "ngram": ngram,
+        "doc_dict": doc_dict,
     }
     docranker_utils.save_sparse_csr(filename, tfidf, metadata)
