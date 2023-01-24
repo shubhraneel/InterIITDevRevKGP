@@ -716,8 +716,4 @@ def main():
 
 main()
 
-!pip install transformers
 
-!git clone https://huggingface.co/bert-base-uncased
-
-from transformers import
