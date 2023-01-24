@@ -262,7 +262,7 @@ class Retriever(object):
         self.PROCESS_DB = DocDB(db_path=db_path)
         Finalize(self.PROCESS_DB, self.PROCESS_DB.close, exitpriority=100)
 
-    def retrieve_top_k(self, question, title_id, k=1):
+    def retrieve_top_k(self, question, title_id="-1", k=1):
         doc_names, doc_scores = self.ranker.closest_docs(question, 100000)
         # print(f"{self.ranker.doc_mat.shape=}")
         # print(f"{doc_names=}")
@@ -275,11 +275,11 @@ class Retriever(object):
             doc_names_filtered = [
                 doc
                 for doc in doc_names
-                if self.con_title_id_dict[doc.split("_")[0]] == title_id
+                if self.con_title_id_dict[doc.split("_")[0]] == title_id or title_id == "-1"
             ]
         else:
             doc_names_filtered = [
-                doc for doc in doc_names if self.con_title_id_dict[doc] == title_id
+                doc for doc in doc_names if self.con_title_id_dict[doc] == title_id or title_id == "-1"
             ]
 
         # print(doc_names_filtered)

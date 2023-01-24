@@ -72,7 +72,7 @@ def load_mappings():
     with open("data-dir/idx2title.pkl", "rb") as f:
         idx2title = pickle.load(f)
 
-        return (
+    return (
             con_idx_2_title_idx,
             ques2idx,
             idx2ques,
@@ -409,10 +409,13 @@ if __name__ == "__main__":
         # calculate_metrics(test_ds, test_dataloader, wandb_logger)
         # test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
         model.to(config.inference_device)
-        test_metrics = trainer.calculate_metrics(
+        # test_metrics = trainer.calculate_metrics(
+        #     df_test, test_retriever, "test", config.inference_device, do_prepare=True
+        # )
+        # print(test_metrics)
+        trainer.inference(
             df_test, test_retriever, "test", config.inference_device, do_prepare=True
         )
-        print(test_metrics)
 
         # model = AutoModel_Classifier_QA(config, tokenizer=tokenizer, logger=wandb_logger)
         # model.__train__(train_dataloader)

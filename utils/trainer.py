@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import wandb
-from data import SQuAD_Dataset
+from data import SQuAD_Dataset, SQuAD_TestDataset
 from onnxruntime.quantization import quantize_dynamic
 from sklearn.metrics import accuracy_score, classification_report, f1_score
 from torch.utils.data import DataLoader
@@ -440,6 +440,116 @@ class Trainer:
 
         self.prepared_test_loader = test_dataloader
         self.prepared_test_df_matched = df_test_matched
+
+
+    def prepare_theme_df_before_inference(self, theme, theme_questions, theme_contexts, retriever, prefix, device):
+ 
+        df_test_matched = pd.DataFrame()
+
+        df_unique_con = theme_contexts
+        unmatched = 0
+
+        df_temp = theme_questions
+
+        for idx, row in df_temp.iterrows():
+            df_contexts = pd.DataFrame()
+            if retriever is not None and self.config.sentence_level:
+                question = row["question"]
+                question_id = row["question_id"]
+                doc_idx_filtered, doc_text_filtered = retriever.retrieve_top_k(
+                    question, str(title_id), k=self.config.top_k
+                )
+                df_contexts = df_unique_con.sample(n=1, random_state=self.config.seed)
+                df_contexts.loc[:, "question"] = question
+                df_contexts.loc[:, "question_id"] = question_id
+                # df_contexts.loc[:, "answerable"] = False
+                # df_contexts.loc[:, "answer_start"] = ""
+                # df_contexts.loc[:, "answer_text"] = ""
+                df_contexts.loc[:, "context"] = "".join(doc_text_filtered)
+                df_contexts.loc[:, "context_id"] = "+".join(doc_idx_filtered)
+            else:
+                question = row["question"]
+                question_id = row["question_id"]
+
+                if retriever is not None:
+                    doc_idx_filtered, doc_text_filtered = retriever.retrieve_top_k(
+                        question, str(title_id), k=self.config.top_k
+                    )
+                    df_contexts_og = df_unique_con.loc[
+                        df_unique_con["context_id"].isin(
+                            [int(doc_idx) for doc_idx in doc_idx_filtered]
+                        )
+                    ].copy()
+                    # TODO: we can endup sampling things in doc_idx_filtered again
+                    df_contexts_random = df_unique_con.sample(
+                        n=max(0, self.config.top_k - len(doc_idx_filtered)),
+                        random_state=self.config.seed,
+                    )
+                    df_contexts = pd.concat(
+                        [df_contexts_og, df_contexts_random],
+                        axis=0,
+                        ignore_index=True,
+                    )
+                else:
+                    df_contexts = df_unique_con.sample(n=self.config.top_k, random_state=self.config.seed)
+                df_contexts.loc[:, "question"] = question
+                df_contexts.loc[:, "question_id"] = question_id
+                # df_contexts.loc[:, "answerable"] = False
+                # df_contexts.loc[:, "answer_start"] = ""
+                # df_contexts.loc[:, "answer_text"] = ""
+
+                original_context_idx = df_contexts.loc[
+                    df_contexts["context_id"] == context_id
+                ]
+                if len(original_context_idx) == 0:
+                    # print(f"original paragraph not in top k {unmatched}")
+                    unmatched += 1
+                else:
+                    row_dict = row.to_dict()
+                    df_contexts.loc[
+                        df_contexts["context_id"] == context_id, row_dict.keys()
+                    ] = row_dict.values()
+            df_test_matched = pd.concat(
+                [df_test_matched, df_contexts], axis=0, ignore_index=True
+            )
+
+        # print(f"original paragraph not in top k {unmatched}")
+
+        test_ds = SQuAD_TestDataset(
+            self.config, df_test_matched, self.tokenizer
+        )  # , hide_tqdm=True
+        test_dataloader = DataLoader(
+            test_ds,
+            batch_size=self.config.data.val_batch_size,
+            collate_fn=test_ds.collate_fn,
+        )
+        time_test_dataloader_generation = 1000 * (time.time() - start_time)
+        print(time_test_dataloader_generation)
+        print(time_test_dataloader_generation / df_test.shape[0])
+        wandb.log(
+            {
+                "time_"
+                + str(prefix)
+                + "_dataloader_generation": time_test_dataloader_generation
+            }
+        )
+        wandb.log(
+            {
+                "per_q_"
+                + str(prefix)
+                + "_time_"
+                + str(prefix)
+                + "_dataloader_generation": time_test_dataloader_generation
+                / df_test.shape[0]
+            }
+        )
+
+        print(f"{len(df_test_matched)=}")
+        print(f"{len(df_temp)=}")
+
+        self.prepared_test_loader = test_dataloader
+        self.prepared_test_df_matched = df_test_matched
+
 
     def inference(self, df_test, retriever, prefix, device, do_prepare):
         self.model.to(device)
