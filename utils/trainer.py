@@ -314,8 +314,9 @@ class Trainer:
             # print(ort_outputs)
             out = QuestionAnsweringModelOutput(
                 # loss = torch.tensor(ort_outputs[0]),
-                start_logits=torch.tensor(ort_outputs[0]),
-                end_logits=torch.tensor(ort_outputs[1]),
+                start_logits = torch.tensor(ort_outputs[0]),
+                end_logits = torch.tensor(ort_outputs[1]),
+                hidden_states = torch.unbind(torch.tensor(np.array(ort_outputs[2:])))
             )
 
             return out
@@ -406,7 +407,6 @@ class Trainer:
                 )
 
         # print(f"original paragraph not in top k {unmatched}")
-
         test_ds = SQuAD_Dataset(
             self.config, df_test_matched, self.tokenizer
         )  # , hide_tqdm=True
