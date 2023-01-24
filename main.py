@@ -338,20 +338,6 @@ if __name__ == "__main__":
             db_path = "data-dir/val/sqlite_con.db"
             val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level)
 
-        if config.save_model_optimizer:
-            print(
-                "saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(
-                    config.load_path
-                )
-            )
-            os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
-            torch.save(
-                {
-                    "model_state_dict": model.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                },
-                "checkpoints/{}/model_optimizer.pt".format(config.load_path),
-            )
 
         trainer = Trainer(
             config=config,
@@ -385,21 +371,6 @@ if __name__ == "__main__":
 
             trainer.train(train_dataloader, val_dataloader)
 
-    if config.save_model_optimizer:
-        print(
-            "saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(
-                config.load_path
-            )
-        )
-        os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
-        torch.save(
-            {
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-            },
-            "checkpoints/{}/model_optimizer.pt".format(config.load_path),
-        )
-
     if config.inference:
         # print("Creating test dataset")
         # test_ds = SQuAD_Dataset(config, df_test, tokenizer)
@@ -408,6 +379,17 @@ if __name__ == "__main__":
 
         # calculate_metrics(test_ds, test_dataloader, wandb_logger)
         # test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
+        if config.train and config.save_model_optimizer:
+            print(
+                "loading best model from checkpoints/{}/model_optimizer.pt for inference".format(
+                    config.load_path
+                )
+            )
+            checkpoint = torch.load(
+                "checkpoints/{}/model_optimizer.pt".format(config.load_path),
+                map_location=torch.device(device),
+            )
+            model.load_state_dict(checkpoint["model_state_dict"])
         model.to(config.inference_device)
         test_metrics = trainer.calculate_metrics(
             df_test, test_retriever, "test", config.inference_device, do_prepare=True
