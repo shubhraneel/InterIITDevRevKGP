@@ -1,5 +1,7 @@
 import sqlite3
+
 from . import docranker_utils
+
 
 class DocDB(object):
     """Sqlite backed document storage.
@@ -7,7 +9,7 @@ class DocDB(object):
     """
 
     def __init__(self, db_path):
-        self.path = db_path 
+        self.path = db_path
         self.connection = sqlite3.connect(self.path, check_same_thread=False)
 
     def __enter__(self):
@@ -37,7 +39,7 @@ class DocDB(object):
         cursor = self.connection.cursor()
         cursor.execute(
             "SELECT text FROM documents WHERE id = ?",
-            (docranker_utils.normalize(doc_id),)
+            (docranker_utils.normalize(doc_id),),
         )
         result = cursor.fetchone()
         cursor.close()

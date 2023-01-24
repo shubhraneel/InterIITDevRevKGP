@@ -1,8 +1,8 @@
 task: qa
 seed: 3407
-wandb_path: drqa-sentence-bert-medium-squad-v2-onnx-quantized
+wandb_path: drqa-two-level-test
 fewshot_qa: False
-inference_device: cpu
+inference_device: cuda
 train: False
 inference: True
 save_model_optimizer: True
@@ -13,8 +13,12 @@ create_drqa_tfidf: False
 top_k: 5
 scheduler: "linear"
 sentence_level: True
-quantize: True
-ONNX: True
+two_level_drqa: False
+quantize: False
+ONNX: False
+create_dense_embeddings: True
+retriever_type: dense # dense or tfidf
+create_inf_table: False
 
 data:
   train_data_path: data-dir/train/df_train.pkl

@@ -5,21 +5,22 @@
 # LICENSE file in the root directory of this source tree.
 """A script to read in and store documents in a sqlite database."""
 
-import pandas as pd
 import argparse
-import sqlite3
-import json
-import os
-import logging
 import importlib.util
+import json
+import logging
+import os
+import sqlite3
 import unicodedata
 
 from multiprocessing import Pool as ProcessPool
+
+import pandas as pd
 from tqdm import tqdm
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-fmt = logging.Formatter('%(asctime)s: [ %(message)s ]', '%m/%d/%Y %I:%M:%S %p')
+fmt = logging.Formatter("%(asctime)s: [ %(message)s ]", "%m/%d/%Y %I:%M:%S %p")
 console = logging.StreamHandler()
 console.setFormatter(fmt)
 logger.addHandler(console)
@@ -27,7 +28,8 @@ logger.addHandler(console)
 
 def normalize(text):
     """Resolve different type of unicode encodings."""
-    return unicodedata.normalize('NFD', text)
+    return unicodedata.normalize("NFD", text)
+
 
 # ------------------------------------------------------------------------------
 # Import helper
@@ -45,7 +47,7 @@ def init(filename):
 
 def import_module(filename):
     """Import a module given a full path to the file."""
-    spec = importlib.util.spec_from_file_location('doc_filter', filename)
+    spec = importlib.util.spec_from_file_location("doc_filter", filename)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -65,7 +67,7 @@ def iter_files(path):
             for f in filenames:
                 yield os.path.join(dirpath, f)
     else:
-        raise RuntimeError('Path %s is invalid' % path)
+        raise RuntimeError("Path %s is invalid" % path)
 
 
 def get_contents(filename):
@@ -83,7 +85,7 @@ def get_contents(filename):
             if not doc:
                 continue
             # Add the document
-            documents.append((normalize(doc['id']), doc['text']))
+            documents.append((normalize(doc["id"]), doc["text"]))
     return documents
 
 
@@ -98,15 +100,14 @@ def store_contents(data_path, save_path, preprocess, num_workers=None):
         num_workers: Number of parallel processes to use when reading docs.
     """
     if os.path.isfile(save_path):
-        raise RuntimeError('%s already exists! Not overwriting.' % save_path)
+        raise RuntimeError("%s already exists! Not overwriting." % save_path)
 
-    logger.info('Reading into database...')
+    logger.info("Reading into database...")
     conn = sqlite3.connect(save_path)
     c = conn.cursor()
     c.execute("CREATE TABLE documents (id PRIMARY KEY, text);")
 
-    workers = ProcessPool(num_workers, initializer=init,
-                          initargs=(preprocess,))
+    workers = ProcessPool(num_workers, initializer=init, initargs=(preprocess,))
     files = [f for f in iter_files(data_path)]
     count = 0
     with tqdm(total=len(files)) as pbar:
@@ -114,8 +115,8 @@ def store_contents(data_path, save_path, preprocess, num_workers=None):
             count += len(pairs)
             c.executemany("INSERT INTO documents VALUES (?,?)", pairs)
             pbar.update()
-    logger.info('Read %d docs.' % count)
-    logger.info('Committing...')
+    logger.info("Read %d docs." % count)
+    logger.info("Committing...")
     conn.commit()
     conn.close()
 
@@ -124,27 +125,42 @@ def store_contents(data_path, save_path, preprocess, num_workers=None):
 # Main.
 # ------------------------------------------------------------------------------
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('data_path', type=str, help='/path/to/data',
-                        default="data-dir/paragraphs.json")
-    parser.add_argument('save_path', type=str, help='/path/to/saved/db.db',
-                        default="data-dir/sqlite_para.db")
-    parser.add_argument('--preprocess', type=str, default=None,
-                        help=('File path to a python module that defines '
-                              'a `preprocess` function'))
-    parser.add_argument('--num-workers', type=int, default=1,
-                        help='Number of CPU processes (for tokenizing, etc)')
-    parser.add_argument('--theme_wise', action='store_true')
+    parser.add_argument(
+        "data_path", type=str, help="/path/to/data", default="data-dir/paragraphs.json"
+    )
+    parser.add_argument(
+        "save_path",
+        type=str,
+        help="/path/to/saved/db.db",
+        default="data-dir/sqlite_para.db",
+    )
+    parser.add_argument(
+        "--preprocess",
+        type=str,
+        default=None,
+        help=("File path to a python module that defines " "a `preprocess` function"),
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=1,
+        help="Number of CPU processes (for tokenizing, etc)",
+    )
+    parser.add_argument("--theme_wise", action="store_true")
     parser.set_defaults(theme_wise=False)
     args = parser.parse_args()
-    
+
     if args.theme_wise:
         df_ = pd.read_csv("data-dir/train_data.csv")
-        themes = df_['Theme'].unique()
+        themes = df_["Theme"].unique()
         for theme in themes:
             store_contents(
-                f"data-dir/theme_wise/{theme.casefold()}/paragraphs.json", f"data-dir/theme_wise/{theme.casefold()}/sqlite_para.db", args.preprocess, args.num_workers
+                f"data-dir/theme_wise/{theme.casefold()}/paragraphs.json",
+                f"data-dir/theme_wise/{theme.casefold()}/sqlite_para.db",
+                args.preprocess,
+                args.num_workers,
             )
     else:
         store_contents(
