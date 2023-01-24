@@ -48,7 +48,7 @@ training:
 model:
   model_path: mrm8488/bert-medium-finetuned-squadv2
   params: {}
-  non_pooler: True
+  non_pooler: False
   noise_tuner: False
   noise_lambda: 0.15
   non_pooler: False
