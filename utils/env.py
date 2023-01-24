@@ -1,13 +1,15 @@
 import os
-import torch
-import random 
+import random
+
 import numpy as np
+import torch
+
 
 def set_seed(SEED=3407):
     random.seed(SEED)
-    os.environ['PYTHONHASHSEED'] = str(SEED)
+    os.environ["PYTHONHASHSEED"] = str(SEED)
     np.random.seed(SEED)
-    
+
     torch.manual_seed(SEED)
     torch.cuda.manual_seed_all(SEED)
     torch.backends.cudnn.deterministic = True

@@ -1,0 +1,49 @@
+task: qa
+seed: 3407
+wandb_path: span-level
+fewshot_qa: False
+inference_device: cpu
+train: True
+inference: True
+save_model_optimizer: False
+load_model_optimizer: False
+load_path: span-level
+use_drqa: True
+create_drqa_tfidf: True
+top_k: 5
+sentence_level: True
+scheduler: "linear"
+quantize: False
+ONNX: False
+
+data:
+  train_data_path: data-dir/train/df_train.pkl
+  val_data_path: data-dir/val/df_val.pkl
+  test_data_path: data-dir/test/df_test.pkl
+  train_batch_size: 32
+  val_batch_size: 2
+  apply_aliasing: False
+  pad_on_right: True
+  max_length: 512
+  doc_stride: 0
+  tokenizer_batch_size: 32
+  answer_max_len: 10
+
+training:
+  epochs: 10
+  optimizer: adam
+  lr: 0.00002
+  sched_function: none
+  sched_func_params: {}
+  sched_params:
+    monitor: val_loss
+  evaluate_every: 1
+  lr_flag : False
+
+model:
+  model_path: google/bert_uncased_L-2_H-128_A-2
+  params: {}
+  non_pooler: False
+  dim: 128
+  span_level: True
+  two_step_loss: False
