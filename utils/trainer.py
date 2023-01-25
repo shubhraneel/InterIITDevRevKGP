@@ -103,11 +103,92 @@ class Trainer:
                 if y - x >= 0 and y - x <= config.data.answer_max_len
             ]
 
+    def guassian_kernel(self, source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None):
+        n_samples = int(source.size()[0])+int(target.size()[0])
+        total = torch.cat([source, target], dim=0)
+
+        total0 = total.unsqueeze(0).expand(int(total.size(0)), int(total.size(0)), int(total.size(1)))
+        total1 = total.unsqueeze(1).expand(int(total.size(0)), int(total.size(0)), int(total.size(1)))
+        l2_distance = ((total0-total1)**2).sum(2)
+
+        if fix_sigma:
+            bandwidth = fix_sigma
+        else:
+            bandwidth = torch.sum(l2_distance.data) / (n_samples**2-n_samples)
+        bandwidth /= kernel_mul ** (kernel_num // 2)
+        bandwidth_list = [bandwidth * (kernel_mul**i) for i in range(kernel_num)]
+
+        kernel_val = [torch.exp(-l2_distance / bandwidth_temp) for bandwidth_temp in bandwidth_list]
+        return sum(kernel_val)
+
+    def mmd(self, source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None):
+        batch_size = int(source.size()[0])
+        kernels = self.guassian_kernel(source, target, kernel_mul=kernel_mul, kernel_num=kernel_num, fix_sigma=fix_sigma)
+        XX = kernels[:batch_size, :batch_size]
+        YY = kernels[batch_size:, batch_size:]
+        XY = kernels[:batch_size, batch_size:]
+        YX = kernels[batch_size:, :batch_size]
+        loss = torch.mean(XX) + torch.mean(YY) - torch.mean(XY) - torch.mean(YX)
+        return loss
+
+    def contrastive_adaptive_loss(self, outputs, batch):
+        input_ids = batch["question_context_input_ids"].to(self.device)
+        attention_mask = batch["question_context_attention_mask"].to(self.device)
+        token_type_ids = batch["question_context_token_type_ids"].to(self.device)
+        start_positions = batch["start_positions"].to(self.device)
+        end_positions = batch["end_positions"].to(self.device)
+
+        input_type = None
+        if "input_type" in batch.keys() and batch["input_type"] != None:
+            input_type = batch['input_type'].to(self.device)
+        else:
+            input_type = torch.randint(0, 2, (input_ids.shape[0],), dtype=torch.long).to(self.device)
+        
+        start_logits = outputs["start_logits"]
+        end_logits = outputs["end_logits"]
+
+        sequence_output = outputs['hidden_states'][-1]
+
+        a_mask_1 = torch.zeros(token_type_ids.shape[0], token_type_ids.shape[1]+1).to(token_type_ids.device)
+        a_mask_1[torch.arange(a_mask_1.shape[0]), start_positions] = 1
+        a_mask_1 = a_mask_1.cumsum(dim=1)[:, :-1]
+        a_mask_2 = torch.zeros(token_type_ids.shape[0], token_type_ids.shape[1]+1).to(token_type_ids.device)
+        a_mask_2[torch.arange(a_mask_2.shape[0]), end_positions+1] = 1
+        a_mask_2 = a_mask_2.cumsum(dim=1)[:, :-1]
+        a_mask = a_mask_1 * (1 - a_mask_2)
+
+        splits = (input_ids == 102) * torch.arange(input_ids.shape[1], 0, -1).to(input_ids.device)
+        _, splits = torch.sort(splits, -1, descending=True)
+        splits = splits[:, :2]
+        # splits = (input_ids == 102).nonzero()[:, 1].reshape(input_ids.size(0),-1)
+        c_mask = (token_type_ids == 1) * attention_mask
+        c_mask[torch.arange(c_mask.size(0)), splits[:, 0]] = 0
+        c_mask[torch.arange(c_mask.size(0)), splits[:, 1]] = 0
+        c_mask = c_mask * (1 - a_mask)
+
+        q_mask = (token_type_ids == 0) * attention_mask
+        q_mask[torch.arange(q_mask.size(0)), splits[:, 0]] = 0
+        q_mask[:, 0] = 0
+
+        a_rep = (sequence_output * a_mask.unsqueeze(-1)).sum(1) / a_mask.sum(-1).unsqueeze(-1)
+        cq_mask = ((c_mask + q_mask) > 0) * 1.0
+        cq_rep = (sequence_output * cq_mask.unsqueeze(-1)).sum(1) / cq_mask.sum(-1).unsqueeze(-1)
+
+        can_loss = -1*self.mmd(cq_rep, a_rep)
+
+        if len((input_type==0).nonzero()[:, 0]) != 0 and len((input_type==1).nonzero()[:, 0]) != 0:
+            a_rep_source = a_rep[(input_type==0).nonzero()[:, 0]].view(-1, a_rep.size(1))
+            a_rep_target = a_rep[(input_type==1).nonzero()[:, 0]].view(-1, a_rep.size(1))
+            cq_rep_source = cq_rep[(input_type==0).nonzero()[:, 0]].view(-1, cq_rep.size(1))
+            cq_rep_target = cq_rep[(input_type==1).nonzero()[:, 0]].view(-1, cq_rep.size(1))
+
+            can_loss += self.mmd(a_rep_source, a_rep_target) + self.mmd(cq_rep_source, cq_rep_target)
+        
+        return can_loss
 
     def _train_step(self, dataloader, epoch):
         total_loss = 0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
-
         for batch_idx, batch in enumerate(tepoch):
             tepoch.set_description(f"Epoch {epoch + 1}")
             if len(batch["question_context_input_ids"].shape) == 1:
@@ -123,19 +204,32 @@ class Trainer:
                     ].unsqueeze(dim=0)
 
             out = self.model(batch)
-            if batch_idx % 300 == 0:
-                self.log_ipop_batch(batch, out, batch_idx)
+            if self.config.model.two_step_loss:
+                out=out[0]
+            if batch_idx%300==0:
+              self.log_ipop_batch(batch,out,batch_idx)
 
             if self.config.model.span_level:
                 loss = out[0].loss
             else:
                 loss = out.loss
+
+            if self.config.training.can_loss and not self.config.model.non_pooler:
+                loss += self.contrastive_adaptive_loss(out, batch) * self.config.training.can_loss_beta
+
             loss.backward()
+
+            if loss.isnan():
+              self.optimizer.zero_grad()
+              continue
 
             total_loss += loss.item()
             tepoch.set_postfix(loss=total_loss / (batch_idx + 1))
             wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
 
+            if self.config.training.can_loss and not self.config.model.non_pooler:
+              torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+            
             self.optimizer.step()
             if self.config.training.lr_flag:
                 self.scheduler.step()

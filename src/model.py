@@ -19,7 +19,6 @@ transformers.onnx.config.OnnxConfig._tasks_to_common_outputs['question-answering
     }
 )
 
-
 class BaselineQA(nn.Module):
     def __init__(self, config, device):
         super(BaselineQA, self).__init__()
@@ -28,8 +27,8 @@ class BaselineQA(nn.Module):
         self.model = AutoModelForQuestionAnswering.from_pretrained(self.config.model.model_path, output_hidden_states=True)
 
         if config.model.two_step_loss:
-            self.score = nn.Linear(config.model.dim, 1)
-            self.loss_fct = nn.BCEWithLogitsLoss()
+            self.score=nn.Linear(config.model.dim,1)
+            self.loss_fct=nn.BCEWithLogitsLoss()
         elif config.model.span_level:
             self.span_extractor = EndpointSpanExtractor(
                 input_dim=config.model.dim,
@@ -45,7 +44,6 @@ class BaselineQA(nn.Module):
             ]
             self.span_mlp = nn.Linear(config.model.dim * 3, 1)
             self.loss_fct = nn.BCEWithLogitsLoss()
-
         self.device = device
 
     def forward(self, batch):
