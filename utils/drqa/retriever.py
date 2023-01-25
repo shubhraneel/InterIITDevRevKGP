@@ -133,15 +133,20 @@ class DenseRanker(object):
             tfidf_path: path to saved model file
             strict: fail on empty queries or continue (and return empty result)
         """
+        if "val" in tfidf_path:
+            self.mode = "val"
+        else:
+            self.mode = "test"
+
         assert os.path.exists(
-            "data-dir/test/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy"
+            f"data-dir/{self.mode}/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy"
         ), f"Dense test embedding path does not exist"
 
         # check if tfidf_path exists
         assert os.path.exists(tfidf_path), f"tfidf_path does not exist"
 
         self.doc_mat = np.load(
-            "data-dir/test/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy"
+            f"data-dir/{self.mode}/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy"
         )
 
         _, metadata = docranker_utils.load_sparse_csr(tfidf_path)
@@ -170,7 +175,7 @@ class DenseRanker(object):
         """Closest docs by dot product between query and documents
         in tfidf weighted word vector space.
         """
-        text_embedding = self.model.encode(query, convert_to_tensor=True).cpu().numpy()
+        text_embedding = self.return_sentence_transformer_embeddings(query).cpu().numpy()
         D, I = self.index.search(np.expand_dims(text_embedding, axis=0), self.num_docs)
         D = D[0]
         I = I[0]
@@ -200,7 +205,7 @@ class DenseRanker(object):
         return self.get_embeddings(texts)[:, 0, :]
 
     def return_sentence_transformer_embeddings(self, texts):
-        return self.model.encode(texts, convert_to_tensor=True)
+        return self.model.encode(texts, convert_to_tensor=True,show_progress_bar=False)
 
 
 # Theme-wise
