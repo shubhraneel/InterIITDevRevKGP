@@ -19,7 +19,6 @@ transformers.onnx.config.OnnxConfig._tasks_to_common_outputs['question-answering
     }
 )
 
-
 class BaselineQA(nn.Module):
     def __init__(self, config, device):
         super(BaselineQA, self).__init__()
@@ -45,7 +44,6 @@ class BaselineQA(nn.Module):
             ]
             self.span_mlp = nn.Linear(config.model.dim * 3, 1)
             self.loss_fct = nn.BCEWithLogitsLoss()
-
         self.device = device
 
     def forward(self, batch):
