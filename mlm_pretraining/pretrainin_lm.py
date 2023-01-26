@@ -54,9 +54,6 @@ MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 from google.colab import drive
 drive.mount("/content/gdrive")
 
-#BASE_PATH = '/content/gdrive/MyDrive/BERT fine tuning'
-BASE_PATH = '/content/gdrive/MyDrive/InterIIT_Tech_Meet_Abhranil_Exp/Pretrained_LM'
-
 logging.basicConfig(filename=f'{BASE_PATH}/log.txt', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -121,43 +118,43 @@ class TextDataset(Dataset):
     def __getitem__(self, item):
         return torch.tensor(self.examples[item], dtype=torch.long)
 
-class LineByLineTextDataset(Dataset):
-    def __init__(self, tokenizer: PreTrainedTokenizer, args, file_path: str, block_size=512):
-        assert os.path.isfile(file_path)
-        # Here, we do not cache the features, operating under the assumption
-        # that we will soon use fast multithreaded tokenizers from the
-        # `tokenizers` repo everywhere =)
-        logger.info("Creating features from dataset file at %s", file_path)
-        batch = 100000
-        i = 0
-        with open(file_path, encoding="utf-8") as f:
-            lines = []
-            for line in tqdm(f):
-                if not (len(line) > 0 and not line.isspace()):
-                    continue
-                i += 1
-                lines.append(line)
-                if i % batch == 0:
-                    if not os.path.isfile(f"{BASE_PATH}/allpatients_pickle_dump/example_{i-batch}.pkl"):
-                        tokenization = tokenizer.batch_encode_plus(lines, add_special_tokens=True, max_length=block_size)["input_ids"]
-                        with open(f"{BASE_PATH}/allpatients_pickle_dump/example_{i-batch}.pkl", "wb+") as pkl:
-                            pickle.dump(tokenization, pkl)
-                    lines = []
-            if i % batch > 0:
-                if not os.path.isfile(f"{BASE_PATH}/allpatients_pickle_dump/example_{i-batch}.pkl"):
-                    tokenization = tokenizer.batch_encode_plus(lines, add_special_tokens=True, max_length=block_size)["input_ids"]
-                    with open(f"{BASE_PATH}/allpatients_pickle_dump/example_{i-i%batch}.pkl", "wb+") as pkl:
-                        pickle.dump(tokenization, pkl)
+# class LineByLineTextDataset(Dataset):
+#     def __init__(self, tokenizer: PreTrainedTokenizer, args, file_path: str, block_size=512):
+#         assert os.path.isfile(file_path)
+#         # Here, we do not cache the features, operating under the assumption
+#         # that we will soon use fast multithreaded tokenizers from the
+#         # `tokenizers` repo everywhere =)
+#         logger.info("Creating features from dataset file at %s", file_path)
+#         batch = 100000
+#         i = 0
+#         with open(file_path, encoding="utf-8") as f:
+#             lines = []
+#             for line in tqdm(f):
+#                 if not (len(line) > 0 and not line.isspace()):
+#                     continue
+#                 i += 1
+#                 lines.append(line)
+#                 if i % batch == 0:
+#                     if not os.path.isfile(f"{BASE_PATH}/allpatients_pickle_dump/example_{i-batch}.pkl"):
+#                         tokenization = tokenizer.batch_encode_plus(lines, add_special_tokens=True, max_length=block_size)["input_ids"]
+#                         with open(f"{BASE_PATH}/allpatients_pickle_dump/example_{i-batch}.pkl", "wb+") as pkl:
+#                             pickle.dump(tokenization, pkl)
+#                     lines = []
+#             if i % batch > 0:
+#                 if not os.path.isfile(f"{BASE_PATH}/allpatients_pickle_dump/example_{i-batch}.pkl"):
+#                     tokenization = tokenizer.batch_encode_plus(lines, add_special_tokens=True, max_length=block_size)["input_ids"]
+#                     with open(f"{BASE_PATH}/allpatients_pickle_dump/example_{i-i%batch}.pkl", "wb+") as pkl:
+#                         pickle.dump(tokenization, pkl)
             
-        self.length = i
+#         self.length = i
 
-    def __len__(self):
-        return self.length
+#     def __len__(self):
+#         return self.length
 
-    def __getitem__(self, i):
-        with open(f"{BASE_PATH}/allpatients_pickle_dump/example_{i - i%batch}.pkl", "rb") as pkl:
-            tokenization = pickle.load(pkl)
-        return torch.tensor(tokenization[i%batch], dtype=torch.long)
+#     def __getitem__(self, i):
+#         with open(f"{BASE_PATH}/allpatients_pickle_dump/example_{i - i%batch}.pkl", "rb") as pkl:
+#             tokenization = pickle.load(pkl)
+#         return torch.tensor(tokenization[i%batch], dtype=torch.long)
 
 def _sorted_checkpoints(args, checkpoint_prefix="checkpoint", use_mtime=False) -> List[str]:
     ordering_and_checkpoint_path = []
@@ -196,10 +193,11 @@ def _rotate_checkpoints(args, checkpoint_prefix="checkpoint", use_mtime=False) -
 
 def load_and_cache_examples(args, tokenizer, evaluate=False):
     file_path = args.eval_data_file if evaluate else args.train_data_file
-    if args.line_by_line:
-        return LineByLineTextDataset(tokenizer, args, file_path=file_path, block_size=args.block_size)
-    else:
-        return TextDataset(tokenizer, args, file_path=file_path, block_size=args.block_size)
+    # if args.line_by_line:
+    #     return LineByLineTextDataset(tokenizer, args, file_path=file_path, block_size=args.block_size)
+    # else:
+    #     return TextDataset(tokenizer, args, file_path=file_path, block_size=args.block_size)
+    return TextDataset(tokenizer, args, file_path=file_path, block_size=args.block_size)
 
 def set_seed(args):
     random.seed(args.seed)
@@ -495,49 +493,27 @@ class Args():
         pass
 
 from transformers.models.auto.modeling_auto import AutoModelForMaskedLM
-def main():
-    args = Args()
-    args.output_dir = f'{BASE_PATH}/Models/context_pretrained_electra-small-finetuned-squadv2/'
-    args.model_type = 'bert'
-    args.model_name_or_path = 'mrm8488/electra-small-finetuned-squadv2'
-    args.do_train = True
-    args.train_data_file = f'{BASE_PATH}/context_MLM.txt'
-    args.do_eval = False
-    args.eval_data_file = f'{BASE_PATH}/context_MLM.txt'
-    args.line_by_line = False  # True  # False
-    args.mlm = True
-    args.per_gpu_train_batch_size = 4
-    args.gradient_accumulation_steps = 4
-    args.num_train_epochs = 100
-    args.save_total_limit = 1
-    args.should_continue = False
-    args.mlm_probability = 0.15
-    args.config_name = None
-    args.tokenizer_name = None
-    args.cache_dir = None
-    args.block_size = 512   #128 #512
-    args.evaluate_during_training = False
-    args.per_gpu_eval_batch_size = 4
-    args.learning_rate = 5e-5
-    args.weight_decay = 0.0
-    args.adam_epsilon = 1e-8
-    args.max_grad_norm = 1.0
-    args.max_steps = -1
-    args.warmup_steps = 0
-    args.logging_steps = 500
-    args.save_steps = 500
-    args.save_total_limit = None
-    args.eval_all_checkpoints = False
-    args.no_cuda = False
-    args.overwrite_output_dir = False
-    args.overwrite_cache = False
-    args.seed = 42
-    args.fp16 = False
-    args.fp16_opt_level = "01"
-    args.local_rank = -1
-    args.server_ip = ""
-    args.server_port = ""
+from config import Config
 
+def main():
+
+    #Read data from paths
+    df = pd.read_csv("../data-dir/train_data.csv")
+
+    a = df['context']  
+
+    base_filename = '../data-dir/context_MLM.txt'
+    with open(os.path.join(base_filename),'w') as outfile:
+        a.to_string(outfile, index = False)
+
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", default="config.yaml", help="Config File")
+    config = parser.parse_args()
+    with open(config.config) as f:
+        config = yaml.safe_load(f)
+        args = Config(**config)
+    
     if args.model_type in ["bert", "roberta", "distilbert", "camembert"] and not args.mlm:
         raise ValueError(
             "BERT and RoBERTa-like models do not have LM heads but masked LM heads. They must be run using the --mlm "
@@ -650,6 +626,12 @@ def main():
         model - AutoModelForMaskedLM.from_config(config)
 
     model.to(args.device)
+
+    if args.freeze:
+        modules = [model.bert.embeddings, *model.bert.encoder.layer[:args.freeze_layers]]
+        for module in modules:
+            for param in module.parameters():
+                param.requires_grad = False
 
     if args.local_rank == 0:
         torch.distributed.barrier()  # End of barrier to make sure only the first process in distributed training download model & vocab
