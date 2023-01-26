@@ -299,46 +299,46 @@ class Trainer:
         for epoch in range(self.config.training.epochs):
             self._train_step(train_dataloader, epoch)
 
-            if (val_dataloader is not None) and (
-                ((epoch + 1) % self.config.training.evaluate_every)
-            ) == 0:
-                val_loss = self.evaluate(val_dataloader)
-                if epoch == 0:
-                    metrics = self.calculate_metrics(
-                        self.df_val,
-                        self.val_retriever,
-                        "val",
-                        self.device,
-                        do_prepare=True,
-                    )
-                else:
-                    metrics = self.calculate_metrics(
-                        self.df_val,
-                        self.val_retriever,
-                        "val",
-                        self.device,
-                        do_prepare=False,
-                    )
-                if self.best_val_loss >= val_loss and self.config.save_model_optimizer:
-                    self.best_val_loss = val_loss
-                    print(
-                        "saving best model and optimizer at checkpoints/{}/model_optimizer.pt".format(
-                            self.config.load_path
-                        )
-                    )
-                    os.makedirs(
-                        "checkpoints/{}/".format(self.config.load_path), exist_ok=True
-                    )
-                    torch.save(
-                        {
-                            "model_state_dict": self.model.state_dict(),
-                            "optimizer_state_dict": self.optimizer.state_dict(),
-                        },
-                        "checkpoints/{}/model_optimizer.pt".format(
-                            self.config.load_path
-                        ),
-                    )
-                self.model.train()
+            # if (val_dataloader is not None) and (
+            #     ((epoch + 1) % self.config.training.evaluate_every)
+            # ) == 0:
+            #     val_loss = self.evaluate(val_dataloader)
+            #     if epoch == 0:
+            #         metrics = self.calculate_metrics(
+            #             self.df_val,
+            #             self.val_retriever,
+            #             "val",
+            #             self.device,
+            #             do_prepare=True,
+            #         )
+            #     else:
+            #         metrics = self.calculate_metrics(
+            #             self.df_val,
+            #             self.val_retriever,
+            #             "val",
+            #             self.device,
+            #             do_prepare=False,
+            #         )
+            #     if self.best_val_loss >= val_loss and self.config.save_model_optimizer:
+            #         self.best_val_loss = val_loss
+            #         print(
+            #             "saving best model and optimizer at checkpoints/{}/model_optimizer.pt".format(
+            #                 self.config.load_path
+            #             )
+            #         )
+            #         os.makedirs(
+            #             "checkpoints/{}/".format(self.config.load_path), exist_ok=True
+            #         )
+            #         torch.save(
+            #             {
+            #                 "model_state_dict": self.model.state_dict(),
+            #                 "optimizer_state_dict": self.optimizer.state_dict(),
+            #             },
+            #             "checkpoints/{}/model_optimizer.pt".format(
+            #                 self.config.load_path
+            #             ),
+            #         )
+            #     self.model.train()
 
     def evaluate(self, dataloader):
         self.model.eval()
@@ -549,6 +549,7 @@ class Trainer:
         start_time=time.time()
         question_prediction_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
         results_dict = {}
+        clf_prediction_dict={q_id:0 for q_id in self.prepared_test_df_matched["question_id"].unique()}
 
         # TODO: without sequentional batch iteration
         for qp_batch_id, qp_batch in tqdm(
@@ -586,14 +587,20 @@ class Trainer:
                 )  # -> [32,1]
             
             if self.config.model.verifier:
-                clf_prediction_dict={q_id:0 for q_id in self.prepared_test_df_matched["question_id"].unique()}
                 
                 cls_tokens=pred.hidden_states[-1][:,0]
 
-                scores=self.model.score(cls_tokens) # [32,2]
-                batch_preds_clf=[1 if p[1]>=p[0] else 0 for p in scores]
+                scores=torch.sigmoid(self.model.score(cls_tokens).squeeze(1)) # [32,1]
+                # print(scores)
+
+                batch_preds_clf=[1 if p>=0.5 else 0 for p in scores]
+                # print(batch_preds_clf)
 
             for batch_idx, q_id in enumerate(qp_batch["question_id"]):
+                if self.config.model.verifier:
+                  if(batch_preds_clf[batch_idx]==1):
+                    # print("yo")
+                    clf_prediction_dict[q_id]=1
                 if question_prediction_dict[q_id][0] < confidence_scores[batch_idx]:
                     # using the context in the qp_pair get extract the span using max_start_prob and max_end_prob
                     context = qp_batch["context"][batch_idx]
@@ -633,9 +640,7 @@ class Trainer:
                     if(len(decoded_answer)>0):
                         question_prediction_dict[q_id]=(confidence_scores[batch_idx].item(),decoded_answer)
                     
-                    if self.config.model.verifier:
-                        if(batch_preds_clf[batch_idx]==1):
-                            clf_prediction_dict[q_id]=1
+                    
 
         if (self.config.create_inf_table):
             df=pd.read_pickle("data-dir/test/df_test.pkl")

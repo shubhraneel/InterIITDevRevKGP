@@ -1,13 +1,13 @@
 task: qa
 seed: 3407
-wandb_path: verifier-testing
+wandb_path: verifier-testing-bert-medium
 fewshot_qa: False
 inference_device: cuda
 train: True
 inference: True
 save_model_optimizer: True
 load_model_optimizer: False
-load_path: verifier-testing
+load_path: verifier-testing-bert-medium
 use_drqa: True
 create_drqa_tfidf: False
 top_k: 5
