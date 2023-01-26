@@ -52,3 +52,4 @@ model:
   dim: 128
   span_level: False
   two_step_loss: False
+  verifier: True

@@ -123,8 +123,8 @@ class Trainer:
                     ].unsqueeze(dim=0)
 
             out = self.model(batch)
-            if batch_idx % 300 == 0:
-                self.log_ipop_batch(batch, out, batch_idx)
+            # if batch_idx % 300 == 0:
+            #     self.log_ipop_batch(batch, out, batch_idx)
 
             if self.config.model.span_level:
                 loss = out[0].loss
@@ -488,6 +488,14 @@ class Trainer:
                 confidence_scores = (
                     max_end_probs.values * max_start_probs.values
                 )  # -> [32,1]
+            
+            if self.config.model.verifier:
+                clf_prediction_dict={q_id:0 for q_id in self.prepared_test_df_matched["question_id"].unique()}
+                
+                cls_tokens=pred.hidden_states[-1][:,0]
+
+                scores=self.model.score(cls_tokens) # [32,2]
+                batch_preds_clf=[1 if p[1]>=p[0] else 0 for p in scores]
 
             for batch_idx, q_id in enumerate(qp_batch["question_id"]):
                 if question_prediction_dict[q_id][0] < confidence_scores[batch_idx]:
@@ -528,6 +536,11 @@ class Trainer:
                         
                     if(len(decoded_answer)>0):
                         question_prediction_dict[q_id]=(confidence_scores[batch_idx].item(),decoded_answer)
+                    
+                    if self.config.model.verifier:
+                        if(batch_preds_clf[batch_idx]==1):
+                            clf_prediction_dict[q_id]=1
+
         if (self.config.create_inf_table):
             df=pd.read_pickle("data-dir/test/df_test.pkl")
             match_df = pd.DataFrame(columns=['match'])
@@ -563,6 +576,9 @@ class Trainer:
             }
         )
 
+        if self.config.model.verifier:
+            return question_prediction_dict,clf_prediction_dict
+
         return question_prediction_dict
 
     def calculate_metrics(self, df_test, retriever, prefix, device, do_prepare):
@@ -576,9 +592,14 @@ class Trainer:
         # TODO: check if this way of calculating the time is correct
         if device == "cuda":
             torch.cuda.synchronize()
-        question_pred_dict = self.inference(
-            df_test, retriever, prefix, device, do_prepare
-        )
+        
+        if self.config.model.verifier:
+            question_pred_dict,clf_preds_dict=self.inference(df_test,retriever,prefix,device,do_prepare)
+            clf_preds=[clf_preds_dict[q_id] for q_id in df_test['question_id']]
+        else:
+            question_pred_dict = self.inference(
+                df_test, retriever, prefix, device, do_prepare
+            )
         predicted_answers = [
             question_pred_dict[q_id][1] for q_id in df_test["question_id"]
         ]
@@ -591,10 +612,13 @@ class Trainer:
         ]
         mean_squad_f1 = np.mean(squad_f1_per_span)
 
-        classification_prediction = [
-            1 if (len(predicted_answers[i]) != 0) else 0
-            for i in range(len(predicted_answers))
-        ]
+        if self.config.model.verifier:
+            classification_prediction = clf_preds
+        else:
+            classification_prediction = [
+                1 if (len(predicted_answers[i]) != 0) else 0
+                for i in range(len(predicted_answers))
+            ]
         classification_actual = df_test["answerable"].astype(int)
         classification_f1 = f1_score(classification_actual, classification_prediction)
         classification_accuracy = accuracy_score(

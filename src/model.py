@@ -27,9 +27,9 @@ class BaselineQA(nn.Module):
         self.config = config 
         self.model = AutoModelForQuestionAnswering.from_pretrained(self.config.model.model_path, output_hidden_states=True)
 
-        if config.model.two_step_loss:
-            self.score = nn.Linear(config.model.dim, 1)
-            self.loss_fct = nn.BCEWithLogitsLoss()
+        if config.model.verifier:
+            self.score = nn.Linear(self.model.config.hidden_dim, 2)
+            self.loss_fct = nn.CrossEntropyLoss()
         elif config.model.span_level:
             self.span_extractor = EndpointSpanExtractor(
                 input_dim=config.model.dim,
@@ -66,12 +66,12 @@ class BaselineQA(nn.Module):
                 end_positions=batch["end_positions"].to(self.device),
                 output_hidden_states=True,
             )
-        if self.config.model.two_step_loss:
+        if self.config.model.verifier:
             cls_tokens = out.hidden_states[-1][:, 0]
-            scores = self.score(cls_tokens)  # [32,1]
-            out.loss += self.loss_fct(scores, batch["answerable"])
+            scores = self.score(cls_tokens)  # [32,2]
+            out.loss = self.loss_fct(scores, F.one_hot(batch["answerable"]))
 
-            return (out, torch.nn.functional.softmax(scores))
+            return out
 
         elif self.config.model.span_level:
             token_embeddings = out.hidden_states[-1]
