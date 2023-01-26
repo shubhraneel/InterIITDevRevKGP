@@ -1,13 +1,13 @@
 task: qa
 seed: 3407
-wandb_path: drqa-two-level-test
+wandb_path: verifier-testing
 fewshot_qa: False
 inference_device: cuda
-train: False
+train: True
 inference: True
 save_model_optimizer: True
 load_model_optimizer: False
-load_path: drqa-sentence-bert-medium-squad-v2-onnx-quantized
+load_path: verifier-testing
 use_drqa: True
 create_drqa_tfidf: False
 top_k: 5

@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import transformers
-from allennlp.modules.span_extractors import EndpointSpanExtractor
+# from allennlp.modules.span_extractors import EndpointSpanExtractor
 from transformers import AutoModelForQuestionAnswering
 from transformers.onnx import FeaturesManager
 import transformers
@@ -28,7 +28,7 @@ class BaselineQA(nn.Module):
         self.model = AutoModelForQuestionAnswering.from_pretrained(self.config.model.model_path, output_hidden_states=True)
 
         if config.model.verifier:
-            self.score = nn.Linear(self.model.config.hidden_dim, 2)
+            self.score = nn.Linear(self.model.config.hidden_size, 2)
             self.loss_fct = nn.CrossEntropyLoss()
         elif config.model.span_level:
             self.span_extractor = EndpointSpanExtractor(
@@ -69,7 +69,7 @@ class BaselineQA(nn.Module):
         if self.config.model.verifier:
             cls_tokens = out.hidden_states[-1][:, 0]
             scores = self.score(cls_tokens)  # [32,2]
-            out.loss = self.loss_fct(scores, F.one_hot(batch["answerable"]))
+            out.loss = self.loss_fct(scores, batch["answerable"].to(self.device))
 
             return out
 
