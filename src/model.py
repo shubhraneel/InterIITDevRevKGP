@@ -10,14 +10,13 @@ from transformers.onnx import FeaturesManager
 
 
 class BaselineQA(nn.Module):
-    def __init__(self, config, device, test=False):
+    def __init__(self, config, device):
         super(BaselineQA, self).__init__()
 
         self.config = config
         self.model = AutoModelForQuestionAnswering.from_pretrained(
             self.config.model.model_path
         )
-        self.test = test
         if config.model.two_step_loss:
             self.score = nn.Linear(config.model.dim, 1)
             self.loss_fct = nn.BCEWithLogitsLoss()
@@ -43,7 +42,7 @@ class BaselineQA(nn.Module):
         input = dict()
         input['input_ids'] = batch["question_context_input_ids"].to(self.device)
         input['attention_mask'] = batch["question_context_input_ids"].to(self.device)
-        if not self.test:
+        if not self.config.inference:
             input['start_positions'] = batch["start_positions"].to(self.device)
             input['end_positions'] = batch["end_positions"].to(self.device)
         if not self.config.model.non_pooler:
