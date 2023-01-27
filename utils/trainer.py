@@ -39,6 +39,7 @@ class Trainer:
         device,
         tokenizer,
         ques2idx,
+        title2idx,
         df_val=None,
         val_retriever=None,
     ):
@@ -50,9 +51,10 @@ class Trainer:
         self.optimizer = optimizer
         self.model = model
 
-        wandb.watch(self.model)
+        # wandb.watch(self.model)
 
         self.ques2idx = ques2idx
+        self.title2idx = title2idx
 
         self.df_val = df_val
         self.val_retriever = val_retriever
@@ -441,15 +443,17 @@ class Trainer:
         self.prepared_test_loader = test_dataloader
         self.prepared_test_df_matched = df_test_matched
 
-
     def prepare_theme_df_before_inference(self, theme, theme_questions, theme_contexts, retriever, prefix, device):
- 
+
         df_test_matched = pd.DataFrame()
 
         df_unique_con = theme_contexts
-        unmatched = 0
 
         df_temp = theme_questions
+
+        start_time = time.time()
+
+        title_id = str(self.title2idx[theme])
 
         for idx, row in df_temp.iterrows():
             df_contexts = pd.DataFrame()
@@ -457,29 +461,37 @@ class Trainer:
                 question = row["question"]
                 question_id = row["question_id"]
                 doc_idx_filtered, doc_text_filtered = retriever.retrieve_top_k(
-                    question, str(title_id), k=self.config.top_k
+                    question, title_id, k=self.config.top_k
                 )
-                df_contexts = df_unique_con.sample(n=1, random_state=self.config.seed)
-                df_contexts.loc[:, "question"] = question
-                df_contexts.loc[:, "question_id"] = question_id
-                # df_contexts.loc[:, "answerable"] = False
-                # df_contexts.loc[:, "answer_start"] = ""
-                # df_contexts.loc[:, "answer_text"] = ""
-                df_contexts.loc[:, "context"] = "".join(doc_text_filtered)
-                df_contexts.loc[:, "context_id"] = "+".join(doc_idx_filtered)
+                # df_contexts = df_unique_con.sample(n=1, random_state=config.seed)
+                # df_contexts.loc[:, "question"] = question
+                # df_contexts.loc[:, "question_id"] = question_id
+                # # df_contexts.loc[:, "answerable"] = False
+                # # df_contexts.loc[:, "answer_start"] = ""
+                # # df_contexts.loc[:, "answer_text"] = ""
+                # df_contexts.loc[:, "context"] = "".join(doc_text_filtered)
+                # df_contexts.loc[:, "context_id"] = "+".join(doc_idx_filtered)
+                new_row = dict()
+                new_row['question'] = question
+                new_row['question_id'] = question_id
+                new_row['context'] = "".join(doc_text_filtered)
+                new_row['context_id'] = "+".join(doc_idx_filtered)
+                df_contexts = pd.DataFrame([new_row])
+                
             else:
                 question = row["question"]
                 question_id = row["question_id"]
 
                 if retriever is not None:
                     doc_idx_filtered, doc_text_filtered = retriever.retrieve_top_k(
-                        question, str(title_id), k=self.config.top_k
+                        question, title_id, k=self.config.top_k
                     )
                     df_contexts_og = df_unique_con.loc[
                         df_unique_con["context_id"].isin(
                             [int(doc_idx) for doc_idx in doc_idx_filtered]
                         )
                     ].copy()
+
                     # TODO: we can endup sampling things in doc_idx_filtered again
                     df_contexts_random = df_unique_con.sample(
                         n=max(0, self.config.top_k - len(doc_idx_filtered)),
@@ -492,28 +504,20 @@ class Trainer:
                     )
                 else:
                     df_contexts = df_unique_con.sample(n=self.config.top_k, random_state=self.config.seed)
-                df_contexts.loc[:, "question"] = question
-                df_contexts.loc[:, "question_id"] = question_id
+                df_contexts["question"] = question
+                df_contexts["question_id"] = question_id
                 # df_contexts.loc[:, "answerable"] = False
                 # df_contexts.loc[:, "answer_start"] = ""
                 # df_contexts.loc[:, "answer_text"] = ""
 
-                original_context_idx = df_contexts.loc[
-                    df_contexts["context_id"] == context_id
-                ]
-                if len(original_context_idx) == 0:
-                    # print(f"original paragraph not in top k {unmatched}")
-                    unmatched += 1
-                else:
-                    row_dict = row.to_dict()
-                    df_contexts.loc[
-                        df_contexts["context_id"] == context_id, row_dict.keys()
-                    ] = row_dict.values()
             df_test_matched = pd.concat(
                 [df_test_matched, df_contexts], axis=0, ignore_index=True
             )
 
         # print(f"original paragraph not in top k {unmatched}")
+
+        df_test_matched['title'] = theme
+        df_test_matched['title_id'] = self.title2idx[theme]
 
         test_ds = SQuAD_TestDataset(
             self.config, df_test_matched, self.tokenizer
@@ -525,24 +529,7 @@ class Trainer:
         )
         time_test_dataloader_generation = 1000 * (time.time() - start_time)
         print(time_test_dataloader_generation)
-        print(time_test_dataloader_generation / df_test.shape[0])
-        wandb.log(
-            {
-                "time_"
-                + str(prefix)
-                + "_dataloader_generation": time_test_dataloader_generation
-            }
-        )
-        wandb.log(
-            {
-                "per_q_"
-                + str(prefix)
-                + "_time_"
-                + str(prefix)
-                + "_dataloader_generation": time_test_dataloader_generation
-                / df_test.shape[0]
-            }
-        )
+        print(time_test_dataloader_generation / len(theme_questions))
 
         print(f"{len(df_test_matched)=}")
         print(f"{len(df_temp)=}")
@@ -551,13 +538,13 @@ class Trainer:
         self.prepared_test_df_matched = df_test_matched
 
 
-    def inference(self, df_test, retriever, prefix, device, do_prepare):
+    def inference(self, questions, contexts, retriever, prefix, device, do_prepare):
         self.model.to(device)
         self.device = device
         self.model.device = device
 
         if do_prepare:
-            self.prepare_df_before_inference(df_test, retriever, prefix, device)
+            self.prepare_theme_df_before_inference(questions, contexts, retriever, prefix, device)
 
         start_time = time.time()
         question_prediction_dict = {
@@ -631,15 +618,7 @@ class Trainer:
 
         time_inference_generation = 1000 * (time.time() - start_time)
         print(time_inference_generation)
-        print(time_inference_generation / df_test.shape[0])
-        wandb.log({prefix + "_time_inference_generation": time_inference_generation})
-        wandb.log(
-            {
-                prefix
-                + "_per_q_time_inference_generation": time_inference_generation
-                / df_test.shape[0]
-            }
-        )
+        print(time_inference_generation / len(questions))
 
         return question_prediction_dict
 

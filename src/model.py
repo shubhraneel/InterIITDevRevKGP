@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import transformers
-from allennlp.modules.span_extractors import EndpointSpanExtractor
+# from allennlp.modules.span_extractors import EndpointSpanExtractor
 from transformers import AutoModelForQuestionAnswering
 from transformers.onnx import FeaturesManager
 
