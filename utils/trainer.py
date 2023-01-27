@@ -538,13 +538,13 @@ class Trainer:
         self.prepared_test_df_matched = df_test_matched
 
 
-    def inference(self, questions, contexts, retriever, prefix, device, do_prepare):
+    def inference(self, theme, questions, contexts, retriever, prefix, device, do_prepare):
         self.model.to(device)
         self.device = device
         self.model.device = device
 
         if do_prepare:
-            self.prepare_theme_df_before_inference(questions, contexts, retriever, prefix, device)
+            self.prepare_theme_df_before_inference(theme, questions, contexts, retriever, prefix, device)
 
         start_time = time.time()
         question_prediction_dict = {
