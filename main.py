@@ -178,7 +178,7 @@ def prepare_dense_retriever(tfidf_path, use_sentence_level):
     # check the deivce
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = SentenceTransformer("sentence-transformers/multi-qa-distilbert-cos-v1").to(
+    model = SentenceTransformer("sentence-transformers/multi-qa-mpnet-base-dot-v1").to(
         device
     )
     embeddings = (
@@ -189,7 +189,7 @@ def prepare_dense_retriever(tfidf_path, use_sentence_level):
 
     # save the embeddings
     np.save(
-        f"data-dir/{mode}/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy",
+        f"data-dir/{mode}/sentence_transformer_embeddings_multi-qa-mpnet-base-dot-v1.npy",
         embeddings,
     )
 
