@@ -24,7 +24,10 @@ class BaselineQA(nn.Module):
         super(BaselineQA, self).__init__()
 
         self.config = config 
-        self.model = AutoModelForQuestionAnswering.from_pretrained(self.config.model.model_path, output_hidden_states=True)
+        if config.model.verifier:
+          self.model = AutoModelForQuestionAnswering.from_pretrained(self.config.model.verifier_model_path, output_hidden_states=True)
+        else:
+          self.model = AutoModelForQuestionAnswering.from_pretrained(self.config.model.model_path, output_hidden_states=True)
 
         if config.model.verifier:
             self.score = nn.Linear(self.model.config.hidden_size, 1)

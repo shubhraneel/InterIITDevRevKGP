@@ -1,5 +1,6 @@
 import json
 import os
+import pickle
 
 import sys
 import time
@@ -41,6 +42,8 @@ class Trainer:
         ques2idx,
         df_val=None,
         val_retriever=None,
+        verifier=None,
+        optimizer_verifier=None,
     ):
         self.config = config
         self.device = device
@@ -50,6 +53,11 @@ class Trainer:
         self.optimizer = optimizer
         self.model = model
         wandb.watch(self.model)
+
+        ## Add ONNX to verifier
+        if config.use_verifier:
+          self.verifier=verifier
+          self.optimizer_verifier=optimizer_verifier
 
         self.ques2idx = ques2idx
 
@@ -188,6 +196,7 @@ class Trainer:
 
     def _train_step(self, dataloader, epoch):
         total_loss = 0
+        total_verifier_loss=0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
         for batch_idx, batch in enumerate(tepoch):
             tepoch.set_description(f"Epoch {epoch + 1}")
@@ -211,6 +220,23 @@ class Trainer:
                 loss = out[0].loss
             else:
                 loss = out.loss
+            
+            ## Add contrastive loss to verifier
+            if self.config.use_verifier:
+              out=self.verifier(batch)
+              verifier_loss=out.loss
+              verifier_loss.backward()
+              if verifier_loss.isnan():
+                self.optimizer_verifier.zero_grad()
+                continue
+
+              total_verifier_loss+=verifier_loss.item()
+              wandb.log({"train_verifier_batch_loss": total_verifier_loss / (batch_idx + 1)})
+
+              self.optimizer_verifier.step()
+              self.optimizer_verifier.zero_grad()
+
+            
 
             if self.config.training.can_loss and not self.config.model.non_pooler:
                 loss += self.contrastive_adaptive_loss(out, batch) * self.config.training.can_loss_beta
@@ -234,6 +260,8 @@ class Trainer:
             self.optimizer.zero_grad()
 
         wandb.log({"train_epoch_loss": total_loss / (batch_idx + 1)})
+        if self.config.use_verifier:
+          wandb.log({"train_verifier_epoch_loss": total_verifier_loss / (batch_idx + 1)})
 
         return total_loss / (batch_idx + 1)
 
@@ -296,53 +324,78 @@ class Trainer:
                 self.model.state_dict()[name][:] += (torch.rand(para.size())-0.5).to(self.device)*self.config.model.noise_lambda*torch.std(para)
 
         self.model.train()
+        if self.config.use_verifier:
+          self.verifier.train()
         for epoch in range(self.config.training.epochs):
             self._train_step(train_dataloader, epoch)
 
-            # if (val_dataloader is not None) and (
-            #     ((epoch + 1) % self.config.training.evaluate_every)
-            # ) == 0:
-            #     val_loss = self.evaluate(val_dataloader)
-            #     if epoch == 0:
-            #         metrics = self.calculate_metrics(
-            #             self.df_val,
-            #             self.val_retriever,
-            #             "val",
-            #             self.device,
-            #             do_prepare=True,
-            #         )
-            #     else:
-            #         metrics = self.calculate_metrics(
-            #             self.df_val,
-            #             self.val_retriever,
-            #             "val",
-            #             self.device,
-            #             do_prepare=False,
-            #         )
-            #     if self.best_val_loss >= val_loss and self.config.save_model_optimizer:
-            #         self.best_val_loss = val_loss
-            #         print(
-            #             "saving best model and optimizer at checkpoints/{}/model_optimizer.pt".format(
-            #                 self.config.load_path
-            #             )
-            #         )
-            #         os.makedirs(
-            #             "checkpoints/{}/".format(self.config.load_path), exist_ok=True
-            #         )
-            #         torch.save(
-            #             {
-            #                 "model_state_dict": self.model.state_dict(),
-            #                 "optimizer_state_dict": self.optimizer.state_dict(),
-            #             },
-            #             "checkpoints/{}/model_optimizer.pt".format(
-            #                 self.config.load_path
-            #             ),
-            #         )
-            #     self.model.train()
+            if (val_dataloader is not None) and (
+                ((epoch + 1) % self.config.training.evaluate_every)
+            ) == 0:
+                val_loss = self.evaluate(val_dataloader)
+                if epoch == 0:
+                    metrics = self.calculate_metrics(
+                        self.df_val,
+                        self.val_retriever,
+                        "val",
+                        self.device,
+                        do_prepare=True,
+                    )
+                else:
+                    metrics = self.calculate_metrics(
+                        self.df_val,
+                        self.val_retriever,
+                        "val",
+                        self.device,
+                        do_prepare=False,
+                    )
+                if self.best_val_loss >= val_loss and self.config.save_model_optimizer:
+                    self.best_val_loss = val_loss
+                    print(
+                        "saving best model and optimizer at checkpoints/{}/model_optimizer.pt".format(
+                            self.config.load_path
+                        )
+                    )
+                    os.makedirs(
+                        "checkpoints/{}/".format(self.config.load_path), exist_ok=True
+                    )
+                    torch.save(
+                        {
+                            "model_state_dict": self.model.state_dict(),
+                            "optimizer_state_dict": self.optimizer.state_dict(),
+                        },
+                        "checkpoints/{}/model_optimizer.pt".format(
+                            self.config.load_path
+                        ),
+                    )
+                    if self.config.use_verifier:
+                      print(
+                        "saving best verifier model and optimizer at checkpoints/{}/model_optimizer.pt".format(
+                            self.config.verifier_load_path
+                        )
+                      )
+                      os.makedirs(
+                          "checkpoints/{}/".format(self.config.verifier_load_path), exist_ok=True
+                      )
+                      torch.save(
+                          {
+                              "model_state_dict": self.verifier.state_dict(),
+                              "optimizer_state_dict": self.optimizer_verifier.state_dict(),
+                          },
+                          "checkpoints/{}/model_optimizer.pt".format(
+                              self.config.verifier_load_path
+                          ),
+                      )
+                self.model.train()
+                if self.config.use_verifier:
+                  self.verifier.train()
 
     def evaluate(self, dataloader):
         self.model.eval()
+        if self.config.use_verifier:
+          self.verifier.eval()
         total_loss = 0
+        total_verifier_loss=0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
         tepoch.set_description("Validation Step")
         with torch.no_grad():
@@ -365,11 +418,21 @@ class Trainer:
                 else:
                     loss = out.loss
 
+                ## Add contrastive loss to verifier
+                if self.config.use_verifier:
+                  out=self.verifier(batch)
+                  verifier_loss=out.loss
+
+                  total_verifier_loss+=verifier_loss.item()
+                  wandb.log({"val_verifier_batch_loss": total_verifier_loss / (batch_idx + 1)})
+
                 total_loss += loss.item()
                 tepoch.set_postfix(loss=total_loss / (batch_idx + 1))
                 wandb.log({"val_batch_loss": total_loss / (batch_idx + 1)})
 
         wandb.log({"val_epoch_loss": total_loss / (batch_idx + 1)})
+        if self.config.use_verifier:
+          wandb.log({"val_verifier_epoch_loss": total_verifier_loss / (batch_idx + 1)})
         return total_loss / (batch_idx + 1)
 
     def predict(self, batch):
@@ -543,13 +606,17 @@ class Trainer:
         self.device = device
         self.model.device = device
 
+        if self.config.use_verifier:
+          self.verifier.to(device)
+
         if do_prepare:
           self.prepare_df_before_inference(df_test,retriever,prefix,device)
        
         start_time=time.time()
         question_prediction_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
         results_dict = {}
-        clf_prediction_dict={q_id:0 for q_id in self.prepared_test_df_matched["question_id"].unique()}
+        if self.config.use_verifier:
+          clf_prediction_dict={q_id:0 for q_id in self.prepared_test_df_matched["question_id"].unique()}
 
         # TODO: without sequentional batch iteration
         for qp_batch_id, qp_batch in tqdm(
@@ -570,6 +637,13 @@ class Trainer:
             # para, para_id, theme, theme_id, question, question_id
             pred = self.predict(qp_batch)
 
+            if self.config.use_verifier:
+              ## Add ONNX and Quantize here too
+              verifier_pred=self.verifier(qp_batch)
+              cls_tokens=verifier_pred.hidden_states[-1][:,0]
+              scores=torch.sigmoid(self.verifier.score(cls_tokens).squeeze(1)) # [32,1]
+              batch_preds_clf=[1 if p>=0.5 else 0 for p in scores]
+
             # print(pred.start_logits.shape) -> [32,512]
             if self.config.model.span_level:
                 probs = torch.sigmoid(pred[1])
@@ -586,21 +660,13 @@ class Trainer:
                     max_end_probs.values * max_start_probs.values
                 )  # -> [32,1]
             
-            if self.config.model.verifier:
-                
-                cls_tokens=pred.hidden_states[-1][:,0]
-
-                scores=torch.sigmoid(self.model.score(cls_tokens).squeeze(1)) # [32,1]
-                # print(scores)
-
-                batch_preds_clf=[1 if p>=0.5 else 0 for p in scores]
-                # print(batch_preds_clf)
 
             for batch_idx, q_id in enumerate(qp_batch["question_id"]):
-                if self.config.model.verifier:
+                if self.config.use_verifier:
                   if(batch_preds_clf[batch_idx]==1):
-                    # print("yo")
                     clf_prediction_dict[q_id]=1
+                  else:
+                    continue
                 if question_prediction_dict[q_id][0] < confidence_scores[batch_idx]:
                     # using the context in the qp_pair get extract the span using max_start_prob and max_end_prob
                     context = qp_batch["context"][batch_idx]
@@ -639,8 +705,6 @@ class Trainer:
                         
                     if(len(decoded_answer)>0):
                         question_prediction_dict[q_id]=(confidence_scores[batch_idx].item(),decoded_answer)
-                    
-                    
 
         if (self.config.create_inf_table):
             df=pd.read_pickle("data-dir/test/df_test.pkl")
@@ -677,7 +741,8 @@ class Trainer:
             }
         )
 
-        if self.config.model.verifier:
+                    
+        if self.config.use_verifier:
             return question_prediction_dict,clf_prediction_dict
 
         return question_prediction_dict
@@ -693,9 +758,12 @@ class Trainer:
         # TODO: check if this way of calculating the time is correct
         if device == "cuda":
             torch.cuda.synchronize()
-        
-        if self.config.model.verifier:
+       
+                    
+        if self.config.use_verifier:
             question_pred_dict,clf_preds_dict=self.inference(df_test,retriever,prefix,device,do_prepare)
+            with open(self.config.model.model_path.split('/')[-1]+'_'+str(prefix)+'_verifier_preds.pkl','wb') as f:
+              pickle.dump(clf_preds_dict,f)
             clf_preds=[clf_preds_dict[q_id] for q_id in df_test['question_id']]
         else:
             question_pred_dict = self.inference(
@@ -713,7 +781,8 @@ class Trainer:
         ]
         mean_squad_f1 = np.mean(squad_f1_per_span)
 
-        if self.config.model.verifier:
+                    
+        if self.config.use_verifier:
             classification_prediction = clf_preds
         else:
             classification_prediction = [
