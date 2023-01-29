@@ -55,7 +55,7 @@ class Trainer:
         wandb.watch(self.model)
 
         ## Add ONNX to verifier
-        if config.use_verifier:
+        if self.config.use_verifier:
           self.verifier=verifier
           self.optimizer_verifier=optimizer_verifier
 
@@ -71,6 +71,13 @@ class Trainer:
             self.scheduler = get_scheduler(
                 self.config.scheduler,
                 self.optimizer,
+                num_warmup_steps=0,
+                num_training_steps=1840 * self.config.training.epochs,
+            )
+            if self.config.use_verifier:
+              self.verifier_scheduler=get_scheduler(
+                self.config.scheduler,
+                self.optimizer_verifier,
                 num_warmup_steps=0,
                 num_training_steps=1840 * self.config.training.epochs,
             )
@@ -234,9 +241,9 @@ class Trainer:
               wandb.log({"train_verifier_batch_loss": total_verifier_loss / (batch_idx + 1)})
 
               self.optimizer_verifier.step()
+              if self.config.training.lr_flag:
+                self.verifier_scheduler.step()
               self.optimizer_verifier.zero_grad()
-
-            
 
             if self.config.training.can_loss and not self.config.model.non_pooler:
                 loss += self.contrastive_adaptive_loss(out, batch) * self.config.training.can_loss_beta

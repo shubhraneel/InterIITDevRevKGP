@@ -3,7 +3,7 @@ seed: 3407
 wandb_path: verifier-testing-bert-medium
 fewshot_qa: False
 inference_device: cuda
-train: True
+train: False
 inference: True
 save_model_optimizer: True
 load_model_optimizer: False
@@ -20,7 +20,7 @@ ONNX: False
 create_dense_embeddings: True
 retriever_type: dense # dense or tfidf
 create_inf_table: False
-use_verifier: False
+use_verifier: True
 
 data:
   train_data_path: data-dir/train/df_train.pkl
