@@ -201,7 +201,7 @@ if __name__ == "__main__":
     nltk.download("punkt")
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config.yaml", help="Config File")
-    parser.add_argument("--top_k", default=10, type=int, help="Topk for retrieval")
+    parser.add_argument("--top_k", default=None, type=int, help="Topk for retrieval")
 
     args = parser.parse_args()
     with open(args.config) as f:
@@ -213,8 +213,9 @@ if __name__ == "__main__":
             config=config,
         )
         config = Config(**config)
-
-    config.top_k = args.top_k
+    
+    if args.top_k is not None:
+        config.top_k = args.top_k
 
     set_seed(config.seed)
 
@@ -342,6 +343,9 @@ if __name__ == "__main__":
             val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level)
 
         elif config.use_dpr:
+            query_model = config.retriever.query_model
+            passage_model = config.retriever.passage_model
+
             unique_data = df_test.drop_duplicates(subset='context', keep="first")
             UniqueParaList = unique_data.context.to_list()
             ThemeList = unique_data.title.to_list()
@@ -350,9 +354,27 @@ if __name__ == "__main__":
             for i in range(len(UniqueParaList)):
                 with open("data-dir/test_paragraphs/Paragraph_" + str(i) + ".txt", 'w+') as fp:
                     fp.write("%s\n" % UniqueParaList[i])
-            test_document_store = FAISSDocumentStore(faiss_index_factory_str="Flat", sql_url="sqlite:///data-dir/faiss_document_store_test.db")
-            test_docs = convert_files_to_docs(dir_path="data-dir/test_paragraphs/", clean_func=clean_wiki_text, split_paragraphs=True)
-            test_document_store.write_documents(test_docs)
+            if not os.path.exists("data-dir/faiss_document_store_test.db"):
+                test_document_store = FAISSDocumentStore(faiss_index_factory_str="Flat", sql_url="sqlite:///data-dir/faiss_document_store_test.db")
+                test_docs = convert_files_to_docs(dir_path="data-dir/test_paragraphs/", clean_func=clean_wiki_text, split_paragraphs=True)
+                test_document_store.write_documents(test_docs)
+                test_retriever = DensePassageRetriever(
+                    document_store=test_document_store,
+                    query_embedding_model=query_model,
+                    passage_embedding_model=passage_model,
+                    max_seq_len_query=64,
+                    max_seq_len_passage=512,
+                )
+                test_document_store.update_embeddings(test_retriever)
+                with open("data-dir/test_retriever.pkl") as f:
+                    pickle.dump(test_retriever, f)
+                with open("data-dir/test_document_store.pkl") as f:
+                    pickle.dump(test_document_store, f)
+            else:
+                with open("data-dir/test_retriever.pkl") as f:
+                    test_retriever = pickle.load(f)
+                with open("data-dir/test_document_store.pkl") as f:
+                    test_document_store = pickle.load(f)
 
             unique_data = df_val.drop_duplicates(subset='context', keep="first")
             UniqueParaList = unique_data.context.to_list()
@@ -362,31 +384,31 @@ if __name__ == "__main__":
             for i in range(len(UniqueParaList)):
                 with open("data-dir/val_paragraphs/Paragraph_" + str(i) + ".txt", 'w+') as fp:
                     fp.write("%s\n" % UniqueParaList[i])
-            val_document_store = FAISSDocumentStore(faiss_index_factory_str="Flat", sql_url="sqlite:///data-dir/faiss_document_store_val.db")
-            val_docs = convert_files_to_docs(dir_path="data-dir/val_paragraphs/", clean_func=clean_wiki_text, split_paragraphs=True)
-            val_document_store.write_documents(val_docs)
+            if not os.path.exists("data-dir/faiss_document_store_val.db"):
+                val_document_store = FAISSDocumentStore(faiss_index_factory_str="Flat", sql_url="sqlite:///data-dir/faiss_document_store_val.db")
+                val_docs = convert_files_to_docs(dir_path="data-dir/val_paragraphs/", clean_func=clean_wiki_text, split_paragraphs=True)
+                val_document_store.write_documents(val_docs)
+                val_retriever = DensePassageRetriever(
+                    document_store=val_document_store,
+                    query_embedding_model=query_model,
+                    passage_embedding_model=passage_model,
+                    max_seq_len_query=64,
+                    max_seq_len_passage=512,
+                )
+                val_document_store.update_embeddings(val_retriever)
+                with open("data-dir/val_retriever.pkl") as f:
+                    pickle.dump(val_retriever, f)
+                with open("data-dir/val_document_store.pkl") as f:
+                    pickle.dump(val_document_store, f)
+            else:
+                with open("data-dir/val_retriever.pkl") as f:
+                    val_retriever = pickle.load(f)
+                with open("data-dir/val_document_store.pkl") as f:
+                    val_document_store = pickle.load(f)
 
-            query_model = config.retriever.query_model
-            passage_model = config.retriever.passage_model
 
-            test_retriever = DensePassageRetriever(
-                document_store=test_document_store,
-                query_embedding_model=query_model,
-                passage_embedding_model=passage_model,
-                max_seq_len_query=64,
-                max_seq_len_passage=512,
-            )
 
-            val_retriever = DensePassageRetriever(
-                document_store=val_document_store,
-                query_embedding_model=query_model,
-                passage_embedding_model=passage_model,
-                max_seq_len_query=64,
-                max_seq_len_passage=512,
-            )
             
-            test_document_store.update_embeddings(test_retriever)
-            val_document_store.update_embeddings(val_retriever)
 
             
 
