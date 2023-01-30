@@ -22,7 +22,7 @@ from transformers import get_scheduler
 from transformers.modeling_outputs import QuestionAnsweringModelOutput
 
 from utils import compute_f1
-
+from itertools import accumulate
 
 def to_numpy(tensor):
     return (
@@ -463,19 +463,14 @@ class Trainer:
                 doc_idx_filtered, doc_text_filtered = retriever.retrieve_top_k(
                     question, title_id, k=self.config.top_k
                 )
-                # df_contexts = df_unique_con.sample(n=1, random_state=config.seed)
-                # df_contexts.loc[:, "question"] = question
-                # df_contexts.loc[:, "question_id"] = question_id
-                # # df_contexts.loc[:, "answerable"] = False
-                # # df_contexts.loc[:, "answer_start"] = ""
-                # # df_contexts.loc[:, "answer_text"] = ""
-                # df_contexts.loc[:, "context"] = "".join(doc_text_filtered)
-                # df_contexts.loc[:, "context_id"] = "+".join(doc_idx_filtered)
                 new_row = dict()
                 new_row['question'] = question
                 new_row['question_id'] = question_id
                 new_row['context'] = "".join(doc_text_filtered)
                 new_row['context_id'] = "+".join(doc_idx_filtered)
+                new_row['prefix_sum_lengths'] = [0]+list(accumulate([len(sent) for sent in doc_text_filtered]))
+                print('sentence level row for question:', question)
+                print(new_row)
                 df_contexts = pd.DataFrame([new_row])
                 
             else:
@@ -506,10 +501,6 @@ class Trainer:
                     df_contexts = df_unique_con.sample(n=self.config.top_k, random_state=self.config.seed)
                 df_contexts["question"] = question
                 df_contexts["question_id"] = question_id
-                # df_contexts.loc[:, "answerable"] = False
-                # df_contexts.loc[:, "answer_start"] = ""
-                # df_contexts.loc[:, "answer_text"] = ""
-
             df_test_matched = pd.concat(
                 [df_test_matched, df_contexts], axis=0, ignore_index=True
             )
@@ -548,7 +539,7 @@ class Trainer:
 
         start_time = time.time()
         question_prediction_dict = {
-            q_id: (0, "")
+            q_id: (0, "", -1)
             for q_id in self.prepared_test_df_matched["question_id"].unique()
         }
 
@@ -595,6 +586,7 @@ class Trainer:
                         batch_idx
                     ]
                     decoded_answer = ""
+                    pred_context_idx = -1
 
                     if self.config.model.span_level:
                         idx = max_probs.indices[batch_idx].item()
@@ -610,10 +602,17 @@ class Trainer:
                         start_char = offset_mapping[start_index][0]
                         end_char = offset_mapping[end_index][1]
                         decoded_answer = context[start_char:end_char]
+                        prefix_sum_lengths = qp_batch[batch_idx]['prefix_sum_lengths']
+                        for ret_idx, prefix_sum_length in enumerate(prefix_sum_lengths):
+                            if start_char >= prefix_sum_length:
+                                pred_context_idx=qp_batch[batch_idx]['context_id'].split('+')[ret_idx].split('_')[0]
+                                break
+                    
                     if len(decoded_answer) > 0:
                         question_prediction_dict[q_id] = (
                             confidence_scores[batch_idx].item(),
                             decoded_answer,
+                            pred_context_idx
                         )
 
         time_inference_generation = 1000 * (time.time() - start_time)
