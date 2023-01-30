@@ -18,6 +18,7 @@ class SQuAD_Dataset(Dataset):
 
         # preprocess
         self.data = preprocess_fn(self.df)
+        print("FROM SQUAD DATASET: {}".format(len(self.data["answers"])))
         # self.theme_para_id_mapping = self._get_theme_para_id_mapping()
 
         data_keys = [

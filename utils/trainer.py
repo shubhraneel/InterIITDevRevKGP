@@ -33,6 +33,7 @@ def to_numpy(tensor):
 class Trainer:
     def __init__(
         self,
+        arg_theme,
         config,
         model,
         optimizer,
@@ -44,7 +45,7 @@ class Trainer:
     ):
         self.config = config
         self.device = device
-
+        self.arg_theme = arg_theme
         self.tokenizer = tokenizer
 
         self.optimizer = optimizer
@@ -225,7 +226,7 @@ class Trainer:
 
             total_loss += loss.item()
             tepoch.set_postfix(loss=total_loss / (batch_idx + 1))
-            wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
+            # wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
 
             if self.config.training.can_loss and not self.config.model.non_pooler:
               torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
@@ -235,9 +236,9 @@ class Trainer:
                 self.scheduler.step()
             self.optimizer.zero_grad()
 
-        wandb.log({"train_epoch_loss": total_loss / (batch_idx + 1)})
+        wandb.log({"train_epoch_loss": total_loss / (len(dataloader) + 1)})
 
-        return total_loss / (batch_idx + 1)
+        return total_loss / (len(dataloader) + 1)
 
     def log_ipop_batch(self, batch, out, batch_idx):
         rows = []
@@ -321,23 +322,22 @@ class Trainer:
                         self.device,
                         do_prepare=False,
                     )
-                if self.best_val_loss >= val_loss and self.config.save_model_optimizer:
-                    self.best_val_loss = val_loss
+                if self.config.save_model_optimizer:
                     print(
-                        "saving best model and optimizer at checkpoints/{}/model_optimizer.pt".format(
-                            self.config.load_path
+                        "saving model and optimizer at checkpoints/{}/{}/model_optimizer_{}.pt".format(
+                            self.config.load_path, self.arg_theme, epoch
                         )
                     )
                     os.makedirs(
-                        "checkpoints/{}/".format(self.config.load_path), exist_ok=True
+                        "checkpoints/{}/{}/".format(self.config.load_path, self.arg_theme), exist_ok=True
                     )
                     torch.save(
                         {
                             "model_state_dict": self.model.state_dict(),
                             "optimizer_state_dict": self.optimizer.state_dict(),
                         },
-                        "checkpoints/{}/model_optimizer.pt".format(
-                            self.config.load_path
+                        "checkpoints/{}/{}/model_optimizer_{}.pt".format(
+                            self.config.load_path, self.arg_theme, epoch
                         ),
                     )
                 self.model.train()
@@ -371,8 +371,8 @@ class Trainer:
                 tepoch.set_postfix(loss=total_loss / (batch_idx + 1))
                 wandb.log({"val_batch_loss": total_loss / (batch_idx + 1)})
 
-        wandb.log({"val_epoch_loss": total_loss / (batch_idx + 1)})
-        return total_loss / (batch_idx + 1)
+        wandb.log({"val_epoch_loss": total_loss / (len(dataloader) + 1)})
+        return total_loss / (len(dataloader) + 1)
 
     def predict(self, batch):
         if self.config.ONNX:

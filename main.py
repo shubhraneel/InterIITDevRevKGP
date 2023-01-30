@@ -178,7 +178,7 @@ def prepare_dense_retriever(tfidf_path, use_sentence_level):
     # check the deivce
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = SentenceTransformer("sentence-transformers/multi-qa-mpnet-base-dot-v1").to(
+    model = SentenceTransformer("sentence-transformers/multi-qa-distilbert-cos-v1").to(
         device
     )
     embeddings = (
@@ -189,7 +189,7 @@ def prepare_dense_retriever(tfidf_path, use_sentence_level):
 
     # save the embeddings
     np.save(
-        f"data-dir/{mode}/sentence_transformer_embeddings_multi-qa-mpnet-base-dot-v1.npy",
+        f"data-dir/{mode}/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy",
         embeddings,
     )
 
@@ -199,6 +199,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config.yaml", help="Config File")
     parser.add_argument("--top_k", default=10, type=int, help="Topk for retrieval")
+    parser.add_argument("--theme", default="Middle_Ages", help="Theme")
 
     args = parser.parse_args()
     with open(args.config) as f:
@@ -222,6 +223,20 @@ if __name__ == "__main__":
     df_train = pd.read_pickle(config.data.train_data_path)
     df_val = pd.read_pickle(config.data.val_data_path)
     df_test = pd.read_pickle(config.data.test_data_path)
+
+    # print(args.theme)
+    # print(df_train['title'].unique())
+    # print(df_test['title'].unique())
+    # print(df_val['title'].unique())
+
+    # keeping only datapoints of given theme
+    df_train=df_train.loc[df_train['title']==args.theme]
+    df_test=df_test.loc[df_test['title']==args.theme]
+    df_val=df_val.loc[df_val['title']==args.theme]
+
+    print(df_train['title'].shape)
+    print(df_val['title'].shape)
+    print(df_test['title'].shape)
 
     (
         con_idx_2_title_idx,
@@ -340,6 +355,7 @@ if __name__ == "__main__":
 
 
         trainer = Trainer(
+            arg_theme=args.theme,
             config=config,
             model=model,
             optimizer=optimizer,
