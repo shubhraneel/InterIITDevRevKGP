@@ -230,8 +230,12 @@ class Trainer:
             
             ## Add contrastive loss to verifier
             if self.config.use_verifier:
-              out=self.verifier(batch)
-              verifier_loss=out.loss
+              verifier_out=self.verifier(batch)
+              verifier_loss=verifier_out.loss
+
+              if self.config.training.verifier_can_loss and not self.config.model.non_pooler:
+                verifier_loss += self.contrastive_adaptive_loss(verifier_out, batch) * self.config.training.can_loss_beta
+
               verifier_loss.backward()
               if verifier_loss.isnan():
                 self.optimizer_verifier.zero_grad()
@@ -244,6 +248,9 @@ class Trainer:
               if self.config.training.lr_flag:
                 self.verifier_scheduler.step()
               self.optimizer_verifier.zero_grad()
+
+              if self.config.training.verifier_can_loss and not self.config.model.non_pooler:
+                torch.nn.utils.clip_grad_norm_(self.verifier.parameters(), 1.0)
 
             if self.config.training.can_loss and not self.config.model.non_pooler:
                 loss += self.contrastive_adaptive_loss(out, batch) * self.config.training.can_loss_beta
@@ -622,7 +629,7 @@ class Trainer:
         start_time=time.time()
         question_prediction_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
         results_dict = {}
-        if self.config.use_verifier:
+        if self.config.use_verifier or self.config.model.verifier:
           clf_prediction_dict={q_id:0 for q_id in self.prepared_test_df_matched["question_id"].unique()}
 
         # TODO: without sequentional batch iteration
@@ -644,11 +651,11 @@ class Trainer:
             # para, para_id, theme, theme_id, question, question_id
             pred = self.predict(qp_batch)
 
-            if self.config.use_verifier:
+            if self.config.use_verifier or self.config.model.verifier:
               ## Add ONNX and Quantize here too
-              verifier_pred=self.verifier(qp_batch)
-              cls_tokens=verifier_pred.hidden_states[-1][:,0]
-              scores=torch.sigmoid(self.verifier.score(cls_tokens).squeeze(1)) # [32,1]
+              # verifier_pred=self.verifier(qp_batch)
+              cls_tokens=pred.hidden_states[-1][:,0]
+              scores=torch.sigmoid(self.model.score(cls_tokens).squeeze(1)) # [32,1]
               batch_preds_clf=[1 if p>=0.5 else 0 for p in scores]
 
             # print(pred.start_logits.shape) -> [32,512]
@@ -669,7 +676,7 @@ class Trainer:
             
 
             for batch_idx, q_id in enumerate(qp_batch["question_id"]):
-                if self.config.use_verifier:
+                if self.config.use_verifier or self.config.model.verifier:
                   if(batch_preds_clf[batch_idx]==1):
                     clf_prediction_dict[q_id]=1
                   else:
@@ -749,7 +756,7 @@ class Trainer:
         )
 
                     
-        if self.config.use_verifier:
+        if self.config.use_verifier or self.config.model.verifier:
             return question_prediction_dict,clf_prediction_dict
 
         return question_prediction_dict
@@ -767,7 +774,7 @@ class Trainer:
             torch.cuda.synchronize()
        
                     
-        if self.config.use_verifier:
+        if self.config.use_verifier or self.config.model.verifier:
             question_pred_dict,clf_preds_dict=self.inference(df_test,retriever,prefix,device,do_prepare)
             with open(self.config.model.model_path.split('/')[-1]+'_'+str(prefix)+'_verifier_preds.pkl','wb') as f:
               pickle.dump(clf_preds_dict,f)
@@ -787,9 +794,8 @@ class Trainer:
             for i in range(len(predicted_answers))
         ]
         mean_squad_f1 = np.mean(squad_f1_per_span)
-
                     
-        if self.config.use_verifier:
+        if self.config.use_verifier or self.config.model.verifier:
             classification_prediction = clf_preds
         else:
             classification_prediction = [

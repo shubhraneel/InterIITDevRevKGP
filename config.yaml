@@ -1,14 +1,14 @@
 task: qa
 seed: 3407
-wandb_path: verifier-testing-bert-medium
+wandb_path: verifier-training-bert-medium-both
 fewshot_qa: False
 inference_device: cuda
 train: False
 inference: True
-save_model_optimizer: True
-load_model_optimizer: False
+save_model_optimizer: False
+load_model_optimizer: True
 load_path: verifier-testing-bert-medium-qa
-verifier_load_path: verifier-testing-bert-medium-verifier
+verifier_load_path: verifier-training-bert-medium
 use_drqa: True
 create_drqa_tfidf: False
 top_k: 5
@@ -47,7 +47,7 @@ training:
   lr_flag : True
   can_loss: False  # Contrastive_Adaptive_Loss
   can_loss_beta: 0.01  # 0.00000001
-  
+  verifier_can_loss: False
 
 model:
   model_path: mrm8488/bert-medium-finetuned-squadv2
@@ -60,4 +60,4 @@ model:
   dim: 512
   span_level: False
   two_step_loss: False
-  verifier: True
+  verifier: False

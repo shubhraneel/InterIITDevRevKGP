@@ -414,16 +414,17 @@ if __name__ == "__main__":
                 map_location=torch.device(device),
             )
             trainer.model.load_state_dict(checkpoint["model_state_dict"])
-            print(
-                "loading best verifier model from checkpoints/{}/model_optimizer.pt for inference".format(
-                    config.verifier_load_path
-                )
-            )
-            checkpoint = torch.load(
-                "checkpoints/{}/model_optimizer.pt".format(config.verifier_load_path),
-                map_location=torch.device(device),
-            )
-            trainer.verifier.load_state_dict(checkpoint["model_state_dict"])
+            if config.use_verifier:
+              print(
+                  "loading best verifier model from checkpoints/{}/model_optimizer.pt for inference".format(
+                      config.verifier_load_path
+                  )
+              )
+              checkpoint = torch.load(
+                  "checkpoints/{}/model_optimizer.pt".format(config.verifier_load_path),
+                  map_location=torch.device(device),
+              )
+              trainer.verifier.load_state_dict(checkpoint["model_state_dict"])
         model.to(config.inference_device)
         test_metrics = trainer.calculate_metrics(
             df_test, test_retriever, "test", config.inference_device, do_prepare=True
