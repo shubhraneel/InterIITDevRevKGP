@@ -606,6 +606,9 @@ class Trainer:
                         for ret_idx, prefix_sum_length in enumerate(prefix_sum_lengths):
                             if start_char >= prefix_sum_length:
                                 pred_context_idx=qp_batch[batch_idx]['context_id'].split('+')[ret_idx].split('_')[0]
+                                if end_char> prefix_sum_length:
+                                    sab_changa_si = False
+                                    assert sab_changa_si, "maa chud gayi (end char bs)"
                                 break
                     
                     if len(decoded_answer) > 0:
@@ -618,7 +621,6 @@ class Trainer:
         time_inference_generation = 1000 * (time.time() - start_time)
         print(time_inference_generation)
         print(time_inference_generation / len(questions))
-
         return question_prediction_dict
 
     def calculate_metrics(self, df_test, retriever, prefix, device, do_prepare):
