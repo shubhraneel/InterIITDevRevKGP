@@ -663,7 +663,7 @@ class Trainer:
 
         return question_prediction_dict
 
-    def calculate_metrics(self, df_test, retriever, prefix, device, do_prepare):
+    def calculate_metrics(self, df_test, retriever, prefix, device, do_prepare,q_pred_dicts=None):
         """
         1. Run the inference script
         2. Calculate the time taken
@@ -674,9 +674,17 @@ class Trainer:
         # TODO: check if this way of calculating the time is correct
         if device == "cuda":
             torch.cuda.synchronize()
-        question_pred_dict = self.inference(
-            df_test, retriever, prefix, device, do_prepare
-        )
+        if q_pred_dicts==None:
+          question_pred_dict = self.inference(
+              df_test, retriever, prefix, device, do_prepare
+          )
+        else:
+          question_pred_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
+          for q_id in df_test['question_id']:
+            for q_pred_dict in q_pred_dicts:
+              if question_pred_dict[q_id][0]<q_pred_dict[q_id][0]:
+                question_pred_dict[q_id]=q_pred_dict[q_id]
+                
         predicted_answers = [
             question_pred_dict[q_id][1] for q_id in df_test["question_id"]
         ]

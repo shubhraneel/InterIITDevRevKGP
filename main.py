@@ -178,7 +178,7 @@ def prepare_dense_retriever(tfidf_path, use_sentence_level):
     # check the deivce
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = SentenceTransformer("sentence-transformers/multi-qa-mpnet-base-dot-v1").to(
+    model = SentenceTransformer("sentence-transformers/multi-qa-distilbert-cos-v1").to(
         device
     )
     embeddings = (
@@ -189,7 +189,7 @@ def prepare_dense_retriever(tfidf_path, use_sentence_level):
 
     # save the embeddings
     np.save(
-        f"data-dir/{mode}/sentence_transformer_embeddings_multi-qa-mpnet-base-dot-v1.npy",
+        f"data-dir/{mode}/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy",
         embeddings,
     )
 
@@ -220,6 +220,7 @@ if __name__ == "__main__":
 
     print("Reading data csv")
     df_train = pd.read_pickle(config.data.train_data_path)
+    df_train=df_train.sample(n=5000)
     df_val = pd.read_pickle(config.data.val_data_path)
     df_test = pd.read_pickle(config.data.test_data_path)
 
@@ -251,12 +252,13 @@ if __name__ == "__main__":
         )
 
     # add local_files_only=local_files_only if using server
-    tokenizer = AutoTokenizer.from_pretrained(
-        config.model.model_path,
-        TOKENIZERS_PARALLELISM=True,
-        model_max_length=512,
-        padding="max_length",
-    )
+    if not config.ensemble: ## separate tokenisers during ensembling
+      tokenizer = AutoTokenizer.from_pretrained(
+          config.model.model_path,
+          TOKENIZERS_PARALLELISM=True,
+          model_max_length=512,
+          padding="max_length",
+      )
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -295,6 +297,67 @@ if __name__ == "__main__":
 
         qa_f1, ttime_per_example = model.few_shot_calculate_metrics(test_dataloader)
         print(f"QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
+    elif config.ensemble:
+      retriever = None
+      if (config.two_level_drqa):
+          tfidf_path_para = "data-dir/test/paragraph_sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
+          tfidf_path_sent = "data-dir/test/sentence_sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
+          questions_df = df_test[["question", "title_id"]]
+          db_path_sent = "data-dir/test/sentence_sqlite_con.db"
+          test_retriever = RetrieverTwoLevel(tfidf_path_sent=tfidf_path_sent, tfidf_path_para=tfidf_path_para, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path_sent=db_path_sent)
+    
+          tfidf_path_para = "data-dir/val/paragraph_sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
+          tfidf_path_sent = "data-dir/val/sentence_sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
+          questions_df = df_val[["question", "title_id"]]
+          db_path_sent = "data-dir/val/sentence_sqlite_con.db"
+          val_retriever = RetrieverTwoLevel(tfidf_path_sent=tfidf_path_sent, tfidf_path_para=tfidf_path_para, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path_sent=db_path_sent)
+          
+      elif (config.use_drqa):
+          tfidf_path = "/content/drive/MyDrive/InterIITDevRevKGP/data-dir/test/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
+          questions_df = df_test[["question", "title_id"]]
+          db_path = "data-dir/test/sqlite_con.db"
+          test_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level,retriever_type=config.retriever_type)
+    
+          tfidf_path = "data-dir/val/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
+          questions_df = df_val[["question", "title_id"]]
+          db_path = "data-dir/val/sqlite_con.db"
+          val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level,retriever_type=config.retriever_type)
+
+      question_pred_dicts=[]
+      print("Running Inference on Ensemble Models")
+      for id,model_config in enumerate(config.ensemble_models):
+        print(f"Model {model_config.model_path}")
+        config.model=model_config
+        model = BaselineQA(config, device).to(device)
+        checkpoint = torch.load(
+                "checkpoints/{}/model_optimizer.pt".format(config.ensemble_load_paths[id]),
+                map_location=torch.device(device),
+          )
+        model.load_state_dict(checkpoint["model_state_dict"])
+
+        tokenizer = AutoTokenizer.from_pretrained(
+          config.model.model_path,
+          TOKENIZERS_PARALLELISM=True,
+          model_max_length=512,
+          padding="max_length",
+        )
+
+        trainer = Trainer(
+          config=config,
+          model=model,
+          optimizer=None,
+          device=device,
+          tokenizer=tokenizer,
+          ques2idx=ques2idx,
+          val_retriever=val_retriever,
+          df_val=df_val,
+        )
+        qpred_dict=trainer.inference(df_test, test_retriever, 'test', device, do_prepare=True)
+        question_pred_dicts.append(qpred_dict)
+
+      ensemble_metrics=trainer.calculate_metrics(df_test, retriever, 'test', device, do_prepare=False,q_pred_dicts=question_pred_dicts)
+      print(ensemble_metrics)
+      config.inference=False ## So that the normal inference pipeline does not get called
 
     else:
         model = BaselineQA(config, device).to(device)
