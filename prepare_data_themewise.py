@@ -3,7 +3,7 @@ import pickle
 from ast import literal_eval
 
 import pandas as pd
-from sklearn.model_selection import GroupShuffleSplit
+from sklearn.model_selection import *
 from tqdm import tqdm
 
 train_frac = 0.8
@@ -65,29 +65,28 @@ if __name__ == "__main__":
     df["title_id"] = df["title_id"].astype(int)
 
     # COMPLETED TODO: Split the dataset in a way where training theme question-context pair should not be split into train/test/val.
-    splitter = GroupShuffleSplit(train_size=train_frac, n_splits=1, random_state=seed)
-    split = splitter.split(df, groups=df["title"])
-    train_idx, val_idx = next(split)
-    df_train = df.iloc[train_idx].reset_index(drop=True)
-    df_val = df.iloc[val_idx].reset_index(drop=True)
+    train_idx, val_idx = train_test_split(df, train_size=train_frac, random_state=seed)
+    df_train = train_idx.reset_index(drop=True)
+    df_val = val_idx.reset_index(drop=True)
 
     df_val_c = df_val.copy()
-
-    splitter_val = GroupShuffleSplit(
-        train_size=(val_frac / (test_frac + val_frac)), n_splits=1, random_state=seed
+    val_idx, test_idx = train_test_split(df_val_c,
+        train_size=(val_frac / (test_frac + val_frac)), random_state=seed
     )
-    split_val = splitter_val.split(df_val_c, groups=df_val_c["title"])
-    val_idx, test_idx = next(split_val)
-    df_val = df_val_c.iloc[val_idx].reset_index(drop=True)
-    df_test = df_val_c.iloc[test_idx].reset_index(drop=True)
+    
+    df_val = val_idx.reset_index(drop=True)
+    df_test = test_idx.reset_index(drop=True)
 
     print(f"{len(df_train)=}")
+    print(f"# themes in df_train {df_train['title'].nunique()}")
     print(f"{len(df_train.loc[df_train['answerable'] == True])=}")
 
     print(f"{len(df_val)=}")
+    print(f"# themes in df_val {df_val['title'].nunique()}")
     print(f"{len(df_val.loc[df_val['answerable'] == True])=}")
 
     print(f"{len(df_test)=}")
+    print(f"# themes in df_test {df_test['title'].nunique()}")
     print(f"{len(df_test.loc[df_test['answerable'] == True])=}")
 
     os.makedirs("data-dir/train/", exist_ok=True)

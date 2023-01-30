@@ -3,20 +3,20 @@ seed: 3407
 wandb_path: main-config
 fewshot_qa: False
 inference_device: cuda
-train: False
+train: True
 inference: True
-save_model_optimizer: False
-load_model_optimizer: True
+save_model_optimizer: True
+load_model_optimizer: False
 load_path: main-config
 use_drqa: True
-create_drqa_tfidf: False
+create_drqa_tfidf: True
 top_k: 5
 scheduler: "linear"
 sentence_level: True
 two_level_drqa: False
 quantize: False
 ONNX: False
-create_dense_embeddings: False
+create_dense_embeddings: True
 retriever_type: dense # dense or tfidf
 create_inf_table: False
 
@@ -34,7 +34,7 @@ data:
   answer_max_len: 10
 
 training:
-  epochs: 10
+  epochs: 3
   optimizer: adam
   lr: 0.00002
   sched_function: none
@@ -48,7 +48,7 @@ training:
   
 
 model:
-  model_path: mrm8488/bert-medium-finetuned-squadv2
+  model_path: mrm8488/electra-small-finetuned-squadv2
   params: {}
   non_pooler: False
   noise_tuner: False
