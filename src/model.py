@@ -78,7 +78,7 @@ class BaselineQA(nn.Module):
 
         return out
 
-    def export_to_onnx(self, tokenizer):
+    def export_to_onnx(self, tokenizer, filename):
         # TODO Using torch.onnx.export
         # Will use transformers.onnx.export for transformer models
 
@@ -97,7 +97,7 @@ class BaselineQA(nn.Module):
             model=self.model,
             config=onnx_config,
             opset=13,
-            output=Path("checkpoints/{}/model.onnx".format(self.config.load_path)),
+            output=Path(filename),
         )
 
         print(onnx_inputs, onnx_outputs)
