@@ -602,7 +602,7 @@ class Trainer:
                         start_char = offset_mapping[start_index][0]
                         end_char = offset_mapping[end_index][1]
                         decoded_answer = context[start_char:end_char]
-                        prefix_sum_lengths = qp_batch[batch_idx]['prefix_sum_lengths']
+                        prefix_sum_lengths = qp_batch['prefix_sum_lengths'][batch_idx]
                         for ret_idx, prefix_sum_length in enumerate(prefix_sum_lengths):
                             if start_char >= prefix_sum_length:
                                 pred_context_idx=qp_batch[batch_idx]['context_id'].split('+')[ret_idx].split('_')[0]
