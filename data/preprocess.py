@@ -18,6 +18,7 @@ def preprocess_fn(df, mask_token="<mask>", test=False):
     data_dict["question"] = []
     data_dict["title"] = []
     data_dict["fewshot_qa_prompt"] = []
+    data_dict["prefix_sum_lengths"] = []
     if not test:
         data_dict["fewshot_qa_answer"] = []
 
@@ -48,6 +49,7 @@ def preprocess_fn(df, mask_token="<mask>", test=False):
         title_id = row["title_id"]
         question = row["question"]
         title = row["title"]
+        prefix_sum_lengths = row["prefix_sum_lengths"]
         if not test:
             answer = {"answer_start": answer_start, "text": answer_text}
 
@@ -68,6 +70,7 @@ def preprocess_fn(df, mask_token="<mask>", test=False):
         data_dict["question"].append(question)
         data_dict["title"].append(title)
         data_dict["fewshot_qa_prompt"].append(fewshot_qa_prompt)
+        data_dict["prefix_sum_lengths"].append(prefix_sum_lengths)
         
         if not test:
             data_dict["fewshot_qa_answer"].append(fewshot_qa_answer)
