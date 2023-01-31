@@ -6,9 +6,10 @@ import pandas as pd
 from sklearn.model_selection import *
 from tqdm import tqdm
 
-train_frac = 0.8
-val_frac = 0.1
-test_frac = 0.1
+train_frac = 0.6
+val_frac = 0.2
+test_frac = 0.2
+# because 0.1 val and test frac is too small for themewise split
 seed = 3407
 
 if __name__ == "__main__":
