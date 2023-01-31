@@ -73,29 +73,29 @@ class Trainer:
         self.best_val_loss = 1e9
 
         # setup onnx runtime if config.onnx is true
-        self.onnx_runtime_session = None
-        if self.config.ONNX:
-            self.model.export_to_onnx(tokenizer)
+        # self.onnx_runtime_session = None
+        # if self.config.ONNX:
+        #     self.model.export_to_onnx(tokenizer)
 
-            # TODO Handle this case when using quantization without ONNX using torch.quantization
+        #     # TODO Handle this case when using quantization without ONNX using torch.quantization
 
-            if self.config.quantize:
-                quantize_dynamic(
-                    "checkpoints/{}/model.onnx".format(self.config.load_path),
-                    "checkpoints/{}/model_quantized.onnx".format(self.config.load_path),
-                )
+        #     if self.config.quantize:
+        #         quantize_dynamic(
+        #             "checkpoints/{}/model.onnx".format(self.config.load_path),
+        #             "checkpoints/{}/model_quantized.onnx".format(self.config.load_path),
+        #         )
 
-            sess_options = onnxruntime.SessionOptions()
-            # TODO Find if this line helps
-            # sess_options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
-            model_path = (
-                "checkpoints/{}/model.onnx".format(self.config.load_path)
-                if not self.config.quantize
-                else "checkpoints/{}/model_quantized.onnx".format(self.config.load_path)
-            )
-            self.onnx_runtime_session = onnxruntime.InferenceSession(
-                model_path, sess_options
-            )
+        #     sess_options = onnxruntime.SessionOptions()
+        #     # TODO Find if this line helps
+        #     # sess_options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+        #     model_path = (
+        #         "checkpoints/{}/model.onnx".format(self.config.load_path)
+        #         if not self.config.quantize
+        #         else "checkpoints/{}/model_quantized.onnx".format(self.config.load_path)
+        #     )
+        #     self.onnx_runtime_session = onnxruntime.InferenceSession(
+        #         model_path, sess_options
+        #     )
 
         if self.config.model.span_level:
             seq_indices = list(range(self.config.data.max_length))
@@ -278,7 +278,7 @@ class Trainer:
         wandb.log({"val_epoch_loss": total_loss / (batch_idx + 1)})
         return total_loss / (batch_idx + 1)
 
-    def predict(self, batch):
+    def predict(self, batch, onnx_session):
         if self.config.ONNX:
             # Set up inputs for the ONNX Runtime Invocation
             ort_inputs = None
@@ -311,7 +311,7 @@ class Trainer:
 
             # print(ort_inputs)
 
-            ort_outputs = self.onnx_runtime_session.run(None, ort_inputs)
+            ort_outputs = onnx_session.run(None, ort_inputs)
 
             # print(ort_outputs)
             out = QuestionAnsweringModelOutput(
@@ -529,7 +529,7 @@ class Trainer:
         self.prepared_test_df_matched = df_test_matched
 
 
-    def inference(self, theme, questions, contexts, retriever, prefix, device, do_prepare):
+    def inference(self, theme, questions, contexts, retriever, prefix, device, do_prepare, onnx_session):
         self.model.to(device)
         self.device = device
         self.model.device = device
@@ -560,7 +560,7 @@ class Trainer:
                     ].unsqueeze(dim=0)
 
             # para, para_id, theme, theme_id, question, question_id
-            pred = self.predict(qp_batch)
+            pred = self.predict(qp_batch, onnx_session)
 
             # print(pred.start_logits.shape) -> [32,512]
             if self.config.model.span_level:
