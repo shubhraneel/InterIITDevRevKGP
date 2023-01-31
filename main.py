@@ -248,7 +248,7 @@ if __name__ == "__main__":
         prepare_retriever(df_train, "sqlite_con.db", "train",False, False)
         prepare_retriever(df_test, "sqlite_con.db", "test", config.sentence_level,config.two_level_drqa)
 
-    if config.create_dense_embeddings:
+    if not config.use_dpr and config.create_dense_embeddings:
         print("Creating dense embeddings")
         prepare_dense_retriever(
             "data-dir/val/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz",
@@ -370,14 +370,14 @@ if __name__ == "__main__":
                     max_seq_len_passage=512,
                 )
                 test_document_store.update_embeddings(test_retriever)
-                with open("data-dir/test_retriever.pkl","w") as f:
+                with open("data-dir/test_retriever.pkl","wb") as f:
                     pickle.dump(test_retriever, f)
-                with open("data-dir/test_document_store.pkl","w") as f:
+                with open("data-dir/test_document_store.pkl","wb") as f:
                     pickle.dump(test_document_store, f)
             else:
-                with open("data-dir/test_retriever.pkl","r") as f:
+                with open("data-dir/test_retriever.pkl","rb") as f:
                     test_retriever = pickle.load(f)
-                with open("data-dir/test_document_store.pkl","r") as f:
+                with open("data-dir/test_document_store.pkl","rb") as f:
                     test_document_store = pickle.load(f)
 
             unique_data = df_val.drop_duplicates(subset='context', keep="first")
