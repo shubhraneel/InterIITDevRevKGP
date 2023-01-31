@@ -284,29 +284,29 @@ class Trainer:
             ort_inputs = None
             if not self.config.model.non_pooler:
                 ort_inputs = {
-                    self.onnx_runtime_session.get_inputs()[0].name: to_numpy(
+                    onnx_session.get_inputs()[0].name: to_numpy(
                         batch["question_context_input_ids"]
                     ),
-                    self.onnx_runtime_session.get_inputs()[1].name: to_numpy(
+                    onnx_session.get_inputs()[1].name: to_numpy(
                         batch["question_context_attention_mask"]
                     ),
-                    self.onnx_runtime_session.get_inputs()[2].name: to_numpy(
+                    onnx_session.get_inputs()[2].name: to_numpy(
                         batch["question_context_token_type_ids"]
                     ),
-                    # self.onnx_runtime_session.get_inputs()[3].name: to_numpy(batch['start_positions'].unsqueeze(dim=1)),
-                    # self.onnx_runtime_session.get_inputs()[4].name: to_numpy(batch['end_positions'].unsqueeze(dim=1))
+                    # onnx_session.get_inputs()[3].name: to_numpy(batch['start_positions'].unsqueeze(dim=1)),
+                    # onnx_session.get_inputs()[4].name: to_numpy(batch['end_positions'].unsqueeze(dim=1))
                 }
 
             else:
                 ort_inputs = {
-                    self.onnx_runtime_session.get_inputs()[0].name: to_numpy(
+                    onnx_session.get_inputs()[0].name: to_numpy(
                         batch["question_context_input_ids"]
                     ),
-                    self.onnx_runtime_session.get_inputs()[1].name: to_numpy(
+                    onnx_session.get_inputs()[1].name: to_numpy(
                         batch["question_context_attention_mask"]
                     ),
-                    # self.onnx_runtime_session.get_inputs()[2].name: to_numpy(batch['start_positions'].unsqueeze(dim=1)),
-                    # self.onnx_runtime_session.get_inputs()[3].name: to_numpy(batch['end_positions'].unsqueeze(dim=1))
+                    # onnx_session.get_inputs()[2].name: to_numpy(batch['start_positions'].unsqueeze(dim=1)),
+                    # onnx_session.get_inputs()[3].name: to_numpy(batch['end_positions'].unsqueeze(dim=1))
                 }
 
             # print(ort_inputs)
