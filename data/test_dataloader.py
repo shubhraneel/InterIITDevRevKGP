@@ -28,6 +28,7 @@ class SQuAD_TestDataset(Dataset):
             "question_id",
             "context_id",
             "title_id",
+            "prefix_sum_lengths"
         ]
 
         tokenized_keys = [
@@ -240,6 +241,7 @@ class SQuAD_TestDataset(Dataset):
             "context_id": [x["context_id"] for x in items],
             "title_id": [x["title_id"] for x in items],
         #     "answer": [x["answers"]["text"] for x in items],
+            "prefix_sum_lengths": [x["prefix_sum_lengths"] for x in items]
         }
 
         if not self.config.model.non_pooler:
