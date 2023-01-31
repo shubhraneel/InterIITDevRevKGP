@@ -536,6 +536,7 @@ class Trainer:
 
         if do_prepare:
             self.prepare_theme_df_before_inference(theme, questions, contexts, retriever, prefix, device)
+            print(self.prepared_test_df_matched)
 
         start_time = time.time()
         question_prediction_dict = {
