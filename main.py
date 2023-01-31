@@ -189,7 +189,7 @@ def prepare_dense_retriever(tfidf_path, use_sentence_level):
 
     # save the embeddings
     np.save(
-        f"data-dir/{mode}/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy",
+        f"data-dir/{mode}/sentence_transformer_embeddings_multi-qa-mpnet-base-dot-v1.npy",
         embeddings,
     )
 
@@ -199,7 +199,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config.yaml", help="Config File")
     parser.add_argument("--top_k", default=10, type=int, help="Topk for retrieval")
-    parser.add_argument("--theme", default="Middle_Ages", help="Theme")
+    parser.add_argument("--theme", default="Chihuahua_(state)", help="Theme")
 
     args = parser.parse_args()
     with open(args.config) as f:
@@ -397,13 +397,13 @@ if __name__ == "__main__":
         # test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
         if config.train and config.save_model_optimizer:
             print(
-                "loading best model from checkpoints/{}/model_optimizer.pt for inference".format(
-                    config.load_path
+                "loading best model from checkpoints/{}/{}/model_optimizer_{}.pt for inference".format(
+                    config.load_path, args.theme, config.training.epochs-1
                 )
             )
             checkpoint = torch.load(
-                "checkpoints/{}/model_optimizer.pt".format(config.load_path),
-                map_location=torch.device(device),
+                "checkpoints/{}/{}/model_optimizer_{}.pt".format(config.load_path, args.theme, config.training.epochs-1),
+                map_location=torch.device(device), 
             )
             model.load_state_dict(checkpoint["model_state_dict"])
         model.to(config.inference_device)
