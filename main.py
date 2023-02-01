@@ -301,6 +301,7 @@ if __name__ == "__main__":
         model_verifier=None
         optimizer_verifier=None
         if config.use_verifier:
+          config.model.verifier=True
           model_verifier = BaselineQA(config, device).to(device)
           optimizer_verifier = torch.optim.Adam(model_verifier.parameters(), lr=config.training.lr)
           config.model.verifier=False

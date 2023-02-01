@@ -651,9 +651,14 @@ class Trainer:
             # para, para_id, theme, theme_id, question, question_id
             pred = self.predict(qp_batch)
 
-            if self.config.use_verifier or self.config.model.verifier:
+            if self.config.use_verifier:
               ## Add ONNX and Quantize here too
-              # verifier_pred=self.verifier(qp_batch)
+              verifier_pred=self.verifier(qp_batch)
+              cls_tokens=verifier_pred.hidden_states[-1][:,0]
+              scores=torch.sigmoid(self.verifier.score(cls_tokens).squeeze(1)) # [32,1]
+              batch_preds_clf=[1 if p>=0.5 else 0 for p in scores]
+            
+            if self.config.model.verifier:
               cls_tokens=pred.hidden_states[-1][:,0]
               scores=torch.sigmoid(self.model.score(cls_tokens).squeeze(1)) # [32,1]
               batch_preds_clf=[1 if p>=0.5 else 0 for p in scores]
