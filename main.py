@@ -370,15 +370,15 @@ if __name__ == "__main__":
                     max_seq_len_passage=512,
                 )
                 test_document_store.update_embeddings(test_retriever)
-                with open("data-dir/test_retriever.pkl","wb") as f:
-                    pickle.dump(test_retriever, f)
-                with open("data-dir/test_document_store.pkl","wb") as f:
-                    pickle.dump(test_document_store, f)
-            else:
-                with open("data-dir/test_retriever.pkl","rb") as f:
-                    test_retriever = pickle.load(f)
-                with open("data-dir/test_document_store.pkl","rb") as f:
-                    test_document_store = pickle.load(f)
+            #     with open("data-dir/test_retriever.pkl","wb") as f:
+            #         pickle.dump(test_retriever, f)
+            #     with open("data-dir/test_document_store.pkl","wb") as f:
+            #         pickle.dump(test_document_store, f)
+            # else:
+            #     with open("data-dir/test_retriever.pkl","rb") as f:
+            #         test_retriever = pickle.load(f)
+            #     with open("data-dir/test_document_store.pkl","rb") as f:
+            #         test_document_store = pickle.load(f)
 
             unique_data = df_val.drop_duplicates(subset='context', keep="first")
             UniqueParaList = unique_data.context.to_list()
@@ -400,15 +400,15 @@ if __name__ == "__main__":
                     max_seq_len_passage=512,
                 )
                 val_document_store.update_embeddings(val_retriever)
-                with open("data-dir/val_retriever.pkl") as f:
-                    pickle.dump(val_retriever, f)
-                with open("data-dir/val_document_store.pkl") as f:
-                    pickle.dump(val_document_store, f)
-            else:
-                with open("data-dir/val_retriever.pkl") as f:
-                    val_retriever = pickle.load(f)
-                with open("data-dir/val_document_store.pkl") as f:
-                    val_document_store = pickle.load(f)
+            #     with open("data-dir/val_retriever.pkl") as f:
+            #         pickle.dump(val_retriever, f)
+            #     with open("data-dir/val_document_store.pkl") as f:
+            #         pickle.dump(val_document_store, f)
+            # else:
+            #     with open("data-dir/val_retriever.pkl") as f:
+            #         val_retriever = pickle.load(f)
+            #     with open("data-dir/val_document_store.pkl") as f:
+            #         val_document_store = pickle.load(f)
 
 
 
