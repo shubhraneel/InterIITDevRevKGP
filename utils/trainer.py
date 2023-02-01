@@ -579,6 +579,8 @@ class Trainer:
                     max_end_probs.values * max_start_probs.values
                 )  # -> [32,1]
 
+                print(confidence_scores)
+
             for batch_idx, q_id in enumerate(qp_batch["question_id"]):
                 if question_prediction_dict[q_id][0] < confidence_scores[batch_idx]:
                     # using the context in the qp_pair get extract the span using max_start_prob and max_end_prob
