@@ -561,6 +561,8 @@ class Trainer:
                     ].unsqueeze(dim=0)
 
             # para, para_id, theme, theme_id, question, question_id
+            print()
+            print("QP_batch line 565")
             print(qp_batch)
             pred = self.predict(qp_batch, onnx_session)
 

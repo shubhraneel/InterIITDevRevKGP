@@ -50,6 +50,9 @@ class BaselineQA(nn.Module):
         print('input to the model')
         print(input)
         out = self.model(**input)
+        print()
+        print('output of model line 53 model.py')
+        print(out)
         if self.config.model.two_step_loss:
             cls_tokens = out.hidden_states[-1][:, 0]
             scores = self.score(cls_tokens)  # [32,1]
