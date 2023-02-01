@@ -435,7 +435,7 @@ class Trainer:
             # can initialise theme specific retriever here
             for idx, row in df_temp.iterrows():
                 df_contexts = pd.DataFrame()
-                if retriever is not None and self.config.sentence_level:
+                if self.config.use_drqa and retriever is not None and self.config.sentence_level:
                     question = row["question"]
                     question_id = row["question_id"]
                     context_id = row["context_id"]
@@ -453,7 +453,7 @@ class Trainer:
                     df_contexts.loc[:, "context"] = "".join(doc_text_filtered)
                     # TODO: change to ids or smth
                     df_contexts.loc[:, "context_id"] = "+".join(doc_text_filtered)
-                else:
+                elif self.config.use_drqa:
                     question = row["question"]
                     question_id = row["question_id"]
                     context_id = row["context_id"]
@@ -500,9 +500,27 @@ class Trainer:
                         df_contexts.loc[
                             df_contexts["context_id"] == context_id, row_dict.keys()
                         ] = row_dict.values()
+                elif self.config.use_dpr:
+                    question = row["question"]
+                    question_id = row["question_id"]
+                    context_id = row["context_id"]
+                    contexts = retriever.retrieve(question, top_k=self.config.top_k)
+                    contexts = [x.content for x in contexts]
+                    df_contexts = df_unique_con.loc[
+                        df_unique_con["title_id"] == title_id
+                    ].sample(n=self.config.top_k, random_state=self.config.seed)
+                    df_contexts.loc[:, "question"] = question
+                    df_contexts.loc[:, "question_id"] = question_id
+                    df_contexts.loc[:, "answerable"] = False
+                    df_contexts.loc[:, "answer_start"] = ""
+                    df_contexts.loc[:, "answer_text"] = ""
+                    df_contexts["context"] = contexts
+                # print(df_contexts)
                 df_test_matched = pd.concat(
                     [df_test_matched, df_contexts], axis=0, ignore_index=True
                 )
+        
+            
 
         # print(f"original paragraph not in top k {unmatched}")
         test_ds = SQuAD_Dataset(
