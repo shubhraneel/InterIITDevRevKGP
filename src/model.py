@@ -47,7 +47,9 @@ class BaselineQA(nn.Module):
             input['end_positions'] = batch["end_positions"].to(self.device)
         if not self.config.model.non_pooler:
             input['token_type_ids'] = batch["question_context_token_type_ids"].to(self.device)
-        out = self.model(**input, output_hidden_states=True)
+        print('input to the model')
+        print(input)
+        out = self.model(**input)
         if self.config.model.two_step_loss:
             cls_tokens = out.hidden_states[-1][:, 0]
             scores = self.score(cls_tokens)  # [32,1]

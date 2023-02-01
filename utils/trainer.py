@@ -561,6 +561,7 @@ class Trainer:
                     ].unsqueeze(dim=0)
 
             # para, para_id, theme, theme_id, question, question_id
+            print(qp_batch)
             pred = self.predict(qp_batch, onnx_session)
 
             # print(pred.start_logits.shape) -> [32,512]
