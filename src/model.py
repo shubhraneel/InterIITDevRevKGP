@@ -41,7 +41,7 @@ class BaselineQA(nn.Module):
     def forward(self, batch):
         input = dict()
         input['input_ids'] = batch["question_context_input_ids"].to(self.device)
-        input['attention_mask'] = batch["question_context_input_ids"].to(self.device)
+        input['attention_mask'] = batch["question_context_attention_mask"].to(self.device)
         if not self.config.inference:
             input['start_positions'] = batch["start_positions"].to(self.device)
             input['end_positions'] = batch["end_positions"].to(self.device)
