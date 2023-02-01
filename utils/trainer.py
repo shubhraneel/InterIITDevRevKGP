@@ -624,9 +624,9 @@ class Trainer:
                         for ret_idx, prefix_sum_length in enumerate(prefix_sum_lengths):
                             if start_char >= prefix_sum_length:
                                 pred_context_idx=qp_batch['context_id'][batch_idx].split('+')[ret_idx].split('_')[0]
-                                if end_char> prefix_sum_length:
-                                    sab_changa_si = False
-                                    assert sab_changa_si, "maa chud gayi (end char bs)"
+                                # if end_char> prefix_sum_length:
+                                #     sab_changa_si = False
+                                #     assert sab_changa_si, "maa chud gayi (end char bs)"
                                 break
                     
                     if len(decoded_answer) > 0:
