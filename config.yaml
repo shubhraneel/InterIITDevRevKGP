@@ -1,6 +1,6 @@
 task: qa
 seed: 3407
-wandb_path: dpr-test
+wandb_path: dpr-test-neg
 fewshot_qa: False
 inference_device: cuda
 train: False
@@ -8,8 +8,8 @@ inference: True
 save_model_optimizer: True
 load_model_optimizer: False
 load_path: dpr-test
-use_drqa: False
-use_dpr: True
+use_drqa: True
+use_dpr: False
 create_drqa_tfidf: False
 top_k: 5
 scheduler: "linear"
@@ -49,7 +49,7 @@ training:
   
 
 model:
-  model_path: mrm8488/bert-medium-finetuned-squadv2
+  model_path: mrm8488/electra-small-finetuned-squadv2
   params: {}
   non_pooler: False
   noise_tuner: False
