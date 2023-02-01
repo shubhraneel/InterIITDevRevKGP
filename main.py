@@ -327,20 +327,15 @@ if __name__ == "__main__":
       print("Running Inference on Ensemble Models")
       for id,model_config in enumerate(config.ensemble_models):
         print(f"Model {model_config.model_path}")
-        config.model=model_config
-        model = BaselineQA(config, device).to(device)
-        checkpoint = torch.load(
-                "checkpoints/{}/model_optimizer.pt".format(config.ensemble_load_paths[id]),
-                map_location=torch.device(device),
-          )
-        model.load_state_dict(checkpoint["model_state_dict"])
-
         tokenizer = AutoTokenizer.from_pretrained(
-          config.model.model_path,
+          model_config.model_path,
           TOKENIZERS_PARALLELISM=True,
           model_max_length=512,
           padding="max_length",
         )
+
+        config.model=model_config
+        model = BaselineQA(config, device).to(device)
 
         trainer = Trainer(
           config=config,
@@ -352,10 +347,28 @@ if __name__ == "__main__":
           val_retriever=val_retriever,
           df_val=df_val,
         )
-        qpred_dict=trainer.inference(df_test, test_retriever, 'test', device, do_prepare=True)
-        question_pred_dicts.append(qpred_dict)
 
-      ensemble_metrics=trainer.calculate_metrics(df_test, retriever, 'test', device, do_prepare=False,q_pred_dicts=question_pred_dicts)
+        if config.ensemble_type=="inference":
+          checkpoint = torch.load(
+                  "checkpoints/{}/model_optimizer.pt".format(config.ensemble_load_paths[id]),
+                  map_location=torch.device(device),
+            )
+          model.load_state_dict(checkpoint["model_state_dict"])
+
+          qpred_dict=trainer.inference(df_test, test_retriever, 'test', device, do_prepare=True)
+        
+        elif config.ensemble_type=="logits":
+
+          logits=np.load(config.ensemble_load_paths[id],allow_pickle=True)
+          qpred_dict=trainer.get_qpred_from_logits(df_test,test_retriever,logits,
+                              do_prepare=True,prefix='test',device=device)
+
+        elif config.ensemble_type=="qpred_dict":
+          with open(config.ensemble_load_paths[id],'rb') as f:
+            qpred_dict=pickle.load(f)
+        question_pred_dicts.append(qpred_dict)
+      
+      ensemble_metrics=trainer.calculate_metrics(df_test, retriever, 'test', device, do_prepare=True,q_pred_dicts=question_pred_dicts)
       print(ensemble_metrics)
       config.inference=False ## So that the normal inference pipeline does not get called
 

@@ -5,7 +5,7 @@ import sys
 import time
 
 import numpy as np
-
+import pickle
 import onnxruntime
 import pandas as pd
 import torch
@@ -539,6 +539,76 @@ class Trainer:
 
         self.prepared_test_loader = test_dataloader
         self.prepared_test_df_matched = df_test_matched
+    
+    def get_qpred_from_logits(self,df_test,retriever,logits,do_prepare,prefix,device):
+      if do_prepare:
+          self.prepare_df_before_inference(df_test,retriever,prefix,device)
+
+      question_prediction_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
+
+      for qp_batch_id, qp_batch in tqdm(
+            enumerate(self.prepared_test_loader), total=len(self.prepared_test_loader)
+        ):
+            if len(qp_batch["question_context_input_ids"].shape) == 1:
+                qp_batch["question_context_input_ids"] = qp_batch[
+                    "question_context_input_ids"
+                ].unsqueeze(dim=0)
+                qp_batch["question_context_attention_mask"] = qp_batch[
+                    "question_context_attention_mask"
+                ].unsqueeze(dim=0)
+                if not self.config.model.non_pooler:
+                    qp_batch["question_context_token_type_ids"] = qp_batch[
+                        "question_context_token_type_ids"
+                    ].unsqueeze(dim=0)
+
+            # print(pred.start_logits.shape) -> [32,512]
+            if self.config.model.span_level: ## Saving different for span level
+                mlp_out=torch.from_numpy(logits['mlp_out'][qp_batch_id]).to(device)
+                probs = torch.sigmoid(mlp_out)
+                max_probs = torch.max(probs, axis=1)
+                confidence_scores = max_probs.values
+            else:
+                start_logits=torch.from_numpy(logits['start_logits'][qp_batch_id]).to(device)
+                end_logits=torch.from_numpy(logits['end_logits'][qp_batch_id]).to(device)
+
+                start_probs = F.softmax(start_logits, dim=1)  # -> [32,512]
+                end_probs = F.softmax(end_logits, dim=1)  # -> [32,512]
+
+                max_start_probs = torch.max(start_probs, axis=1)  # -> [32,1]
+                max_end_probs = torch.max(end_probs, axis=1)  # -> [32,1]
+
+                confidence_scores = (
+                    max_end_probs.values * max_start_probs.values
+                )  # -> [32,1]
+
+            for batch_idx, q_id in enumerate(qp_batch["question_id"]):
+                if question_prediction_dict[q_id][0] < confidence_scores[batch_idx]:
+                    # using the context in the qp_pair get extract the span using max_start_prob and max_end_prob
+                    context = qp_batch["context"][batch_idx]
+                    offset_mapping = qp_batch["question_context_offset_mapping"][
+                        batch_idx
+                    ]
+                    decoded_answer = ""
+
+                    if self.config.model.span_level:
+                        idx = max_probs.indices[batch_idx].item()
+                        start_index, end_index = self.seq_pair_indices[idx]
+                    else:
+                        start_index = max_start_probs.indices[batch_idx].item()
+                        end_index = max_end_probs.indices[batch_idx].item()
+
+                    if (
+                        offset_mapping[start_index] is not None
+                        and offset_mapping[end_index] is not None
+                    ):
+                        start_char = offset_mapping[start_index][0]
+                        end_char = offset_mapping[end_index][1]
+                        decoded_answer = context[start_char:end_char]
+
+                    if(len(decoded_answer)>0):
+                        question_prediction_dict[q_id]=(confidence_scores[batch_idx].item(),decoded_answer)
+      
+      return question_prediction_dict
 
     def inference(self, df_test, retriever, prefix, device, do_prepare):
         self.model.to(device)
@@ -547,6 +617,13 @@ class Trainer:
 
         if do_prepare:
           self.prepare_df_before_inference(df_test,retriever,prefix,device)
+
+        if self.config.save_logits:
+          if self.config.model.span_level:
+            mlp_out=[]
+          else:
+            start_logits=[]
+            end_logits=[]
        
         start_time=time.time()
         question_prediction_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
@@ -574,9 +651,16 @@ class Trainer:
             # print(pred.start_logits.shape) -> [32,512]
             if self.config.model.span_level:
                 probs = torch.sigmoid(pred[1])
+                if self.config.save_logits:
+                  mlp_out.append(pred[1].detach().cpu().numpy())
                 max_probs = torch.max(probs, axis=1)
                 confidence_scores = max_probs.values
             else:
+                if self.config.save_logits:
+                  start_logits.append(pred.start_logits.detach().cpu().numpy())
+                  end_logits.append(pred.end_logits.detach().cpu().numpy())
+                  print(pred.end_logits.detach().cpu().numpy().shape)
+
                 start_probs = F.softmax(pred.start_logits, dim=1)  # -> [32,512]
                 end_probs = F.softmax(pred.end_logits, dim=1)  # -> [32,512]
 
@@ -661,6 +745,22 @@ class Trainer:
             }
         )
 
+        if self.config.save_logits:
+          os.makedirs(
+              self.config.inference_save_path, exist_ok=True
+          )
+          if self.config.model.span_level:
+            with open(self.config.inference_save_path+'logits.npz','w') as f:
+              np.savez(f,mlp_out=np.array(mlp_out))
+          else:
+            print(np.array(start_logits.shape))
+            # with open(self.config.inference_save_path+'logits.npz','w') as f:
+            #   np.savez(f,start_logits=np.array(start_logits),end_logits=np.array(end_logits))
+
+        if self.config.save_qpred_dict:
+          with open(self.config.inference_save_path+'qpred_dict.pkl','wb') as f:
+            pickle.dump(question_prediction_dict,f)
+
         return question_prediction_dict
 
     def calculate_metrics(self, df_test, retriever, prefix, device, do_prepare,q_pred_dicts=None):
@@ -679,7 +779,7 @@ class Trainer:
               df_test, retriever, prefix, device, do_prepare
           )
         else:
-          question_pred_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
+          question_pred_dict={q_id:(0,"") for q_id in q_pred_dicts[0].keys()}
           for q_id in df_test['question_id']:
             for q_pred_dict in q_pred_dicts:
               if question_pred_dict[q_id][0]<q_pred_dict[q_id][0]:
