@@ -313,12 +313,19 @@ class Trainer:
 
             ort_outputs = onnx_session.run(None, ort_inputs)
 
+            print()
+            print('ONNX outputs line 317 trainer.py')
+            print(ort_outputs)
+
             # print(ort_outputs)
             out = QuestionAnsweringModelOutput(
                 # loss = torch.tensor(ort_outputs[0]),
                 start_logits=torch.tensor(ort_outputs[0]),
                 end_logits=torch.tensor(ort_outputs[1]),
             )
+            print()
+            print('ONNX outputs typecasted line 327 trainer.py')
+            print(out)
 
             return out
 
