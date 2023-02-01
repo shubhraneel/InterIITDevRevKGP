@@ -579,6 +579,11 @@ class Trainer:
                     max_end_probs.values * max_start_probs.values
                 )  # -> [32,1]
 
+                print()
+                print(start_probs)
+                print(end_probs)
+                print(max_start_probs)
+                print(max_end_probs)
                 print(confidence_scores)
 
             for batch_idx, q_id in enumerate(qp_batch["question_id"]):
