@@ -313,9 +313,9 @@ class Trainer:
 
             ort_outputs = onnx_session.run(None, ort_inputs)
 
-            print()
-            print('ONNX outputs line 317 trainer.py')
-            print(ort_outputs)
+            # print()
+            # print('ONNX outputs line 317 trainer.py')
+            # print(ort_outputs)
 
             # print(ort_outputs)
             out = QuestionAnsweringModelOutput(
@@ -323,9 +323,9 @@ class Trainer:
                 start_logits=torch.tensor(ort_outputs[0]),
                 end_logits=torch.tensor(ort_outputs[1]),
             )
-            print()
-            print('ONNX outputs typecasted line 327 trainer.py')
-            print(out)
+            # print()
+            # print('ONNX outputs typecasted line 327 trainer.py')
+            # print(out)
 
             return out
 
@@ -476,8 +476,8 @@ class Trainer:
                 new_row['context'] = "".join(doc_text_filtered)
                 new_row['context_id'] = "+".join(doc_idx_filtered)
                 new_row['prefix_sum_lengths'] = [0]+list(accumulate([len(sent) for sent in doc_text_filtered]))
-                print('sentence level row for question:', question)
-                print(new_row)
+                # print('sentence level row for question:', question)
+                # print(new_row)
                 df_contexts = pd.DataFrame([new_row])
                 
             else:
@@ -568,9 +568,9 @@ class Trainer:
                     ].unsqueeze(dim=0)
 
             # para, para_id, theme, theme_id, question, question_id
-            print()
-            print("QP_batch line 565")
-            print(qp_batch)
+            # print()
+            # print("QP_batch line 565")
+            # print(qp_batch)
             pred = self.predict(qp_batch, onnx_session)
 
             # print(pred.start_logits.shape) -> [32,512]
@@ -589,12 +589,12 @@ class Trainer:
                     max_end_probs.values * max_start_probs.values
                 )  # -> [32,1]
 
-                print()
-                print(start_probs)
-                print(end_probs)
-                print(max_start_probs)
-                print(max_end_probs)
-                print(confidence_scores)
+                # print()
+                # print(start_probs)
+                # print(end_probs)
+                # print(max_start_probs)
+                # print(max_end_probs)
+                # print(confidence_scores)
 
             for batch_idx, q_id in enumerate(qp_batch["question_id"]):
                 if question_prediction_dict[q_id][0] < confidence_scores[batch_idx]:
