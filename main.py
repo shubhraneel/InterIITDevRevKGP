@@ -32,6 +32,7 @@ from utils.drqa.DocRanker import docranker_utils
 from utils.drqa.DocRanker.tokenizer import CoreNLPTokenizer
 
 from haystack.utils import clean_wiki_text, convert_files_to_docs
+from haystack.schema import Document
 from haystack.nodes import DensePassageRetriever
 from haystack.document_stores import FAISSDocumentStore
 
@@ -351,27 +352,50 @@ if __name__ == "__main__":
             passage_model = config.retriever.passage_model
 
             unique_data = df_test.drop_duplicates(subset='context', keep="first")
-            UniqueParaList = unique_data.context.to_list()
-            ThemeList = unique_data.title.to_list()
-            if not os.path.exists("data-dir/test_paragraphs/"):
-                os.mkdir("data-dir/test_paragraphs/")
-            for i in range(len(UniqueParaList)):
-                with open("data-dir/test_paragraphs/Paragraph_" + str(i) + ".txt", 'w+') as fp:
-                    fp.write("%s\n" % UniqueParaList[i])
+            # UniqueParaList = unique_data.context.to_list()
+            # ThemeList = unique_data.title.to_list()
+            # if not os.path.exists("data-dir/test_paragraphs/"):
+            #     os.mkdir("data-dir/test_paragraphs/")
+            # for i in range(len(UniqueParaList)):
+            #     with open("data-dir/test_paragraphs/Paragraph_" + str(i) + ".txt", 'w+') as fp:
+            #         fp.write("%s\n" % UniqueParaList[i])
             if config.create_dense_embeddings:
               if (os.path.exists("data-dir/faiss_document_store_test.db")):
                 os.remove("data-dir/faiss_document_store_test.db")
-                test_document_store = FAISSDocumentStore(faiss_index_factory_str="Flat", sql_url="sqlite:///data-dir/faiss_document_store_test.db")
-                test_docs = convert_files_to_docs(dir_path="data-dir/test_paragraphs/", clean_func=clean_wiki_text, split_paragraphs=True)
-                test_document_store.write_documents(test_docs)
-                test_retriever = DensePassageRetriever(
-                    document_store=test_document_store,
-                    query_embedding_model=query_model,
-                    passage_embedding_model=passage_model,
-                    max_seq_len_query=64,
-                    max_seq_len_passage=512,
-                )
-                test_document_store.update_embeddings(test_retriever)
+              test_document_store = FAISSDocumentStore(faiss_index_factory_str="Flat", sql_url="sqlite:///data-dir/faiss_document_store_test.db")
+              # test_docs = convert_files_to_docs(dir_path="data-dir/test_paragraphs/", clean_func=clean_wiki_text, split_paragraphs=True)
+              if not config.sentence_level:
+                test_docs = [
+                  Document(
+                    content = x['context'],
+                    id = x['context_id'],
+                    content_type = 'text',
+                    meta = {'title': x['title'], 'title_id': x['title_id']}
+                  )
+                  for _, x in unique_data.iterrows()
+                ]
+              else:
+                test_docs = []
+                for _, x in unique_data.iterrows():
+                  sent_docs = [
+                    Document(
+                      content = sent,
+                      id = f"{x['context_id']}_{i}",
+                      content_type = 'text',
+                      meta = {'title': x['title'], 'title_id': x['title_id']}
+                    )
+                    for i, sent in enumerate(list(sent_tokenize(x['context'])))
+                  ]
+                  test_docs.extend(sent_docs)
+              test_document_store.write_documents(test_docs)
+              test_retriever = DensePassageRetriever(
+                  document_store=test_document_store,
+                  query_embedding_model=query_model,
+                  passage_embedding_model=passage_model,
+                  max_seq_len_query=64,
+                  max_seq_len_passage=512,
+              )
+              test_document_store.update_embeddings(test_retriever)
             #     with open("data-dir/test_retriever.pkl","wb") as f:
             #         pickle.dump(test_retriever, f)
             #     with open("data-dir/test_document_store.pkl","wb") as f:
@@ -383,27 +407,50 @@ if __name__ == "__main__":
             #         test_document_store = pickle.load(f)
 
             unique_data = df_val.drop_duplicates(subset='context', keep="first")
-            UniqueParaList = unique_data.context.to_list()
-            ThemeList = unique_data.title.to_list()
-            if not os.path.exists("data-dir/val_paragraphs/"):
-                os.mkdir("data-dir/val_paragraphs/")
-            for i in range(len(UniqueParaList)):
-                with open("data-dir/val_paragraphs/Paragraph_" + str(i) + ".txt", 'w+') as fp:
-                    fp.write("%s\n" % UniqueParaList[i])
+            # UniqueParaList = unique_data.context.to_list()
+            # ThemeList = unique_data.title.to_list()
+            # if not os.path.exists("data-dir/val_paragraphs/"):
+            #     os.mkdir("data-dir/val_paragraphs/")
+            # for i in range(len(UniqueParaList)):
+            #     with open("data-dir/val_paragraphs/Paragraph_" + str(i) + ".txt", 'w+') as fp:
+            #         fp.write("%s\n" % UniqueParaList[i])
             if config.create_dense_embeddings:
               if (os.path.exists("data-dir/faiss_document_store_val.db")):
                 os.remove("data-dir/faiss_document_store_val.db")
-                val_document_store = FAISSDocumentStore(faiss_index_factory_str="Flat", sql_url="sqlite:///data-dir/faiss_document_store_val.db")
-                val_docs = convert_files_to_docs(dir_path="data-dir/val_paragraphs/", clean_func=clean_wiki_text, split_paragraphs=True)
-                val_document_store.write_documents(val_docs)
-                val_retriever = DensePassageRetriever(
-                    document_store=val_document_store,
-                    query_embedding_model=query_model,
-                    passage_embedding_model=passage_model,
-                    max_seq_len_query=64,
-                    max_seq_len_passage=512,
-                )
-                val_document_store.update_embeddings(val_retriever)
+              val_document_store = FAISSDocumentStore(faiss_index_factory_str="Flat", sql_url="sqlite:///data-dir/faiss_document_store_val.db")
+              # val_docs = convert_files_to_docs(dir_path="data-dir/val_paragraphs/", clean_func=clean_wiki_text, split_paragraphs=True)
+              if not config.sentence_level:
+                val_docs = [
+                  Document(
+                    content = x['context'],
+                    id = x['context_id'],
+                    content_type = 'text',
+                    meta = {'title': x['title'], 'title_id': x['title_id']}
+                  )
+                  for _, x in unique_data.iterrows()
+                ]
+              else:
+                val_docs = []
+                for _, x in unique_data.iterrows():
+                  sent_docs = [
+                    Document(
+                      content = sent,
+                      id = f"{x['context_id']}_{i}",
+                      content_type = 'text',
+                      meta = {'title': x['title'], 'title_id': x['title_id']}
+                    )
+                    for i, sent in enumerate(list(sent_tokenize(x['context'])))
+                  ]
+                  val_docs.extend(sent_docs)
+              val_document_store.write_documents(val_docs)
+              val_retriever = DensePassageRetriever(
+                  document_store=val_document_store,
+                  query_embedding_model=query_model,
+                  passage_embedding_model=passage_model,
+                  max_seq_len_query=64,
+                  max_seq_len_passage=512,
+              )
+              val_document_store.update_embeddings(val_retriever)
             #     with open("data-dir/val_retriever.pkl") as f:
             #         pickle.dump(val_retriever, f)
             #     with open("data-dir/val_document_store.pkl") as f:

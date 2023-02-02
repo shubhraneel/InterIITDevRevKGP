@@ -501,20 +501,42 @@ class Trainer:
                             df_contexts["context_id"] == context_id, row_dict.keys()
                         ] = row_dict.values()
                 elif self.config.use_dpr:
-                    question = row["question"]
-                    question_id = row["question_id"]
-                    context_id = row["context_id"]
-                    contexts = retriever.retrieve(question, top_k=self.config.top_k)
-                    contexts = [x.content for x in contexts]
-                    df_contexts = df_unique_con.loc[
-                        df_unique_con["title_id"] == title_id
-                    ].sample(n=self.config.top_k, random_state=self.config.seed)
-                    df_contexts.loc[:, "question"] = question
-                    df_contexts.loc[:, "question_id"] = question_id
-                    df_contexts.loc[:, "answerable"] = False
-                    df_contexts.loc[:, "answer_start"] = ""
-                    df_contexts.loc[:, "answer_text"] = ""
-                    df_contexts["context"] = contexts
+                    if not self.config.sentence_level:
+                        question = row["question"]
+                        question_id = row["question_id"]
+                        context_id = row["context_id"]
+                        contexts = retriever.retrieve(question, top_k=self.config.top_k)
+                        ids = [x.id for x in contexts]
+                        contexts = [x.content for x in contexts]
+                        df_contexts = df_unique_con.loc[
+                            df_unique_con["title_id"] == title_id
+                        ].sample(n=self.config.top_k, random_state=self.config.seed)
+                        df_contexts.loc[:, "question"] = question
+                        df_contexts.loc[:, "question_id"] = question_id
+                        df_contexts.loc[:, "answerable"] = False
+                        df_contexts.loc[:, "answer_start"] = ""
+                        df_contexts.loc[:, "answer_text"] = ""
+                        df_contexts["context"] = contexts
+                        df_contexts["context_id"] = ids
+                    else:
+                        question = row["question"]
+                        question_id = row["question_id"]
+                        context_id = row["context_id"]
+                        contexts = retriever.retrieve(question, top_k=self.config.top_k)
+                        ids = [x.id for x in contexts]
+                        contexts = [x.content for x in contexts]
+                        df_contexts = df_unique_con.loc[
+                            df_unique_con["title_id"] == title_id
+                        ].sample(n=1, random_state=self.config.seed)
+                        df_contexts.loc[:, "question"] = question
+                        df_contexts.loc[:, "question_id"] = question_id
+                        df_contexts.loc[:, "answerable"] = False
+                        df_contexts.loc[:, "answer_start"] = ""
+                        df_contexts.loc[:, "answer_text"] = ""
+                        df_contexts.loc[:, "context"] = "".join(contexts)
+                        # TODO: change to ids or smth
+                        df_contexts.loc[:, "context_id"] = "+".join(ids)
+
                 # print(df_contexts)
                 df_test_matched = pd.concat(
                     [df_test_matched, df_contexts], axis=0, ignore_index=True
