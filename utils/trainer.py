@@ -33,7 +33,7 @@ def to_numpy(tensor):
 class Trainer:
     def __init__(
         self,
-        arg_theme,
+        arg_cluster_themes,
         config,
         model,
         optimizer,
@@ -45,7 +45,7 @@ class Trainer:
     ):
         self.config = config
         self.device = device
-        self.arg_theme = arg_theme
+        self.arg_cluster_themes=arg_cluster_themes
         self.tokenizer = tokenizer
 
         self.optimizer = optimizer
@@ -325,11 +325,11 @@ class Trainer:
                 if self.config.save_model_optimizer:
                     print(
                         "saving model and optimizer at checkpoints/{}/{}/model_optimizer_{}.pt".format(
-                            self.config.load_path, self.arg_theme, epoch
+                            self.config.load_path, self.arg_cluster_themes[0], epoch
                         )
                     )
                     os.makedirs(
-                        "checkpoints/{}/{}/".format(self.config.load_path, self.arg_theme), exist_ok=True
+                        "checkpoints/{}/{}/".format(self.config.load_path, self.arg_cluster_themes[0]), exist_ok=True
                     )
                     torch.save(
                         {
@@ -337,7 +337,7 @@ class Trainer:
                             "optimizer_state_dict": self.optimizer.state_dict(),
                         },
                         "checkpoints/{}/{}/model_optimizer_{}.pt".format(
-                            self.config.load_path, self.arg_theme, epoch
+                            self.config.load_path, self.arg_cluster_themes[0], epoch
                         ),
                     )
                 self.model.train()

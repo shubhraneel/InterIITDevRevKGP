@@ -199,7 +199,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config.yaml", help="Config File")
     parser.add_argument("--top_k", default=10, type=int, help="Topk for retrieval")
-    parser.add_argument("--theme", default="Chihuahua_(state)", help="Theme")
+    parser.add_argument('--clutser_themes', default=['Chihuahua_(state)'], nargs='+')
 
     args = parser.parse_args()
     with open(args.config) as f:
@@ -224,15 +224,15 @@ if __name__ == "__main__":
     df_val = pd.read_pickle(config.data.val_data_path)
     df_test = pd.read_pickle(config.data.test_data_path)
 
-    # print(args.theme)
+    print(f"Cluster themes\n{args.clutser_themes}")
     # print(df_train['title'].unique())
     # print(df_test['title'].unique())
     # print(df_val['title'].unique())
 
     # keeping only datapoints of given theme
-    df_train=df_train.loc[df_train['title']==args.theme]
-    df_test=df_test.loc[df_test['title']==args.theme]
-    df_val=df_val.loc[df_val['title']==args.theme]
+    df_train=df_train.loc[df_train['title'] in args.clutser_themes]
+    df_test=df_test.loc[df_test['title'] in args.clutser_themes]
+    df_val=df_val.loc[df_val['title'] in args.clutser_themes]
 
     print(df_train['title'].shape)
     print(df_val['title'].shape)
@@ -355,7 +355,7 @@ if __name__ == "__main__":
 
 
         trainer = Trainer(
-            arg_theme=args.theme,
+            arg_cluster_themes=args.cluster_themes,
             config=config,
             model=model,
             optimizer=optimizer,
@@ -398,11 +398,11 @@ if __name__ == "__main__":
         if config.train and config.save_model_optimizer:
             print(
                 "loading best model from checkpoints/{}/{}/model_optimizer_{}.pt for inference".format(
-                    config.load_path, args.theme, config.training.epochs-1
+                    config.load_path, args.cluster_themes[0], config.training.epochs-1
                 )
             )
             checkpoint = torch.load(
-                "checkpoints/{}/{}/model_optimizer_{}.pt".format(config.load_path, args.theme, config.training.epochs-1),
+                "checkpoints/{}/{}/model_optimizer_{}.pt".format(config.load_path, args.cluster_themes[0], config.training.epochs-1),
                 map_location=torch.device(device), 
             )
             model.load_state_dict(checkpoint["model_state_dict"])
