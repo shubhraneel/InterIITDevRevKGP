@@ -1,13 +1,13 @@
 task: qa
 seed: 3407
-wandb_path: federated-test
+wandb_path: incremental-test
 fewshot_qa: False
 inference_device: cuda
 train: True
 inference: True
 save_model_optimizer: True
 load_model_optimizer: False
-load_path: federated-test
+load_path: incremental-test
 use_drqa: True
 use_dpr: False
 create_drqa_tfidf: False
@@ -22,7 +22,7 @@ retriever_type: dense # dense or tfidf
 create_inf_table: False
 
 federated:
-  use: True
+  use: False
   num_clusters: 4
   num_epochs: 1
 
