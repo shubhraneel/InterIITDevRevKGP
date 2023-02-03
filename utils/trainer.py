@@ -642,32 +642,38 @@ class Trainer:
                         # print(prefix_sum_lengths)
                         tokens_per_sentence = []
                         span_count = 0
+                        final_start_char = start_char
+                        final_end_char = end_char
+                        final_ans_length = 0
+
                         if start_char < end_char:
                             for start_ret_idx in range(len(prefix_sum_lengths) - 1):
                                 if start_char < prefix_sum_lengths[start_ret_idx + 1]:
                                     for end_ret_idx in range(start_ret_idx + 1, len(prefix_sum_lengths)):
-                                        tokens_per_sentence.append(min(end_char, prefix_sum_lengths[end_ret_idx]) - max(start_char, prefix_sum_lengths[end_ret_idx - 1]))
+                                        # tokens_per_sentence.append(min(end_char, prefix_sum_lengths[end_ret_idx]) - max(start_char, prefix_sum_lengths[end_ret_idx - 1]))
+                                        if min(end_char, prefix_sum_lengths[end_ret_idx]) - max(start_char, prefix_sum_lengths[end_ret_idx - 1]) > final_ans_length:
+                                            final_start_char = max(start_char, prefix_sum_lengths[end_ret_idx - 1])
+                                            final_end_char = min(end_char, prefix_sum_lengths[end_ret_idx])
+                                            final_ans_length = final_end_char - final_start_char
+                                            decoded_answer = context[final_start_char:final_end_char]
+                                            pred_context_idx = qp_batch['context_id'][batch_idx].split('+')[start_ret_idx].split('_')[0]
+
                                         if end_char < prefix_sum_lengths[end_ret_idx]:
                                             span_count = end_ret_idx - start_ret_idx
                                             break
                                     
-                                    ans_ret_idx = np.argmax(tokens_per_sentence)
-                                    pred_context_idx=qp_batch['context_id'][batch_idx].split('+')[ans_ret_idx].split('_')[0]
+                                    # ans_ret_idx = np.argmax(tokens_per_sentence)
+                                    # pred_context_idx=qp_batch['context_id'][batch_idx].split('+')[ans_ret_idx].split('_')[0]
                                     break
-                                else:
-                                    tokens_per_sentence.append(0)
-                                
-                    
-                        tokens_per_sentence_foreach_question.append(tokens_per_sentence)
+                                # else:
+                                #     tokens_per_sentence.append(0)
 
-                        if span_count > 1:
-                            print(Fore.RED + str(start_char))
-                            print(Fore.RED + str(end_char))
-                            print(Fore.RED + str(context))
-                            print(Fore.RED + str(question))
-                            print(Fore.RED + str(decoded_answer))
-                            print(Fore.RED + str(prefix_sum_lengths))
-                            print(Fore.RED + str(tokens_per_sentence))
+                    
+                        # tokens_per_sentence_foreach_question.append(tokens_per_sentence)
+
+                        
+                        strrr = '\n'.join([start_char, end_char, final_start_char, final_end_char, qp_batch['context_id'][batch_idx], context, question, decoded_answer, pred_context_idx])
+                        print(strrr, prefix_sum_lengths, tokens_per_sentence)
 
                     if len(decoded_answer) > 0:
                         question_prediction_dict[q_id] = (
