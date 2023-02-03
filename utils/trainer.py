@@ -672,7 +672,7 @@ class Trainer:
                         # tokens_per_sentence_foreach_question.append(tokens_per_sentence)
 
                         
-                        strrr = '\n'.join([str(start_char), str(end_char), str(final_start_char), str(final_end_char), qp_batch['context_id'][batch_idx], context, question, decoded_answer, pred_context_idx, str(prefix_sum_lengths), str(tokens_per_sentence)])
+                        strrr = '\n'.join([str(start_char), str(end_char), str(final_start_char), str(final_end_char), qp_batch['context_id'][batch_idx], context, question, decoded_answer, str(pred_context_idx), str(prefix_sum_lengths), str(tokens_per_sentence)])
                         print(strrr)
 
                     if len(decoded_answer) > 0:
