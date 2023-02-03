@@ -139,14 +139,14 @@ class DenseRanker(object):
             self.mode = "test"
 
         assert os.path.exists(
-            f"data-dir/{self.mode}/sentence_transformer_embeddings_multi-qa-mpnet-base-dot-v1.npy"
+            f"data-dir/{self.mode}/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy"
         ), f"Dense test embedding path does not exist"
 
         # check if tfidf_path exists
         assert os.path.exists(tfidf_path), f"tfidf_path does not exist"
 
         self.doc_mat = np.load(
-            f"data-dir/{self.mode}/sentence_transformer_embeddings_multi-qa-mpnet-base-dot-v1.npy"
+            f"data-dir/{self.mode}/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy"
         )
 
         _, metadata = docranker_utils.load_sparse_csr(tfidf_path)
@@ -156,7 +156,7 @@ class DenseRanker(object):
         self.strict = strict
         # TODO Ojasv: Pass the path as a parameter
         self.model = SentenceTransformer(
-            "sentence-transformers/multi-qa-mpnet-base-dot-v1"
+            "sentence-transformers/multi-qa-distilbert-cos-v1"
         )
         d = self.doc_mat.shape[-1]
 
