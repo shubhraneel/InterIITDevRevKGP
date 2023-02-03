@@ -21,6 +21,11 @@ create_dense_embeddings: True
 retriever_type: dense # dense or tfidf
 create_inf_table: False
 
+federated:
+  use: True
+  num_clusters: 4
+  num_epochs: 1
+
 data:
   train_data_path: data-dir/train/df_train.pkl
   val_data_path: data-dir/val/df_val.pkl
