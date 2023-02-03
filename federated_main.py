@@ -464,13 +464,14 @@ if __name__ == "__main__":
                     del checkpoint
                     gc.collect()                
             
-            model = BaselineQA(config,torch.device("cpu"))
+            model = BaselineQA(config,torch.device("cpu")).to(torch.device("cpu"))
             state_dict = model.state_dict()
             for key, param in state_dict.items():
                 state_dict[key] = torch.zeros_like(state_dict[key])
             for i in range(config.federated.num_clusters):
                 checkpoint = torch.load(
                     "checkpoints/{}/{}/model.pt".format(config.load_path,i),
+                    map_location=torch.device('cpu'),
                 )
                 client_state_dict = checkpoint['model_state_dict']
                 for key, param in state_dict.items():
