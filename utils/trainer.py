@@ -642,8 +642,8 @@ class Trainer:
                         tokens_per_sentence = []
                         span_count = 0
                         if start_char < end_char:
-                            for start_ret_idx in range(len(prefix_sum_lengths)):
-                                if start_char >= prefix_sum_lengths[start_ret_idx]:
+                            for start_ret_idx in range(len(prefix_sum_lengths) - 1):
+                                if start_char < prefix_sum_lengths[start_ret_idx + 1]:
                                     print(start_char, prefix_sum_lengths[start_ret_idx])
                                     for end_ret_idx in range(start_ret_idx + 1, len(prefix_sum_lengths)):
                                         print(end_ret_idx)
