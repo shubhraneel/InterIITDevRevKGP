@@ -22,6 +22,7 @@ create_dense_embeddings: True
 retriever_type: dense # dense or tfidf
 create_inf_table: False
 use_verifier: False
+ensemble: False
 
 federated:
   use: False
