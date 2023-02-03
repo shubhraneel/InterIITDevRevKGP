@@ -24,6 +24,8 @@ from transformers.modeling_outputs import QuestionAnsweringModelOutput
 from utils import compute_f1
 from itertools import accumulate
 
+from colorama import Fore
+
 def to_numpy(tensor):
     return (
         tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
@@ -632,18 +634,20 @@ class Trainer:
                                     
                         #             answers_which_span_across_sentences.append()
                         #         break
-                        print(start_char)
-                        print(end_char)
-                        print(context)
-                        print(decoded_answer)
-                        print(prefix_sum_lengths)
+                        # print(start_char)
+                        # print(end_char)
+                        # print(context)
+                        # print(decoded_answer)
+                        # print(prefix_sum_lengths)
                         tokens_per_sentence = []
+                        span_count = 0
                         if start_char < end_char:
-                            for ret_idx in range(len(prefix_sum_lengths)):
-                                if start_char >= prefix_sum_lengths[ret_idx]:
-                                    for end_ret_idx in range(ret_idx + 1, len(prefix_sum_lengths)):
+                            for start_ret_idx in range(len(prefix_sum_lengths)):
+                                if start_char >= prefix_sum_lengths[start_ret_idx]:
+                                    for end_ret_idx in range(start_ret_idx + 1, len(prefix_sum_lengths)):
                                         tokens_per_sentence.append(min(end_char, prefix_sum_lengths[end_ret_idx]) - max(start_char, prefix_sum_lengths[end_ret_idx - 1]))
-                                        if end_char < prefix_sum_lengths[ret_idx + 1]:
+                                        if end_char < prefix_sum_lengths[end_ret_idx]:
+                                            span_count = end_ret_idx - start_ret_idx
                                             break
                                     
                                     ans_ret_idx = np.argmax(tokens_per_sentence)
@@ -653,8 +657,15 @@ class Trainer:
                                     tokens_per_sentence.append(0)
                     
                     tokens_per_sentence_foreach_question.append(tokens_per_sentence)
-                    print(tokens_per_sentence)
-                    
+
+                    if span_count > 1:
+                        print(Fore.RED + str(start_char))
+                        print(Fore.RED + str(end_char))
+                        print(Fore.RED + str(context))
+                        print(Fore.RED + str(decoded_answer))
+                        print(Fore.RED + str(prefix_sum_lengths))
+                        print(Fore.RED + str(tokens_per_sentence))
+
                     if len(decoded_answer) > 0:
                         question_prediction_dict[q_id] = (
                             confidence_scores[batch_idx].item(),
