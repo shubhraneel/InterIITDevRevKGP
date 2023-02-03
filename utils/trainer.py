@@ -640,7 +640,11 @@ class Trainer:
                                     if end_char < prefix_sum_lengths[ret_idx + 1]:
                                         break
                                 tokens_per_sentence_foreach_question.append(tokens_per_sentence)
+                                ans_ret_idx = np.argmax(tokens_per_sentence)
+                                pred_context_idx=qp_batch['context_id'][batch_idx].split('+')[ans_ret_idx].split('_')[0]
                                 break
+                            else:
+                                tokens_per_sentence.append(0)
                     
                     if len(decoded_answer) > 0:
                         question_prediction_dict[q_id] = (
