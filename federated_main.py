@@ -449,7 +449,7 @@ if __name__ == "__main__":
                     df_val=df_val,
                 )
                 print(f" runninng round {round} on cluster {i}")
-                trainer.train(train_dataloader, val_dataloader)
+                trainer.train(train_dataloader_dict[i], val_dataloader)
                 
                 os.makedirs(f"checkpoints/{config.load_path}/{i}/", exist_ok=True)
                 torch.save(
