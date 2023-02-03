@@ -1,6 +1,6 @@
 task: qa
 seed: 3407
-wandb_path: dpr-test-neg
+wandb_path: federated-test
 fewshot_qa: False
 inference_device: cuda
 train: False
