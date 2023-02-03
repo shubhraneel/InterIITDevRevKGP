@@ -22,7 +22,7 @@ retriever_type: dense # dense or tfidf
 create_inf_table: False
 
 federated:
-  use: True
+  use: False
   num_clusters: 4
   num_epochs: 1
 
