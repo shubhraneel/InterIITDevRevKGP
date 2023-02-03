@@ -1,0 +1,106 @@
+task: qa
+seed: 3407
+wandb_path: ensemble-inference-bertmedium-electra-dict
+fewshot_qa: False
+inference_device: cuda
+train: False
+inference: False
+save_model_optimizer: False
+load_model_optimizer: True
+load_path: electra-small-finetuned-squadv2_train_logits
+verifier_load_path: verifier-training-bert-medium
+use_drqa: True
+use_dpr: False
+create_drqa_tfidf: False
+top_k: 5
+scheduler: "linear"
+sentence_level: True
+two_level_drqa: False
+quantize: False
+ONNX: False
+create_dense_embeddings: True
+retriever_type: dense # dense or tfidf
+create_inf_table: False
+ensemble: True
+ensemble_type: qpred_dict # inference, logits, qpred_dict
+save_logits: False
+use_verifier: False
+save_qpred_dict: False
+inference_save_path: "./data-dir/electra-small-finetuned-squadv2/" ## add entire relative path
+ensemble_load_paths: # add complete relative path (no assumptions made on basepath)
+  - ./data-dir/electra-small-finetuned-squadv2/qpred_dict.pkl
+  - ./data-dir/bert-medium-finetuned-squadv2/qpred_dict.pkl
+
+federated:
+  use: False
+  num_clusters: 4
+  num_epochs: 1
+
+data:
+  train_data_path: data-dir/train/df_train.pkl
+  val_data_path: data-dir/val/df_val.pkl
+  test_data_path: data-dir/test/df_test.pkl
+  train_batch_size: 16
+  val_batch_size: 2
+  apply_aliasing: False
+  pad_on_right: True
+  max_length: 512
+  doc_stride: 0
+  tokenizer_batch_size: 32
+  answer_max_len: 10
+
+training:
+  incremental_learning: True
+  epochs: 10
+  optimizer: adam
+  lr: 0.00002
+  sched_function: none
+  sched_func_params: {}
+  sched_params:
+    monitor: val_loss
+  evaluate_every: 1
+  lr_flag : False
+  can_loss: False  # Contrastive_Adaptive_Loss
+  can_loss_beta: 0.01  # 0.00000001
+  verifier_can_loss: False
+  
+model:
+  model_path: mrm8488/electra-small-finetuned-squadv2
+  verifier_model_path: mrm8488/electra-small-finetuned-squadv2
+  params: {}
+  non_pooler: False
+  noise_tuner: False
+  noise_lambda: 0.15
+  non_pooler: False
+  dim: 512
+  span_level: False
+  two_step_loss: False
+  verifier: False
+
+retriever:
+  query_model: "facebook/dpr-question_encoder-single-nq-base"
+  passage_model: "facebook/dpr-ctx_encoder-single-nq-base"
+
+ensemble_models:
+  - model_path: mrm8488/electra-small-finetuned-squadv2
+    verifier_model_path: mrm8488/electra-small-finetuned-squadv2
+    params: {}
+    non_pooler: False
+    noise_tuner: False
+    noise_lambda: 0.15
+    non_pooler: False
+    dim: 512
+    span_level: False
+    two_step_loss: False
+    verifier: False
+  - model_path: mrm8488/bert-medium-finetuned-squadv2
+    verifier_model_path: mrm8488/bert-medium-finetuned-squadv2
+    params: {}
+    non_pooler: False
+    noise_tuner: False
+    noise_lambda: 0.15
+    non_pooler: False
+    dim: 512
+    span_level: False
+    two_step_loss: False
+    verifier: False
