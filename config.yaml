@@ -33,6 +33,8 @@ data:
   doc_stride: 0
   tokenizer_batch_size: 32
   answer_max_len: 10
+  title_grouped: True
+  keep_title_order: False
 
 training:
   epochs: 10
