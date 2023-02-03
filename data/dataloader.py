@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from data.preprocess import preprocess_fn
+import random
 
 def title_grouped_sampler(dataset, batch_size=16, shuffle=True, keep_title_order=False):
     indices = [i for i in range(len(dataset))]

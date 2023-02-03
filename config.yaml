@@ -1,13 +1,13 @@
 task: qa
 seed: 3407
-wandb_path: dpr-test-neg
+wandb_path: reptile
 fewshot_qa: False
 inference_device: cuda
-train: False
-inference: True
+train: True
+inference: False
 save_model_optimizer: True
 load_model_optimizer: False
-load_path: dpr-test
+load_path: reptile
 use_drqa: True
 use_dpr: False
 create_drqa_tfidf: False
@@ -17,7 +17,7 @@ sentence_level: True
 two_level_drqa: False
 quantize: False
 ONNX: False
-create_dense_embeddings: True
+create_dense_embeddings: False
 retriever_type: dense # dense or tfidf
 create_inf_table: False
 
@@ -33,11 +33,15 @@ data:
   doc_stride: 0
   tokenizer_batch_size: 32
   answer_max_len: 10
-  title_grouped: True
+  reptile: True
+  meta_batch_size: 4
+  inner_batch_size: 4
+  inner_iters: 5
+  inner_lr: 0.00002
   keep_title_order: False
 
 training:
-  epochs: 10
+  epochs: 1
   optimizer: adam
   lr: 0.00002
   sched_function: none

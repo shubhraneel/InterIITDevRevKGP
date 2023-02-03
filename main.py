@@ -228,7 +228,7 @@ if __name__ == "__main__":
     assert (not config.quantize or config.ONNX), "Quantizing without ONNX Runtime is not supported"
 
     print("Reading data csv")
-    df_train = pd.read_pickle(config.data.train_data_path)
+    df_train = pd.read_pickle(config.data.train_data_path).sample(5000, random_state=config.seed)
     df_val = pd.read_pickle(config.data.val_data_path)
     df_test = pd.read_pickle(config.data.test_data_path)
 
@@ -413,11 +413,6 @@ if __name__ == "__main__":
             #         val_retriever = pickle.load(f)
             #     with open("data-dir/val_document_store.pkl") as f:
             #         val_document_store = pickle.load(f)
-
-
-
-            
-
             
 
         if config.save_model_optimizer:
@@ -449,7 +444,7 @@ if __name__ == "__main__":
         if config.train:
             print("Creating train dataset")
             train_ds = SQuAD_Dataset(config, df_train, tokenizer)
-            if config.data.title_grouped:
+            if config.data.reptile:
                 train_dataloader = DataLoader(
                     train_ds,
                     batch_sampler = title_grouped_sampler(
@@ -468,21 +463,11 @@ if __name__ == "__main__":
 
             print("Creating val dataset")
             val_ds = SQuAD_Dataset(config, df_val, tokenizer)
-            if config.data.title_grouped:
-                val_dataloader = DataLoader(
-                    val_ds,
-                    batch_sampler = title_grouped_sampler(
-                        val_ds, batch_size=config.data.val_batch_size,
-                        shuffle=False, keep_title_order=True
-                    ),
-                    collate_fn=val_ds.collate_fn,
-                )
-            else:
-                val_dataloader = DataLoader(
-                    val_ds,
-                    batch_size=config.data.val_batch_size,
-                    collate_fn=val_ds.collate_fn,
-                )
+            val_dataloader = DataLoader(
+                val_ds,
+                batch_size=config.data.val_batch_size,
+                collate_fn=val_ds.collate_fn,
+            )
             print("length of val dataset: {}".format(val_ds.__len__()))
 
             trainer.train(train_dataloader, val_dataloader)
