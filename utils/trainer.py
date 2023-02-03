@@ -24,8 +24,6 @@ from transformers.modeling_outputs import QuestionAnsweringModelOutput
 from utils import compute_f1
 from itertools import accumulate
 
-from colorama import Fore
-
 def to_numpy(tensor):
     return (
         tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
