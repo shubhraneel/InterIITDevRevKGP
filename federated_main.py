@@ -499,6 +499,7 @@ if __name__ == "__main__":
         
 
     if config.inference:
+        model = BaselineQA(config, device).to(device)
         if config.train and config.save_model_optimizer:
             print(
                 "loading best model from checkpoints/{}/model_optimizer.pt for inference".format(
@@ -510,6 +511,22 @@ if __name__ == "__main__":
                 map_location=torch.device(device),
             )
             model.load_state_dict(checkpoint["model_state_dict"])
+        
+        trainer = Trainer(
+                    config=config,
+                    model=model,
+                    optimizer=torch.optim.Adam(model.parameters(), lr=config.training.lr),
+                    device=device,
+                    tokenizer=tokenizer,
+                    ques2idx=ques2idx,
+                    val_retriever=val_retriever,
+                    df_val=df_val,
+        )
+        checkpoint = torch.load(
+                    "checkpoints/{}/avg_model.pt".format(config.load_path),
+                    map_location=torch.device(device),
+                )
+        model.load_state_dict(checkpoint["model_state_dict"])
         model.to(config.inference_device)
         test_metrics = trainer.calculate_metrics(
             df_test, test_retriever, "test", config.inference_device, do_prepare=True

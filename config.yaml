@@ -3,7 +3,7 @@ seed: 3407
 wandb_path: federated-test
 fewshot_qa: False
 inference_device: cuda
-train: False
+train: True
 inference: True
 save_model_optimizer: True
 load_model_optimizer: False
