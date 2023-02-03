@@ -5,7 +5,7 @@ import sys
 import time
 
 import numpy as np
-
+import pickle
 import onnxruntime
 import pandas as pd
 import torch
@@ -553,6 +553,8 @@ class Trainer:
         }
 
         # TODO: without sequentional batch iteration
+
+        tokens_per_sentence_foreach_question = []
         for qp_batch_id, qp_batch in tqdm(
             enumerate(self.prepared_test_loader), total=len(self.prepared_test_loader)
         ):
@@ -622,12 +624,22 @@ class Trainer:
                         end_char = offset_mapping[end_index][1]
                         decoded_answer = context[start_char:end_char]
                         prefix_sum_lengths = qp_batch['prefix_sum_lengths'][batch_idx]
-                        for ret_idx, prefix_sum_length in enumerate(prefix_sum_lengths):
-                            if start_char >= prefix_sum_length:
-                                pred_context_idx=qp_batch['context_id'][batch_idx].split('+')[ret_idx].split('_')[0]
-                                # if end_char> prefix_sum_length:
-                                #     sab_changa_si = False
-                                #     assert sab_changa_si, "maa chud gayi (end char bs)"
+                        # for ret_idx, prefix_sum_length in enumerate(prefix_sum_lengths):
+                        #     if start_char >= prefix_sum_length:
+                        #         pred_context_idx=qp_batch['context_id'][batch_idx].split('+')[ret_idx].split('_')[0]
+                                
+                        #         if end_char > prefix_sum_lengths[ret_idx + 1]:
+                                    
+                        #             answers_which_span_across_sentences.append()
+                        #         break
+                        for ret_idx in range(len(prefix_sum_lengths)):
+                            tokens_per_sentence = []
+                            if start_char >= prefix_sum_lengths[ret_idx]:
+                                for end_ret_idx in range(ret_idx + 1, len(prefix_sum_lengths)):
+                                    tokens_per_sentence.append(min(end_char, prefix_sum_lengths[end_ret_idx]) - max(start_char, prefix_sums_lengths[end_ret_index - 1]))
+                                    if end_char < prefix_sum_lengths[ret_idx + 1]:
+                                        break
+                                tokens_per_sentence_foreach_question.append(tokens_per_sentence)
                                 break
                     
                     if len(decoded_answer) > 0:
@@ -636,6 +648,9 @@ class Trainer:
                             decoded_answer,
                             pred_context_idx
                         )
+
+        with open('analysis.pkl', 'wb') as fff:
+            pickle.dump(tokens_per_sentence_foreach_question, fff)
 
         time_inference_generation = 1000 * (time.time() - start_time)
         print(time_inference_generation)

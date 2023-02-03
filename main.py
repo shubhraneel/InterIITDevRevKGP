@@ -198,7 +198,7 @@ if __name__ == "__main__":
     nltk.download("punkt")
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config.yaml", help="Config File")
-    parser.add_argument("--top_k", default=10, type=int, help="Topk for retrieval")
+    parser.add_argument("--top_k", default=None, type=int, help="Topk for retrieval")
 
     args = parser.parse_args()
     with open(args.config) as f:
@@ -211,7 +211,8 @@ if __name__ == "__main__":
         )
         config = Config(**config)
 
-    config.top_k = args.top_k
+    if args.top_k is not None:
+        config.top_k = args.top_k
 
     set_seed(config.seed)
 
