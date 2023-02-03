@@ -656,15 +656,15 @@ class Trainer:
                                 else:
                                     tokens_per_sentence.append(0)
                     
-                    tokens_per_sentence_foreach_question.append(tokens_per_sentence)
+                        tokens_per_sentence_foreach_question.append(tokens_per_sentence)
 
-                    if span_count > 1:
-                        print(Fore.RED + str(start_char))
-                        print(Fore.RED + str(end_char))
-                        print(Fore.RED + str(context))
-                        print(Fore.RED + str(decoded_answer))
-                        print(Fore.RED + str(prefix_sum_lengths))
-                        print(Fore.RED + str(tokens_per_sentence))
+                        if span_count > 1:
+                            print(Fore.RED + str(start_char))
+                            print(Fore.RED + str(end_char))
+                            print(Fore.RED + str(context))
+                            print(Fore.RED + str(decoded_answer))
+                            print(Fore.RED + str(prefix_sum_lengths))
+                            print(Fore.RED + str(tokens_per_sentence))
 
                     if len(decoded_answer) > 0:
                         question_prediction_dict[q_id] = (
