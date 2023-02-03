@@ -229,7 +229,6 @@ if __name__ == "__main__":
 
     print("Reading data csv")
     df_train = pd.read_pickle(config.data.train_data_path)
-    df_train=df_train.sample(n=5000)
     df_val = pd.read_pickle(config.data.val_data_path)
     df_test = pd.read_pickle(config.data.test_data_path)
 
