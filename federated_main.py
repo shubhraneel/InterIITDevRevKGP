@@ -429,40 +429,40 @@ if __name__ == "__main__":
         config.training.epochs = config.federated.num_epochs
         
         for round in range(num_rounds):
-            if(round>0):
-                for i in range(config.federated.num_clusters):
-                    model = BaselineQA(config, device).to(device)
-                    checkpoint = torch.load(
-                        "checkpoints/{}/avg_model.pt".format(config.load_path),
-                        map_location=torch.device(device),
-                    )
-                    model.load_state_dict(checkpoint["model_state_dict"])
-                    model.to(config.inference_device)
+            
+            for i in range(config.federated.num_clusters):
+                model = BaselineQA(config, device).to(device)
+                checkpoint = torch.load(
+                    "checkpoints/{}/avg_model.pt".format(config.load_path),
+                    map_location=torch.device(device),
+                )
+                model.load_state_dict(checkpoint["model_state_dict"])
+                model.to(config.inference_device)
 
-                    trainer = Trainer(
-                        config=config,
-                        model=model,
-                        optimizer=torch.optim.Adam(model.parameters(), lr=config.training.lr),
-                        device=device,
-                        tokenizer=tokenizer,
-                        ques2idx=ques2idx,
-                        val_retriever=val_retriever,
-                        df_val=df_val,
-                    )
-                    print(f" runninng round {round} on cluster {i}")
-                    trainer.train(train_dataloader_dict[i], val_dataloader)
-                    
-                    os.makedirs(f"checkpoints/{config.load_path}/{i}/", exist_ok=True)
-                    torch.save(
-                        {
-                            "model_state_dict": trainer.model.state_dict()
-                        },
-                        "checkpoints/{}/{}/model.pt".format(config.load_path,i),
-                    )
-                    del model
-                    del trainer
-                    del checkpoint
-                    gc.collect()                
+                trainer = Trainer(
+                    config=config,
+                    model=model,
+                    optimizer=torch.optim.Adam(model.parameters(), lr=config.training.lr),
+                    device=device,
+                    tokenizer=tokenizer,
+                    ques2idx=ques2idx,
+                    val_retriever=val_retriever,
+                    df_val=df_val,
+                )
+                print(f" runninng round {round} on cluster {i}")
+                trainer.train(train_dataloader_dict[i], val_dataloader)
+                
+                os.makedirs(f"checkpoints/{config.load_path}/{i}/", exist_ok=True)
+                torch.save(
+                    {
+                        "model_state_dict": trainer.model.state_dict()
+                    },
+                    "checkpoints/{}/{}/model.pt".format(config.load_path,i),
+                )
+                del model
+                del trainer
+                del checkpoint
+                gc.collect()                
             
             model = BaselineQA(config,device).to(device)
             state_dict = model.state_dict()
