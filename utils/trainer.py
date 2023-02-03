@@ -1,6 +1,6 @@
 import json
 import os
-
+import random 
 import sys
 import time
 
@@ -192,6 +192,9 @@ class Trainer:
         bidx=None
         for batch_idx, batch in enumerate(tepoch):
             bidx=batch_idx
+            if self.config.training.incremental_learning:
+                if random.random() < 0.90:
+                    continue
             tepoch.set_description(f"Epoch {epoch + 1}")
             if len(batch["question_context_input_ids"].shape) == 1:
                 batch["question_context_input_ids"] = batch[
