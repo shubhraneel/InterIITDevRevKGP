@@ -396,7 +396,7 @@ if __name__ == "__main__":
         def add_dummy_cluster_id(df_train):
             dict_cluster_id = {
                 title_id: random.randint(0, config.federated.num_epochs-1) 
-                for title_id in df_train['title_id'].unique
+                for title_id in df_train['title_id'].unique()
             }
             cluster_ids = [dict_cluster_id[title_id] for title_id in df_train['title_id']]
             df_train['cluster_id'] = cluster_ids
