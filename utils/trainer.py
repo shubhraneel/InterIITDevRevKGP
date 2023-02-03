@@ -605,6 +605,7 @@ class Trainer:
                 if question_prediction_dict[q_id][0] < confidence_scores[batch_idx]:
                     # using the context in the qp_pair get extract the span using max_start_prob and max_end_prob
                     context = qp_batch["context"][batch_idx]
+                    question = qp_batch["question"][batch_idx]
                     offset_mapping = qp_batch["question_context_offset_mapping"][
                         batch_idx
                     ]
@@ -644,10 +645,7 @@ class Trainer:
                         if start_char < end_char:
                             for start_ret_idx in range(len(prefix_sum_lengths) - 1):
                                 if start_char < prefix_sum_lengths[start_ret_idx + 1]:
-                                    print(start_char, prefix_sum_lengths[start_ret_idx])
                                     for end_ret_idx in range(start_ret_idx + 1, len(prefix_sum_lengths)):
-                                        print(end_ret_idx)
-                                        print(prefix_sum_lengths[end_ret_idx], prefix_sum_lengths[end_ret_idx-1])
                                         tokens_per_sentence.append(min(end_char, prefix_sum_lengths[end_ret_idx]) - max(start_char, prefix_sum_lengths[end_ret_idx - 1]))
                                         if end_char < prefix_sum_lengths[end_ret_idx]:
                                             span_count = end_ret_idx - start_ret_idx
@@ -658,7 +656,6 @@ class Trainer:
                                     break
                                 else:
                                     tokens_per_sentence.append(0)
-                                print('token', tokens_per_sentence)
                                 
                     
                         tokens_per_sentence_foreach_question.append(tokens_per_sentence)
@@ -667,6 +664,7 @@ class Trainer:
                             print(Fore.RED + str(start_char))
                             print(Fore.RED + str(end_char))
                             print(Fore.RED + str(context))
+                            print(Fore.RED + str(question))
                             print(Fore.RED + str(decoded_answer))
                             print(Fore.RED + str(prefix_sum_lengths))
                             print(Fore.RED + str(tokens_per_sentence))
