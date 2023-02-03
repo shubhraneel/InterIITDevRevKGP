@@ -463,7 +463,7 @@ if __name__ == "__main__":
                 del checkpoint
                 gc.collect()                
             
-            model = BaselineQA(config)
+            model = BaselineQA(config,"cpu")
             state_dict = model.state_dict()
             for key, param in state_dict.items():
                 state_dict[key] = torch.zeros_like(state_dict[key])
