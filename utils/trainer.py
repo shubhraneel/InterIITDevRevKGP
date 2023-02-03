@@ -636,7 +636,7 @@ class Trainer:
                             tokens_per_sentence = []
                             if start_char >= prefix_sum_lengths[ret_idx]:
                                 for end_ret_idx in range(ret_idx + 1, len(prefix_sum_lengths)):
-                                    tokens_per_sentence.append(min(end_char, prefix_sum_lengths[end_ret_idx]) - max(start_char, prefix_sums_lengths[end_ret_index - 1]))
+                                    tokens_per_sentence.append(min(end_char, prefix_sum_lengths[end_ret_idx]) - max(start_char, prefix_sum_lengths[end_ret_idx - 1]))
                                     if end_char < prefix_sum_lengths[ret_idx + 1]:
                                         break
                                 tokens_per_sentence_foreach_question.append(tokens_per_sentence)
