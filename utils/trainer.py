@@ -476,7 +476,7 @@ class Trainer:
                 new_row['context'] = "".join(doc_text_filtered)
                 new_row['context_id'] = "+".join(doc_idx_filtered)
                 new_row['prefix_sum_lengths'] = [0]+list(accumulate([len(sent) for sent in doc_text_filtered]))
-                print('Prefix sum lengths', new_row['prefix_sum_lengths'])
+                # print('Prefix sum lengths', new_row['prefix_sum_lengths'])
                 # print('sentence level row for question:', question)
                 # print(new_row)
                 df_contexts = pd.DataFrame([new_row])
