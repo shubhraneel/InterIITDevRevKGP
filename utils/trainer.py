@@ -645,6 +645,7 @@ class Trainer:
                             for start_ret_idx in range(len(prefix_sum_lengths)):
                                 if start_char >= prefix_sum_lengths[start_ret_idx]:
                                     for end_ret_idx in range(start_ret_idx + 1, len(prefix_sum_lengths)):
+                                        print(prefix_sum_lengths[end_ret_idx], prefix_sum_lengths[end_ret_idx-1])
                                         tokens_per_sentence.append(min(end_char, prefix_sum_lengths[end_ret_idx]) - max(start_char, prefix_sum_lengths[end_ret_idx - 1]))
                                         if end_char < prefix_sum_lengths[end_ret_idx]:
                                             span_count = end_ret_idx - start_ret_idx
@@ -655,6 +656,8 @@ class Trainer:
                                     break
                                 else:
                                     tokens_per_sentence.append(0)
+                                print('token', tokens_per_sentence)
+                                
                     
                         tokens_per_sentence_foreach_question.append(tokens_per_sentence)
 
