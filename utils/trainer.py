@@ -189,7 +189,9 @@ class Trainer:
     def _train_step(self, dataloader, epoch):
         total_loss = 0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
+        bidx=None
         for batch_idx, batch in enumerate(tepoch):
+            bidx=batch_idx
             tepoch.set_description(f"Epoch {epoch + 1}")
             if len(batch["question_context_input_ids"].shape) == 1:
                 batch["question_context_input_ids"] = batch[
@@ -235,9 +237,9 @@ class Trainer:
                 self.scheduler.step()
             self.optimizer.zero_grad()
 
-        wandb.log({"train_epoch_loss": total_loss / (batch_idx + 1)})
+        wandb.log({"train_epoch_loss": total_loss / (bidx + 1)})
 
-        return total_loss / (batch_idx + 1)
+        return total_loss / (bidx + 1)
 
     def log_ipop_batch(self, batch, out, batch_idx):
         rows = []
