@@ -6,7 +6,7 @@ inference_device: cuda
 train: True
 inference: True
 save_model_optimizer: False
-load_model_optimizer: False
+load_model_optimizer: True
 load_path: bert-medium-finetuned-squadv2_train_logits
 verifier_load_path: verifier-training-bert-medium
 use_drqa: True
@@ -43,7 +43,7 @@ data:
 
 training:
   incremental_learning: True
-  epochs: 1
+  epochs: 10
   optimizer: adam
   lr: 0.00002
   sched_function: none
@@ -67,7 +67,7 @@ model:
   dim: 512
   span_level: False
   two_step_loss: False
-  verifier: True
+  verifier: False
 
 retriever:
   query_model: "facebook/dpr-question_encoder-single-nq-base"
