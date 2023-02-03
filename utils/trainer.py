@@ -805,8 +805,6 @@ class Trainer:
                     
         if self.config.use_verifier or self.config.model.verifier:
             question_pred_dict,clf_preds_dict=self.inference(df_test,retriever,prefix,device,do_prepare)
-            with open(self.config.model.model_path.split('/')[-1]+'_'+str(prefix)+'_verifier_preds.pkl','wb') as f:
-              pickle.dump(clf_preds_dict,f)
             clf_preds=[clf_preds_dict[q_id] for q_id in df_test['question_id']]
         else:
             question_pred_dict = self.inference(
