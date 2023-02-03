@@ -487,6 +487,16 @@ if __name__ == "__main__":
                     state_dict[key] *= (1/config.federated.num_clusters) 
 
             model.load_state_dict(state_dict)
+            trainer = Trainer(
+                    config=config,
+                    model=model,
+                    optimizer=torch.optim.Adam(model.parameters(), lr=config.training.lr),
+                    device=device,
+                    tokenizer=tokenizer,
+                    ques2idx=ques2idx,
+                    val_retriever=val_retriever,
+                    df_val=df_val,
+            )
             torch.save(
                 {
                     "model_state_dict": model.state_dict()
