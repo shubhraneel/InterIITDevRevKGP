@@ -31,6 +31,9 @@ from utils import build_tf_idf_wrapper, Retriever, set_seed, store_contents, Tra
 from utils.drqa.DocRanker import docranker_utils
 from utils.drqa.DocRanker.tokenizer import CoreNLPTokenizer
 
+from haystack.utils import clean_wiki_text, convert_files_to_docs
+from haystack.nodes import DensePassageRetriever
+from haystack.document_stores import FAISSDocumentStore
 
 def sent_index(text, para, ans_pos):
     if ans_pos == False:
@@ -178,7 +181,7 @@ def prepare_dense_retriever(tfidf_path, use_sentence_level):
     # check the deivce
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = SentenceTransformer("sentence-transformers/multi-qa-distilbert-cos-v1").to(
+    model = SentenceTransformer("sentence-transformers/multi-qa-mpnet-base-dot-v1").to(
         device
     )
     embeddings = (
@@ -189,16 +192,21 @@ def prepare_dense_retriever(tfidf_path, use_sentence_level):
 
     # save the embeddings
     np.save(
-        f"data-dir/{mode}/sentence_transformer_embeddings_multi-qa-distilbert-cos-v1.npy",
+        f"data-dir/{mode}/sentence_transformer_embeddings_multi-qa-mpnet-base-dot-v1.npy",
         embeddings,
     )
 
 
 if __name__ == "__main__":
     nltk.download("punkt")
+    import logging
+
+    # logging.basicConfig(format="%(levelname)s - %(name)s -  %(message)s", level=logging.WARNING)
+    logging.getLogger("haystack").setLevel(logging.ERROR)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config.yaml", help="Config File")
-    parser.add_argument("--top_k", default=10, type=int, help="Topk for retrieval")
+    parser.add_argument("--top_k", default=None, type=int, help="Topk for retrieval")
 
     args = parser.parse_args()
     with open(args.config) as f:
@@ -210,8 +218,9 @@ if __name__ == "__main__":
             config=config,
         )
         config = Config(**config)
-
-    config.top_k = args.top_k
+    
+    if args.top_k is not None:
+        config.top_k = args.top_k
 
     set_seed(config.seed)
 
@@ -240,7 +249,7 @@ if __name__ == "__main__":
         prepare_retriever(df_train, "sqlite_con.db", "train",False, False)
         prepare_retriever(df_test, "sqlite_con.db", "test", config.sentence_level,config.two_level_drqa)
 
-    if config.create_dense_embeddings:
+    if not config.use_dpr and config.create_dense_embeddings:
         print("Creating dense embeddings")
         prepare_dense_retriever(
             "data-dir/val/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz",
@@ -360,7 +369,94 @@ if __name__ == "__main__":
             questions_df = df_val[["question", "title_id"]]
             db_path = "data-dir/val/sqlite_con.db"
             val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level,retriever_type=config.retriever_type)
+        elif config.use_dpr:
+            query_model = config.retriever.query_model
+            passage_model = config.retriever.passage_model
 
+            unique_data = df_test.drop_duplicates(subset='context', keep="first")
+            UniqueParaList = unique_data.context.to_list()
+            ThemeList = unique_data.title.to_list()
+            if not os.path.exists("data-dir/test_paragraphs/"):
+                os.mkdir("data-dir/test_paragraphs/")
+            for i in range(len(UniqueParaList)):
+                with open("data-dir/test_paragraphs/Paragraph_" + str(i) + ".txt", 'w+') as fp:
+                    fp.write("%s\n" % UniqueParaList[i])
+            if config.create_dense_embeddings:
+              if (os.path.exists("data-dir/faiss_document_store_test.db")):
+                os.remove("data-dir/faiss_document_store_test.db")
+                test_document_store = FAISSDocumentStore(faiss_index_factory_str="Flat", sql_url="sqlite:///data-dir/faiss_document_store_test.db")
+                test_docs = convert_files_to_docs(dir_path="data-dir/test_paragraphs/", clean_func=clean_wiki_text, split_paragraphs=True)
+                test_document_store.write_documents(test_docs)
+                test_retriever = DensePassageRetriever(
+                    document_store=test_document_store,
+                    query_embedding_model=query_model,
+                    passage_embedding_model=passage_model,
+                    max_seq_len_query=64,
+                    max_seq_len_passage=512,
+                )
+                test_document_store.update_embeddings(test_retriever)
+            #     with open("data-dir/test_retriever.pkl","wb") as f:
+            #         pickle.dump(test_retriever, f)
+            #     with open("data-dir/test_document_store.pkl","wb") as f:
+            #         pickle.dump(test_document_store, f)
+            # else:
+            #     with open("data-dir/test_retriever.pkl","rb") as f:
+            #         test_retriever = pickle.load(f)
+            #     with open("data-dir/test_document_store.pkl","rb") as f:
+            #         test_document_store = pickle.load(f)
+
+            unique_data = df_val.drop_duplicates(subset='context', keep="first")
+            UniqueParaList = unique_data.context.to_list()
+            ThemeList = unique_data.title.to_list()
+            if not os.path.exists("data-dir/val_paragraphs/"):
+                os.mkdir("data-dir/val_paragraphs/")
+            for i in range(len(UniqueParaList)):
+                with open("data-dir/val_paragraphs/Paragraph_" + str(i) + ".txt", 'w+') as fp:
+                    fp.write("%s\n" % UniqueParaList[i])
+            if config.create_dense_embeddings:
+              if (os.path.exists("data-dir/faiss_document_store_val.db")):
+                os.remove("data-dir/faiss_document_store_val.db")
+                val_document_store = FAISSDocumentStore(faiss_index_factory_str="Flat", sql_url="sqlite:///data-dir/faiss_document_store_val.db")
+                val_docs = convert_files_to_docs(dir_path="data-dir/val_paragraphs/", clean_func=clean_wiki_text, split_paragraphs=True)
+                val_document_store.write_documents(val_docs)
+                val_retriever = DensePassageRetriever(
+                    document_store=val_document_store,
+                    query_embedding_model=query_model,
+                    passage_embedding_model=passage_model,
+                    max_seq_len_query=64,
+                    max_seq_len_passage=512,
+                )
+                val_document_store.update_embeddings(val_retriever)
+            #     with open("data-dir/val_retriever.pkl") as f:
+            #         pickle.dump(val_retriever, f)
+            #     with open("data-dir/val_document_store.pkl") as f:
+            #         pickle.dump(val_document_store, f)
+            # else:
+            #     with open("data-dir/val_retriever.pkl") as f:
+            #         val_retriever = pickle.load(f)
+            #     with open("data-dir/val_document_store.pkl") as f:
+            #         val_document_store = pickle.load(f)
+
+
+
+            
+
+            
+
+        if config.save_model_optimizer:
+            print(
+                "saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(
+                    config.load_path
+                )
+            )
+            os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
+            torch.save(
+                {
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                },
+                "checkpoints/{}/model_optimizer.pt".format(config.load_path),
+            )
 
         trainer = Trainer(
             config=config,

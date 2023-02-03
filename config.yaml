@@ -1,15 +1,16 @@
 task: qa
 seed: 3407
-wandb_path: verifier-inference-bert-medium-both
+wandb_path: incremental-test
 fewshot_qa: False
 inference_device: cuda
-train: False
+train: True
 inference: True
 save_model_optimizer: False
 load_model_optimizer: True
 load_path: bert-medium-finetuned-squadv2_train_logits
 verifier_load_path: verifier-training-bert-medium
 use_drqa: True
+use_dpr: False
 create_drqa_tfidf: False
 top_k: 5
 scheduler: "linear"
@@ -21,6 +22,11 @@ create_dense_embeddings: True
 retriever_type: dense # dense or tfidf
 create_inf_table: False
 use_verifier: True
+
+federated:
+  use: False
+  num_clusters: 4
+  num_epochs: 1
 
 data:
   train_data_path: data-dir/train/df_train.pkl
@@ -36,6 +42,7 @@ data:
   answer_max_len: 10
 
 training:
+  incremental_learning: True
   epochs: 10
   optimizer: adam
   lr: 0.00002
@@ -51,7 +58,6 @@ training:
 
 model:
   model_path: mrm8488/bert-medium-finetuned-squadv2
-  verifier_model_path: mrm8488/bert-medium-finetuned-squadv2
   params: {}
   non_pooler: False
   noise_tuner: False
@@ -61,3 +67,8 @@ model:
   span_level: False
   two_step_loss: False
   verifier: True
+
+retriever:
+  query_model: "facebook/dpr-question_encoder-single-nq-base"
+  passage_model: "facebook/dpr-ctx_encoder-single-nq-base"
+
