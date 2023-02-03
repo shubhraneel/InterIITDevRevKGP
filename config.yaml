@@ -5,9 +5,10 @@ fewshot_qa: False
 inference_device: cuda
 train: True
 inference: True
-save_model_optimizer: True
-load_model_optimizer: False
-load_path: incremental-test
+save_model_optimizer: False
+load_model_optimizer: True
+load_path: bert-medium-finetuned-squadv2_train_logits
+verifier_load_path: verifier-training-bert-medium
 use_drqa: True
 use_dpr: False
 create_drqa_tfidf: False
@@ -20,6 +21,7 @@ ONNX: False
 create_dense_embeddings: True
 retriever_type: dense # dense or tfidf
 create_inf_table: False
+use_verifier: False
 
 federated:
   use: False
@@ -52,19 +54,20 @@ training:
   lr_flag : True
   can_loss: False  # Contrastive_Adaptive_Loss
   can_loss_beta: 0.01  # 0.00000001
-  
+  verifier_can_loss: False
 
 model:
-  model_path: mrm8488/electra-small-finetuned-squadv2
+  model_path: mrm8488/bert-medium-finetuned-squadv2
+  verifier_model_path: mrm8488/bert-medium-finetuned-squadv2
   params: {}
   non_pooler: False
   noise_tuner: False
   noise_lambda: 0.15
   non_pooler: False
-  dim: 128
+  dim: 512
   span_level: False
   two_step_loss: False
-  span_level: False
+  verifier: False
 
 retriever:
   query_model: "facebook/dpr-question_encoder-single-nq-base"

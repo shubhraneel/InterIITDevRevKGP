@@ -306,6 +306,27 @@ if __name__ == "__main__":
         print(f"QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
 
     else:
+        model_verifier=None
+        optimizer_verifier=None
+        if config.use_verifier:
+          config.model.verifier=True
+          model_verifier = BaselineQA(config, device).to(device)
+          optimizer_verifier = torch.optim.Adam(model_verifier.parameters(), lr=config.training.lr)
+          config.model.verifier=False
+
+          if config.load_model_optimizer:
+            print(
+                "loading verifier model and optimizer from checkpoints/{}/model_optimizer.pt".format(
+                    config.verifier_load_path
+                )
+            )
+            checkpoint = torch.load(
+                "checkpoints/{}/model_optimizer.pt".format(config.verifier_load_path),
+                map_location=torch.device(device),
+            )
+            model_verifier.load_state_dict(checkpoint["model_state_dict"])
+            optimizer_verifier.load_state_dict(checkpoint["optimizer_state_dict"])
+
         model = BaselineQA(config, device).to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
 
@@ -321,6 +342,7 @@ if __name__ == "__main__":
             )
             model.load_state_dict(checkpoint["model_state_dict"])
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
 
         retriever = None
         if (config.two_level_drqa):
@@ -444,6 +466,8 @@ if __name__ == "__main__":
             ques2idx=ques2idx,
             val_retriever=val_retriever,
             df_val=df_val,
+            verifier=model_verifier,
+            optimizer_verifier=optimizer_verifier
         )
 
         if config.train:
@@ -485,7 +509,18 @@ if __name__ == "__main__":
                 "checkpoints/{}/model_optimizer.pt".format(config.load_path),
                 map_location=torch.device(device),
             )
-            model.load_state_dict(checkpoint["model_state_dict"])
+            trainer.model.load_state_dict(checkpoint["model_state_dict"])
+            if config.use_verifier:
+              print(
+                  "loading best verifier model from checkpoints/{}/model_optimizer.pt for inference".format(
+                      config.verifier_load_path
+                  )
+              )
+              checkpoint = torch.load(
+                  "checkpoints/{}/model_optimizer.pt".format(config.verifier_load_path),
+                  map_location=torch.device(device),
+              )
+              trainer.verifier.load_state_dict(checkpoint["model_state_dict"])
         model.to(config.inference_device)
         test_metrics = trainer.calculate_metrics(
             df_test, test_retriever, "test", config.inference_device, do_prepare=True
