@@ -405,7 +405,7 @@ if __name__ == "__main__":
         num_rounds=config.training.epochs//config.federated.num_epochs
         print("Creating train dataset")
         train_dataloader_dict = {i:None  for i in range(config.federated.num_clusters)}
-
+        df_train=add_dummy_cluster_id(df_train=df_train)
 
         for i in range(config.federated.num_clusters):
             train_ds = SQuAD_Dataset(config, df_train[df_train['cluster_id']==i], tokenizer)
