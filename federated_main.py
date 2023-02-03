@@ -481,7 +481,10 @@ if __name__ == "__main__":
                 gc.collect()
 
             for key, param in state_dict.items():
-                state_dict[key] *= (1/config.federated.num_clusters) 
+                if (state_dict[key].dtype == torch.int64):
+                    state_dict[key] = torch.div(state_dict[key],config.federated.num_clusters,rounding_mode='floor').to(torch.int64)
+                else:
+                    state_dict[key] *= (1/config.federated.num_clusters) 
 
             model.load_state_dict(state_dict)
             torch.save(
