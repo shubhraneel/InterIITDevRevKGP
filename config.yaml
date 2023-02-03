@@ -24,6 +24,7 @@ create_inf_table: False
 federated:
   use: True
   num_clusters: 4
+  lsa_dim_reduction: 800
   num_epochs: 1
 
 data:

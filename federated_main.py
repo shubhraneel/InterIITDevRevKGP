@@ -37,6 +37,28 @@ from haystack.utils import clean_wiki_text, convert_files_to_docs
 from haystack.nodes import DensePassageRetriever
 from haystack.document_stores import FAISSDocumentStore
 
+from collections import defaultdict
+from sklearn import metrics
+from time import time
+from sklearn.cluster import KMeans
+from sklearn.feature_extraction.text import TfidfVectorizer
+from time import time 
+import numpy as np
+import pandas as pd
+from sklearn.decomposition import TruncatedSVD
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import Normalizer
+from sklearn import preprocessing 
+
+def fit_and_evaluate( km, X, name=None, n_runs=5):
+    name = km.__class__.__name__ if name is None else name
+
+    for seed in range(n_runs):
+        km.set_params(random_state=seed)
+        km.fit(X)
+
+    return km
+
 def sent_index(text, para, ans_pos):
     if ans_pos == False:
         return -1
@@ -243,7 +265,7 @@ if __name__ == "__main__":
         title2idx,
         idx2title,
     ) = load_mappings()
-
+    
     if config.use_drqa and config.create_drqa_tfidf:
         print("using drqa")
         prepare_retriever(df_val, "sqlite_con.db", "val", config.sentence_level,config.two_level_drqa)
@@ -393,13 +415,61 @@ if __name__ == "__main__":
 
     if config.federated.use and config.train:
 
+        # def add_dummy_cluster_id(df_train):
+        #     dict_cluster_id = {
+        #         title_id: random.randint(0, config.federated.num_clusters-1) 
+        #         for title_id in df_train['title_id'].unique()
+        #     }
+        #     cluster_ids = [dict_cluster_id[title_id] for title_id in df_train['title_id']]
+        #     df_train['cluster_id'] = cluster_ids
+        #     return df_train
+
         def add_dummy_cluster_id(df_train):
-            dict_cluster_id = {
-                title_id: random.randint(0, config.federated.num_clusters-1) 
-                for title_id in df_train['title_id'].unique()
-            }
-            cluster_ids = [dict_cluster_id[title_id] for title_id in df_train['title_id']]
+            str_list=[]
+            theme_list=[]
+
+            df=df_train
+            df=df[['title','context']]
+            df=df.drop_duplicates(subset="context")
+
+            for theme in df.title.unique():
+                new_df=df.loc[df['title']==theme]
+                str=""
+                
+                for i in range(new_df.shape[0]):
+                    str+=new_df.iloc[i].context
+                
+                str_list.append(str)
+                theme_list.append(theme)
+
+            vectorizer = TfidfVectorizer()
+            X_tfidf = vectorizer.fit_transform(str_list)
+
+            lsa = make_pipeline(TruncatedSVD(n_components=config.federated.lsa_dim_reduction), Normalizer(copy=False))
+            X_lsa = lsa.fit_transform(X_tfidf)
+
+            kmeans = KMeans(
+                            n_clusters=config.federated.num_clusters,
+                            max_iter=100,
+                            n_init=5,
+                            random_state=4
+                            )
+
+            # def fit_and_evaluate( km, X, labels, evaluations =[] , evaluations_std = [], name=None, n_runs=5)
+            le = preprocessing.LabelEncoder()
+            labels=le.fit_transform(df_train.title)
+                            
+            kmeans= fit_and_evaluate(
+                            kmeans,
+                            X_lsa,
+                            name="KMeans\nwith LSA on tf-idf vectors",
+                            )
+
+            dictionary = {k: v for k, v in zip(theme_list,kmeans.labels_)}
+            cluster_ids = [dictionary[title] for title in df_train['title']]
+
             df_train['cluster_id'] = cluster_ids
+
             return df_train
 
         num_rounds=config.training.epochs//config.federated.num_epochs
