@@ -481,7 +481,7 @@ if __name__ == "__main__":
                 gc.collect()
 
             for key, param in state_dict.items():
-                state_dict[key] /= config.federated.num_clusters
+                state_dict[key] /= torch.float(config.federated.num_clusters)
 
             model.load_state_dict(state_dict)
             torch.save(
