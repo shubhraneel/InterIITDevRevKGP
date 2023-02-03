@@ -228,7 +228,7 @@ class Trainer:
             wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
 
             if self.config.training.can_loss and not self.config.model.non_pooler:
-              torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+              torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.5)
             
             self.optimizer.step()
             if self.config.training.lr_flag:
