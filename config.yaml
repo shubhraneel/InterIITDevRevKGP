@@ -23,6 +23,9 @@ retriever_type: dense # dense or tfidf
 create_inf_table: False
 use_verifier: False
 ensemble: False
+save_logits: False
+save_qpred_dict: False
+inference_save_path: ""
 
 federated:
   use: False
