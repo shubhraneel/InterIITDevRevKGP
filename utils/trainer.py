@@ -638,18 +638,22 @@ class Trainer:
                         print(decoded_answer)
                         print(prefix_sum_lengths)
                         tokens_per_sentence = []
-                        for ret_idx in range(len(prefix_sum_lengths)):
-                            if start_char >= prefix_sum_lengths[ret_idx]:
-                                for end_ret_idx in range(ret_idx + 1, len(prefix_sum_lengths)):
-                                    tokens_per_sentence.append(min(end_char, prefix_sum_lengths[end_ret_idx]) - max(start_char, prefix_sum_lengths[end_ret_idx - 1]))
-                                    if end_char < prefix_sum_lengths[ret_idx + 1]:
-                                        break
-                                tokens_per_sentence_foreach_question.append(tokens_per_sentence)
-                                ans_ret_idx = np.argmax(tokens_per_sentence)
-                                pred_context_idx=qp_batch['context_id'][batch_idx].split('+')[ans_ret_idx].split('_')[0]
-                                break
-                            else:
-                                tokens_per_sentence.append(0)
+                        if start_char < end_char:
+                            for ret_idx in range(len(prefix_sum_lengths)):
+                                if start_char >= prefix_sum_lengths[ret_idx]:
+                                    for end_ret_idx in range(ret_idx + 1, len(prefix_sum_lengths)):
+                                        tokens_per_sentence.append(min(end_char, prefix_sum_lengths[end_ret_idx]) - max(start_char, prefix_sum_lengths[end_ret_idx - 1]))
+                                        if end_char < prefix_sum_lengths[ret_idx + 1]:
+                                            break
+                                    
+                                    ans_ret_idx = np.argmax(tokens_per_sentence)
+                                    pred_context_idx=qp_batch['context_id'][batch_idx].split('+')[ans_ret_idx].split('_')[0]
+                                    break
+                                else:
+                                    tokens_per_sentence.append(0)
+                    
+                    tokens_per_sentence_foreach_question.append(tokens_per_sentence)
+                    print(tokens_per_sentence)
                     
                     if len(decoded_answer) > 0:
                         question_prediction_dict[q_id] = (
