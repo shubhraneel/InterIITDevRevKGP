@@ -229,9 +229,21 @@ if __name__ == "__main__":
 
     print("Reading data csv")
     df_train = pd.read_pickle(config.data.train_data_path)
+    df_train = df_train.sample(n=5000, random_state=config.seed)
     df_val = pd.read_pickle(config.data.val_data_path)
+    print(len(df_val))
+    df_val_base = df_val.sample(n=500, random_state=config.seed)
+    df_val = df_val.merge(df_val_base.drop_duplicates(), on=list(df_val.columns),
+                   how='left', indicator=True)
+    df_val = df_val[df_val['_merge']=='left_only']
+    print(len(df_val))
     df_test = pd.read_pickle(config.data.test_data_path)
-
+    print(len(df_test))
+    df_test_base = df_test.sample(n=500, random_state=config.seed)
+    df_test = df_test.merge(df_test_base.drop_duplicates(), on=list(df_test.columns),
+                   how='left', indicator=True)
+    df_test = df_test[df_test['_merge']=='left_only']
+    print(len(df_test))
     (
         con_idx_2_title_idx,
         ques2idx,
@@ -242,6 +254,11 @@ if __name__ == "__main__":
         idx2title,
     ) = load_mappings()
 
+    if config.training.finetune:
+      if config.training.method == 'direct':
+        df_train = pd.concat([df_val_base, df_test_base])
+      elif config.training.method == "random_replay":
+        df_train = pd.concat([df_train.sample(1000, random_state=config.seed), df_val_base, df_test_base])
     if config.use_drqa and config.create_drqa_tfidf:
         print("using drqa")
         prepare_retriever(df_val, "sqlite_con.db", "val", config.sentence_level,config.two_level_drqa)
@@ -317,10 +334,11 @@ if __name__ == "__main__":
             )
             checkpoint = torch.load(
                 "checkpoints/{}/model_optimizer.pt".format(config.load_path),
+                weights
                 map_location=torch.device(device),
             )
             model.load_state_dict(checkpoint["model_state_dict"])
-            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            #optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
         retriever = None
         if (config.two_level_drqa):
