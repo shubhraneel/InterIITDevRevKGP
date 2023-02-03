@@ -7,7 +7,7 @@ train: False
 inference: True
 save_model_optimizer: True
 load_model_optimizer: False
-load_path: dpr-test
+load_path: federated-test
 use_drqa: True
 use_dpr: False
 create_drqa_tfidf: False
