@@ -23,6 +23,7 @@ retriever_type: dense # dense or tfidf
 create_inf_table: False
 use_verifier: False
 ensemble: False
+ensemble_type: qpred_dict # inference, logits, qpred_dict
 save_logits: False
 save_qpred_dict: False
 inference_save_path: ""
