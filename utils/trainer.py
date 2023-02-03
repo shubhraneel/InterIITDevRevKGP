@@ -644,7 +644,9 @@ class Trainer:
                         if start_char < end_char:
                             for start_ret_idx in range(len(prefix_sum_lengths)):
                                 if start_char >= prefix_sum_lengths[start_ret_idx]:
+                                    print(start_char, prefix_sum_lengths[start_ret_idx])
                                     for end_ret_idx in range(start_ret_idx + 1, len(prefix_sum_lengths)):
+                                        print(end_ret_idx)
                                         print(prefix_sum_lengths[end_ret_idx], prefix_sum_lengths[end_ret_idx-1])
                                         tokens_per_sentence.append(min(end_char, prefix_sum_lengths[end_ret_idx]) - max(start_char, prefix_sum_lengths[end_ret_idx - 1]))
                                         if end_char < prefix_sum_lengths[end_ret_idx]:
