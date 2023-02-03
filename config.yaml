@@ -1,13 +1,13 @@
 task: qa
 seed: 3407
-wandb_path: dpr-test-neg
+wandb_path: incremental-learning
 fewshot_qa: False
 inference_device: cuda
-train: False
+train: True
 inference: True
 save_model_optimizer: True
 load_model_optimizer: False
-load_path: dpr-test
+load_path: incremental-learning
 use_drqa: True
 use_dpr: False
 create_drqa_tfidf: False
@@ -17,7 +17,7 @@ sentence_level: True
 two_level_drqa: False
 quantize: False
 ONNX: False
-create_dense_embeddings: True
+create_dense_embeddings: False
 retriever_type: dense # dense or tfidf
 create_inf_table: False
 
@@ -26,7 +26,7 @@ data:
   val_data_path: data-dir/val/df_val.pkl
   test_data_path: data-dir/test/df_test.pkl
   train_batch_size: 16
-  val_batch_size: 2
+  val_batch_size: 16
   apply_aliasing: False
   pad_on_right: True
   max_length: 512
@@ -35,8 +35,10 @@ data:
   answer_max_len: 10
 
 training:
-  epochs: 10
+  epochs: 5
   optimizer: adam
+  finetune: False
+  method: direct # direct, random_replay, random_replay_con
   lr: 0.00002
   sched_function: none
   sched_func_params: {}
