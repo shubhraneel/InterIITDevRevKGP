@@ -326,7 +326,7 @@ if __name__ == "__main__":
                 fp.write("%s\n" % UniqueParaList[i])
         if config.create_dense_embeddings:
             if (os.path.exists("data-dir/faiss_document_store_test.db")):
-            os.remove("data-dir/faiss_document_store_test.db")
+                os.remove("data-dir/faiss_document_store_test.db")
             test_document_store = FAISSDocumentStore(faiss_index_factory_str="Flat", sql_url="sqlite:///data-dir/faiss_document_store_test.db")
             test_docs = convert_files_to_docs(dir_path="data-dir/test_paragraphs/", clean_func=clean_wiki_text, split_paragraphs=True)
             test_document_store.write_documents(test_docs)
@@ -358,7 +358,7 @@ if __name__ == "__main__":
                 fp.write("%s\n" % UniqueParaList[i])
         if config.create_dense_embeddings:
             if (os.path.exists("data-dir/faiss_document_store_val.db")):
-            os.remove("data-dir/faiss_document_store_val.db")
+                os.remove("data-dir/faiss_document_store_val.db")
             val_document_store = FAISSDocumentStore(faiss_index_factory_str="Flat", sql_url="sqlite:///data-dir/faiss_document_store_val.db")
             val_docs = convert_files_to_docs(dir_path="data-dir/val_paragraphs/", clean_func=clean_wiki_text, split_paragraphs=True)
             val_document_store.write_documents(val_docs)
