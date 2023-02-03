@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import wandb
-from data import SQuAD_Dataset
+from data import SQuAD_Dataset, title_grouped_sampler
 from onnxruntime.quantization import quantize_dynamic
 from sklearn.metrics import accuracy_score, classification_report, f1_score
 from torch.utils.data import DataLoader
@@ -526,11 +526,21 @@ class Trainer:
         test_ds = SQuAD_Dataset(
             self.config, df_test_matched, self.tokenizer
         )  # , hide_tqdm=True
-        test_dataloader = DataLoader(
-            test_ds,
-            batch_size=self.config.data.val_batch_size,
-            collate_fn=test_ds.collate_fn,
-        )
+        if config.data.title_grouped:
+            test_dataloader = DataLoader(
+                test_ds,
+                batch_sampler = title_grouped_sampler(
+                    test_ds, batch_size=config.data.val_batch_size,
+                    shuffle=False, keep_title_order=True
+                ),
+                collate_fn=test_ds.collate_fn,
+            )
+        else:
+            test_dataloader = DataLoader(
+                test_ds,
+                batch_size=self.config.data.val_batch_size,
+                collate_fn=test_ds.collate_fn,
+            )
         time_test_dataloader_generation = 1000 * (time.time() - start_time)
         print(time_test_dataloader_generation)
         print(time_test_dataloader_generation / df_test.shape[0])

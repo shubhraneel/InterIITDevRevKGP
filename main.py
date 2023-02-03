@@ -18,7 +18,7 @@ import yaml
 from config import Config
 from src import BaselineQA, FewShotQA_Model
 from utils import Trainer, set_seed, Retriever,RetrieverTwoLevel
-from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
+from data import SQuAD_Dataset, SQuAD_Dataset_fewshot, title_grouped_sampler
 from nltk.tokenize import sent_tokenize
 
 from onnxruntime.transformers import optimizer as onnx_optimizer
@@ -196,29 +196,6 @@ def prepare_dense_retriever(tfidf_path, use_sentence_level):
         f"data-dir/{mode}/sentence_transformer_embeddings_multi-qa-mpnet-base-dot-v1.npy",
         embeddings,
     )
-
-def title_grouped_sampler(dataset, batch_size=16, shuffle=True, keep_title_order=False):
-    indices = [i for i in range(len(dataset))]
-    dict_of_indices = {}
-    for i in range(len(dataset)):
-        match_key = dataset[i]["title_id"]
-        if match_key not in dict_of_indices:
-            dict_of_indices[match_key] = [i]
-        else:
-            dict_of_indices[match_key].append(i)
-    if shuffle and keep_title_order:
-        for value in dict_of_indices.values():
-            random.shuffle(value)
-    list_of_batches = []
-    for value in dict_of_indices.values():
-        n_batches = len(value)//batch_size
-        for i in range(n_batches):
-            list_of_batches.append(value[i*batch_size:(i+1)*batch_size])
-        if len(value)%batch_size != 0:
-            list_of_batches.append(value[n_batches*batch_size:])
-    if shuffle and not keep_title_order:
-        random.shuffle(list_of_batches)
-    return list_of_batches
 
 if __name__ == "__main__":
     nltk.download("punkt")
@@ -491,11 +468,21 @@ if __name__ == "__main__":
 
             print("Creating val dataset")
             val_ds = SQuAD_Dataset(config, df_val, tokenizer)
-            val_dataloader = DataLoader(
-                val_ds,
-                batch_size=config.data.val_batch_size,
-                collate_fn=val_ds.collate_fn,
-            )
+            if config.data.title_grouped:
+                val_dataloader = DataLoader(
+                    val_ds,
+                    batch_sampler = title_grouped_sampler(
+                        val_ds, batch_size=config.data.val_batch_size,
+                        shuffle=False, keep_title_order=True
+                    ),
+                    collate_fn=val_ds.collate_fn,
+                )
+            else:
+                val_dataloader = DataLoader(
+                    val_ds,
+                    batch_size=config.data.val_batch_size,
+                    collate_fn=val_ds.collate_fn,
+                )
             print("length of val dataset: {}".format(val_ds.__len__()))
 
             trainer.train(train_dataloader, val_dataloader)
