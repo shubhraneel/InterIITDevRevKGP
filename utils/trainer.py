@@ -632,8 +632,13 @@ class Trainer:
                                     
                         #             answers_which_span_across_sentences.append()
                         #         break
+                        print(start_char)
+                        print(end_char)
+                        print(context)
+                        print(decoded_answer)
+                        print(prefix_sum_lengths)
+                        tokens_per_sentence = []
                         for ret_idx in range(len(prefix_sum_lengths)):
-                            tokens_per_sentence = []
                             if start_char >= prefix_sum_lengths[ret_idx]:
                                 for end_ret_idx in range(ret_idx + 1, len(prefix_sum_lengths)):
                                     tokens_per_sentence.append(min(end_char, prefix_sum_lengths[end_ret_idx]) - max(start_char, prefix_sum_lengths[end_ret_idx - 1]))
