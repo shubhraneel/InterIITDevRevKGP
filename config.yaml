@@ -21,7 +21,7 @@ ONNX: False
 create_dense_embeddings: True
 retriever_type: dense # dense or tfidf
 create_inf_table: False
-use_verifier: True
+use_verifier: False
 
 federated:
   use: False
@@ -67,7 +67,7 @@ model:
   dim: 512
   span_level: False
   two_step_loss: False
-  verifier: True
+  verifier: False
 
 retriever:
   query_model: "facebook/dpr-question_encoder-single-nq-base"
