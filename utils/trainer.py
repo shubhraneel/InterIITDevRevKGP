@@ -653,7 +653,7 @@ class Trainer:
       if do_prepare:
           self.prepare_df_before_inference(df_test,retriever,prefix,device)
 
-      question_prediction_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
+      question_prediction_dict={q_id:(0,"",-1) for q_id in self.prepared_test_df_matched["question_id"].unique()}
 
       for qp_batch_id, qp_batch in tqdm(
             enumerate(self.prepared_test_loader), total=len(self.prepared_test_loader)
