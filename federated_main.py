@@ -280,6 +280,8 @@ def add_cluster_id(df_train, inference=False):
 
 
     if config.save_model_optimizer:
+        if not os.path.exists(f"data-dir/{config.federated.cluster_path}/"):
+            os.mkdir(f"data-dir/{config.federated.cluster_path}/")
         with open(f"checkpoints/{config.federated.cluster_path}/tfidf_model.pkl", "wb+") as f:
             pickle.dump(vectorizer, f)
         with open(f"checkpoints/{config.federated.cluster_path}/svdnorm_model.pkl", "wb+") as f:
