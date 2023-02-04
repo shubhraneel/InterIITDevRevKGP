@@ -800,8 +800,8 @@ class Trainer:
         print(time_test_dataloader_generation)
         print(time_test_dataloader_generation / len(theme_questions))
 
-        print(f"{len(df_test_matched)=}")
-        print(f"{len(df_temp)=}")
+        # print(f"{len(df_test_matched)=}")
+        # print(f"{len(df_temp)=}")
 
         self.prepared_test_loader = test_dataloader
         self.prepared_test_df_matched = df_test_matched
@@ -817,7 +817,7 @@ class Trainer:
 
         if do_prepare:
             self.prepare_theme_df_before_inference(theme, questions, contexts, retriever, prefix, device)
-            print(self.prepared_test_df_matched)
+            # print(self.prepared_test_df_matched)
 
         if self.config.save_logits:
           if self.config.model.span_level:
