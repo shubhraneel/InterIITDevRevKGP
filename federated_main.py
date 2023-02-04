@@ -529,6 +529,7 @@ if __name__ == "__main__":
         for round in range(num_rounds):
             
             for i in range(config.federated.num_clusters):
+                    
                 model = BaselineQA(config, device).to(device)
                 checkpoint = torch.load(
                     "checkpoints/{}/avg_model.pt".format(config.load_path),
@@ -536,6 +537,16 @@ if __name__ == "__main__":
                 )
                 model.load_state_dict(checkpoint["model_state_dict"])
                 model.to(config.inference_device)
+
+                if len(train_dataloader_dict[i]) == 0:
+                    os.makedirs(f"checkpoints/{config.load_path}/{i}/", exist_ok=True)
+                    torch.save(
+                        {
+                            "model_state_dict": trainer.model.state_dict()
+                        },
+                        "checkpoints/{}/{}/model.pt".format(config.load_path,i),
+                    )
+                    continue
 
                 trainer = Trainer(
                     config=config,
