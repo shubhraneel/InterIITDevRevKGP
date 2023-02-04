@@ -827,7 +827,7 @@ class Trainer:
             end_logits=[]
        
         start_time=time.time()
-        question_prediction_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
+        question_prediction_dict={q_id:(0,"",-1) for q_id in self.prepared_test_df_matched["question_id"].unique()}
         results_dict = {}
         if self.config.use_verifier or self.config.model.verifier:
           clf_prediction_dict={q_id:0 for q_id in self.prepared_test_df_matched["question_id"].unique()}
