@@ -31,6 +31,7 @@ inference_save_path: ""
 federated:
   use: False
   num_clusters: 4
+  lsa_dim_reduction: 800
   num_epochs: 1
 
 data:
