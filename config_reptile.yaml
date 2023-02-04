@@ -3,9 +3,9 @@ seed: 3407
 wandb_path: reptile_outer_lr_1.0_inner_lr_0.00002
 fewshot_qa: False
 inference_device: cuda
-train: False
+train: True
 inference: True
-save_model_optimizer: False
+save_model_optimizer: True
 load_model_optimizer: True
 load_path: reptile_outer_lr_1.0_inner_lr_0.00002
 verifier_load_path: verifier-training-bert-medium
@@ -36,7 +36,6 @@ federated:
   cluster_path: federated-clustering
 
 data:
-  reptile: False
   train_data_path: data-dir/train/df_train.pkl
   val_data_path: data-dir/val/df_val.pkl
   test_data_path: data-dir/test/df_test.pkl
