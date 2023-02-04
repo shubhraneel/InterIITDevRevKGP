@@ -33,6 +33,7 @@ federated:
   num_clusters: 4
   lsa_dim_reduction: 800
   num_epochs: 1
+  cluster_path: federated-clustering
 
 data:
   train_data_path: data-dir/train/df_train.pkl

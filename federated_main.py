@@ -424,7 +424,7 @@ if __name__ == "__main__":
         #     df_train['cluster_id'] = cluster_ids
         #     return df_train
 
-        def add_dummy_cluster_id(df_train):
+        def add_cluster_id(df_train):
             str_list=[]
             theme_list=[]
 
@@ -442,30 +442,56 @@ if __name__ == "__main__":
                 str_list.append(str)
                 theme_list.append(theme)
 
-            vectorizer = TfidfVectorizer()
-            X_tfidf = vectorizer.fit_transform(str_list)
+            if config.load_model_optimizer:
+                with open(f"checkpoints/{config.federated.cluster_path}/tfidf_model.pkl", "rb") as f:
+                    vectorizer = pickle.load(f)
+                with open(f"checkpoints/{config.federated.cluster_path}/lsa_model.pkl", "rb") as f:
+                    lsa = pickle.load(f)
+                with open(f"checkpoints/{config.federated.cluster_path}/kmeans_model.pkl", "rb") as f:
+                    kmeans = pickle.load(f)
+                
+                X_tfidf = vectorizer.transform(str_list)
+                X_lsa = lsa.transform(X_tfidf)
+                labels = kmeans.predict(X_lsa)
 
-            lsa = make_pipeline(TruncatedSVD(n_components=config.federated.lsa_dim_reduction), Normalizer(copy=False))
-            X_lsa = lsa.fit_transform(X_tfidf)
+            else:
+                vectorizer = TfidfVectorizer()
+                X_tfidf = vectorizer.fit_transform(str_list)
 
-            kmeans = KMeans(
-                            n_clusters=config.federated.num_clusters,
-                            max_iter=100,
-                            n_init=5,
-                            random_state=4
-                            )
+                lsa = make_pipeline(TruncatedSVD(n_components=config.federated.lsa_dim_reduction), Normalizer(copy=False))
+                X_lsa = lsa.fit_transform(X_tfidf)
 
-            # def fit_and_evaluate( km, X, labels, evaluations =[] , evaluations_std = [], name=None, n_runs=5)
-            le = preprocessing.LabelEncoder()
-            labels=le.fit_transform(df_train.title)
-                            
-            kmeans= fit_and_evaluate(
-                            kmeans,
-                            X_lsa,
-                            name="KMeans\nwith LSA on tf-idf vectors",
-                            )
+                kmeans = KMeans(
+                                n_clusters=config.federated.num_clusters,
+                                max_iter=100,
+                                n_init=5,
+                                random_state=4
+                                )
+                
 
-            dictionary = {k: v for k, v in zip(theme_list,kmeans.labels_)}
+                # def fit_and_evaluate( km, X, labels, evaluations =[] , evaluations_std = [], name=None, n_runs=5)
+                # le = preprocessing.LabelEncoder()
+                # labels=le.fit_transform(df_train.title)
+                                
+                kmeans= fit_and_evaluate(
+                                kmeans,
+                                X_lsa,
+                                name="KMeans\nwith LSA on tf-idf vectors",
+                                )
+                
+                labels = kmeans.labels_
+            
+
+
+            if config.save_model_optimizer:
+                with open(f"checkpoints/{config.federated.cluster_path}/tfidf_model.pkl", "wb+") as f:
+                    pickle.dump(vectorizer, f)
+                with open(f"checkpoints/{config.federated.cluster_path}/svdnorm_model.pkl", "wb+") as f:
+                    pickle.dump(lsa, f)
+                with open(f"checkpoints/{config.federated.cluster_path}/kmeans_model.pkl", "wb+") as f:
+                    pickle.dump(kmeans, f)
+
+            dictionary = {k: v for k, v in zip(theme_list, labels)}
             cluster_ids = [dictionary[title] for title in df_train['title']]
 
             df_train['cluster_id'] = cluster_ids
@@ -475,7 +501,7 @@ if __name__ == "__main__":
         num_rounds=config.training.epochs//config.federated.num_epochs
         print("Creating train dataset")
         train_dataloader_dict = {i:None  for i in range(config.federated.num_clusters)}
-        df_train=add_dummy_cluster_id(df_train=df_train)
+        df_train=add_cluster_id(df_train=df_train)
 
         for i in range(config.federated.num_clusters):
             train_ds = SQuAD_Dataset(config, df_train[df_train['cluster_id']==i], tokenizer)
