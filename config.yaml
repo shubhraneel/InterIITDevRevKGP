@@ -27,6 +27,7 @@ ensemble_type: qpred_dict # inference, logits, qpred_dict
 save_logits: False
 save_qpred_dict: False
 inference_save_path: ""
+use_global_model: True 
 
 federated:
   use: True
