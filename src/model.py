@@ -7,18 +7,30 @@ import transformers
 # from allennlp.modules.span_extractors import EndpointSpanExtractor
 from transformers import AutoModelForQuestionAnswering
 from transformers.onnx import FeaturesManager
+import transformers
+from collections import OrderedDict
 
+# Hardcoding the Feature Object to output hidden_states as well
+transformers.onnx.config.OnnxConfig._tasks_to_common_outputs['question-answering'] = OrderedDict(
+    {
+        "hidden_states": {0: "seq_len", 1: "batch", 2: "sequence", 3: "hidden_size"},
+        "start_logits": {0: "batch", 1: "sequence"},
+        "end_logits": {0: "batch", 1: "sequence"},
+    }
+)
 
 class BaselineQA(nn.Module):
     def __init__(self, config, device):
         super(BaselineQA, self).__init__()
 
-        self.config = config
-        self.model = AutoModelForQuestionAnswering.from_pretrained(
-            self.config.model.model_path
-        )
-        if config.model.two_step_loss:
-            self.score = nn.Linear(config.model.dim, 1)
+        self.config = config 
+        if config.model.verifier:
+          self.model = AutoModelForQuestionAnswering.from_pretrained(self.config.model.verifier_model_path, output_hidden_states=True)
+        else:
+          self.model = AutoModelForQuestionAnswering.from_pretrained(self.config.model.model_path, output_hidden_states=True)
+
+        if config.model.verifier:
+            self.score = nn.Linear(self.model.config.hidden_size, 1)
             self.loss_fct = nn.BCEWithLogitsLoss()
         elif config.model.span_level:
             self.span_extractor = EndpointSpanExtractor(
@@ -35,7 +47,6 @@ class BaselineQA(nn.Module):
             ]
             self.span_mlp = nn.Linear(config.model.dim * 3, 1)
             self.loss_fct = nn.BCEWithLogitsLoss()
-
         self.device = device
 
     def forward(self, batch):
@@ -53,12 +64,12 @@ class BaselineQA(nn.Module):
         # print()
         # print('output of model line 53 model.py')
         # print(out)
-        if self.config.model.two_step_loss:
+        if self.config.model.verifier:
             cls_tokens = out.hidden_states[-1][:, 0]
-            scores = self.score(cls_tokens)  # [32,1]
-            out.loss += self.loss_fct(scores, batch["answerable"])
-
-            return (out, torch.nn.functional.softmax(scores))
+            scores = self.score(cls_tokens).squeeze(1)  # [32,1]
+            out.loss = self.loss_fct(scores, batch["answerable"].to(self.device).float())
+            # print(torch.sigmoid(scores))
+            return out
 
         elif self.config.model.span_level:
             token_embeddings = out.hidden_states[-1]
