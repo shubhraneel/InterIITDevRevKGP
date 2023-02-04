@@ -611,7 +611,7 @@ if __name__ == "__main__":
 
     if config.inference:
         
-        df_test = add_cluster_id(df_test)
+        df_test = add_cluster_id(df_test, inference=True)
         test_metrics_all = [None for _ in range(config.federated.num_clusters)]
         support_weights = []
 
