@@ -6,7 +6,30 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from data.preprocess import preprocess_fn
+import random
 
+def title_grouped_sampler(dataset, batch_size=16, shuffle=True, keep_title_order=False):
+    indices = [i for i in range(len(dataset))]
+    dict_of_indices = {}
+    for i in range(len(dataset)):
+        match_key = dataset[i]["title_id"]
+        if match_key not in dict_of_indices:
+            dict_of_indices[match_key] = [i]
+        else:
+            dict_of_indices[match_key].append(i)
+    if shuffle and keep_title_order:
+        for value in dict_of_indices.values():
+            random.shuffle(value)
+    list_of_batches = []
+    for value in dict_of_indices.values():
+        n_batches = len(value)//batch_size
+        for i in range(n_batches):
+            list_of_batches.append(value[i*batch_size:(i+1)*batch_size])
+        if len(value)%batch_size != 0:
+            list_of_batches.append(value[n_batches*batch_size:])
+    if shuffle and not keep_title_order:
+        random.shuffle(list_of_batches)
+    return list_of_batches
 
 # TODO: memory optimization
 class SQuAD_Dataset(Dataset):

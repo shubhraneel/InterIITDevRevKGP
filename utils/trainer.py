@@ -14,7 +14,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import wandb
-from data import SQuAD_Dataset
+from data import SQuAD_Dataset, title_grouped_sampler
 from onnxruntime.quantization import quantize_dynamic
 from sklearn.metrics import accuracy_score, classification_report, f1_score
 from torch.utils.data import DataLoader
@@ -24,6 +24,7 @@ from transformers import get_scheduler
 from transformers.modeling_outputs import QuestionAnsweringModelOutput
 
 from utils import compute_f1
+import copy
 
 
 def to_numpy(tensor):
@@ -285,6 +286,93 @@ class Trainer:
 
         return total_loss / (bidx + 1)
 
+    def _train_reptile_step(self, dataloader, epoch):
+        total_loss = 0
+        tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
+        for batch_idx, batch in enumerate(tepoch):
+            tepoch.set_description(f"Epoch {epoch + 1}")
+            if len(batch["question_context_input_ids"].shape) == 1:
+                batch["question_context_input_ids"] = batch[
+                    "question_context_input_ids"
+                ].unsqueeze(dim=0)
+                batch["question_context_attention_mask"] = batch[
+                    "question_context_attention_mask"
+                ].unsqueeze(dim=0)
+                if not self.config.model.non_pooler:
+                    batch["question_context_token_type_ids"] = batch[
+                        "question_context_token_type_ids"
+                    ].unsqueeze(dim=0)
+
+
+            # form a list of batches of size config.data.meta_batch_size
+            if batch_idx%self.config.data.meta_batch_size==0:
+                batch_tasks = [batch]
+            else:
+                batch_tasks.append(batch)
+            
+            if batch_idx%self.config.data.meta_batch_size==self.config.data.meta_batch_size-1:
+
+                sum_gradients = []
+
+                for task_id, task in enumerate(batch_tasks):
+                    fast_model = copy.deepcopy(self.model)
+                    fast_model.to(self.device)
+
+                    inner_optimizer = torch.optim.Adam(fast_model.parameters(), lr=self.config.data.inner_lr)
+
+                    fast_model.train()
+
+                    for inner_step in range(self.config.data.inner_iters):
+                        out = fast_model(task)
+                        if self.config.model.span_level:
+                            loss = out[0].loss
+                        else:
+                            loss = out.loss
+
+                        if self.config.training.can_loss and not self.config.model.non_pooler:
+                            loss += self.contrastive_adaptive_loss(out, task) * self.config.training.can_loss_beta
+
+                        loss.backward()
+
+                        if loss.isnan():
+                          inner_optimizer.zero_grad()
+                          continue
+
+                        if self.config.training.can_loss and not self.config.model.non_pooler:
+                            torch.nn.utils.clip_grad_norm_(fast_model.parameters(), 1.0)
+
+
+                        inner_optimizer.step()
+                        inner_optimizer.zero_grad()
+
+                    # get gradients of fast model
+                    meta_weights = list(self.model.parameters())
+                    fast_weights = list(fast_model.parameters())
+
+                    # delete fast model
+                    del fast_model, inner_optimizer
+                    torch.cuda.empty_cache()
+
+
+                    for i in range(len(meta_weights)):
+                        if task_id==0:
+                            sum_gradients.append(fast_weights[i].grad)
+                        else:
+                            sum_gradients[i] += fast_weights[i].grad
+
+                # update meta model
+                for i in range(len(meta_weights)):
+                    meta_weights[i].grad = sum_gradients[i]/self.config.data.meta_batch_size
+
+                self.optimizer.step()
+                if self.config.training.lr_flag:
+                    self.scheduler.step()
+                self.optimizer.zero_grad()
+
+                del sum_gradients, meta_weights, fast_weights
+
+
+
     def log_ipop_batch(self, batch, out, batch_idx):
         rows = []
         for i in range(len(batch["context"])):
@@ -347,7 +435,12 @@ class Trainer:
         if self.config.use_verifier:
           self.verifier.train()
         for epoch in range(self.config.training.epochs):
-            self._train_step(train_dataloader, epoch)
+            
+            if not self.config.data.reptile:
+                self._train_step(train_dataloader, epoch)
+
+            else:
+                self._train_reptile_step(train_dataloader, epoch)
 
             if (val_dataloader is not None) and (
                 ((epoch + 1) % self.config.training.evaluate_every)
