@@ -1,13 +1,13 @@
 task: qa
 seed: 3407
-wandb_path: verifier-test
+wandb_path: reptile_outer_lr_1.0_inner_lr_0.00002
 fewshot_qa: False
 inference_device: cuda
-train: True
+train: False
 inference: True
-save_model_optimizer: True
+save_model_optimizer: False
 load_model_optimizer: True
-load_path: bert-medium-finetuned-squadv2_train_logits
+load_path: reptile_outer_lr_1.0_inner_lr_0.00002
 verifier_load_path: verifier-training-bert-medium
 use_drqa: True
 use_dpr: False
@@ -33,7 +33,6 @@ federated:
   num_clusters: 4
   lsa_dim_reduction: 800
   num_epochs: 1
-  lsa_dim_reduction: 800
   cluster_path: federated-clustering
 
 data:
@@ -49,6 +48,12 @@ data:
   doc_stride: 0
   tokenizer_batch_size: 32
   answer_max_len: 10
+  reptile: True
+  meta_batch_size: 4
+  inner_batch_size: 4
+  inner_iters: 5
+  inner_lr: 0.00002
+  outer_lr: 1.0
 
 training:
   incremental_learning: True

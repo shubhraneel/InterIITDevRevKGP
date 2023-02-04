@@ -37,6 +37,28 @@ from haystack.utils import clean_wiki_text, convert_files_to_docs
 from haystack.nodes import DensePassageRetriever
 from haystack.document_stores import FAISSDocumentStore
 
+from collections import defaultdict
+from sklearn import metrics
+from time import time
+from sklearn.cluster import KMeans
+from sklearn.feature_extraction.text import TfidfVectorizer
+from time import time 
+import numpy as np
+import pandas as pd
+from sklearn.decomposition import TruncatedSVD
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import Normalizer
+from sklearn import preprocessing 
+
+def fit_and_evaluate( km, X, name=None, n_runs=5):
+    name = km.__class__.__name__ if name is None else name
+
+    for seed in range(n_runs):
+        km.set_params(random_state=seed)
+        km.fit(X)
+
+    return km
+
 def sent_index(text, para, ans_pos):
     if ans_pos == False:
         return -1
@@ -198,6 +220,82 @@ def prepare_dense_retriever(tfidf_path, use_sentence_level):
         embeddings,
     )
 
+def add_cluster_id(df_train, inference=False):
+    str_list=[]
+    theme_list=[]
+
+    df=df_train
+    df=df[['title','context']]
+    df=df.drop_duplicates(subset="context")
+
+    for theme in df.title.unique():
+        new_df=df.loc[df['title']==theme]
+        str=""
+        
+        for i in range(new_df.shape[0]):
+            str+=new_df.iloc[i].context
+        
+        str_list.append(str)
+        theme_list.append(theme)
+
+    if config.load_model_optimizer or inference:
+        with open(f"checkpoints/{config.federated.cluster_path}/tfidf_model.pkl", "rb") as f:
+            vectorizer = pickle.load(f)
+        with open(f"checkpoints/{config.federated.cluster_path}/svdnorm_model.pkl", "rb") as f:
+            lsa = pickle.load(f)
+        with open(f"checkpoints/{config.federated.cluster_path}/kmeans_model.pkl", "rb") as f:
+            kmeans = pickle.load(f)
+        
+        X_tfidf = vectorizer.transform(str_list)
+        X_lsa = lsa.transform(X_tfidf)
+        labels = kmeans.predict(X_lsa)
+
+    else:
+        vectorizer = TfidfVectorizer()
+        X_tfidf = vectorizer.fit_transform(str_list)
+
+        lsa = make_pipeline(TruncatedSVD(n_components=config.federated.lsa_dim_reduction), Normalizer(copy=False))
+        X_lsa = lsa.fit_transform(X_tfidf)
+
+        kmeans = KMeans(
+                        n_clusters=config.federated.num_clusters,
+                        max_iter=100,
+                        n_init=5,
+                        random_state=4
+                        )
+        
+
+        # def fit_and_evaluate( km, X, labels, evaluations =[] , evaluations_std = [], name=None, n_runs=5)
+        # le = preprocessing.LabelEncoder()
+        # labels=le.fit_transform(df_train.title)
+                        
+        kmeans= fit_and_evaluate(
+                        kmeans,
+                        X_lsa,
+                        name="KMeans\nwith LSA on tf-idf vectors",
+                        )
+        
+        labels = kmeans.labels_
+    
+
+
+    if config.save_model_optimizer:
+        if not os.path.exists(f"data-dir/{config.federated.cluster_path}/"):
+            os.mkdir(f"data-dir/{config.federated.cluster_path}/")
+        with open(f"checkpoints/{config.federated.cluster_path}/tfidf_model.pkl", "wb+") as f:
+            pickle.dump(vectorizer, f)
+        with open(f"checkpoints/{config.federated.cluster_path}/svdnorm_model.pkl", "wb+") as f:
+            pickle.dump(lsa, f)
+        with open(f"checkpoints/{config.federated.cluster_path}/kmeans_model.pkl", "wb+") as f:
+            pickle.dump(kmeans, f)
+
+    dictionary = {k: v for k, v in zip(theme_list, labels)}
+    cluster_ids = [dictionary[title] for title in df_train['title']]
+
+    df_train['cluster_id'] = cluster_ids
+
+    return df_train
+
 
 if __name__ == "__main__":
     nltk.download("punkt")
@@ -243,7 +341,7 @@ if __name__ == "__main__":
         title2idx,
         idx2title,
     ) = load_mappings()
-
+    
     if config.use_drqa and config.create_drqa_tfidf:
         print("using drqa")
         prepare_retriever(df_val, "sqlite_con.db", "val", config.sentence_level,config.two_level_drqa)
@@ -282,11 +380,11 @@ if __name__ == "__main__":
             )
         )
         checkpoint = torch.load(
-            "checkpoints/{}/model_optimizer.pt".format(config.load_path),
+            "checkpoints/{}/avg_model.pt".format(config.load_path),
             map_location=torch.device(device),
         )
         model.load_state_dict(checkpoint["model_state_dict"])
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
 
     retriever = None
     if (config.two_level_drqa):
@@ -393,19 +491,19 @@ if __name__ == "__main__":
 
     if config.federated.use and config.train:
 
-        def add_dummy_cluster_id(df_train):
-            dict_cluster_id = {
-                title_id: random.randint(0, config.federated.num_clusters-1) 
-                for title_id in df_train['title_id'].unique()
-            }
-            cluster_ids = [dict_cluster_id[title_id] for title_id in df_train['title_id']]
-            df_train['cluster_id'] = cluster_ids
-            return df_train
+        # def add_dummy_cluster_id(df_train):
+        #     dict_cluster_id = {
+        #         title_id: random.randint(0, config.federated.num_clusters-1) 
+        #         for title_id in df_train['title_id'].unique()
+        #     }
+        #     cluster_ids = [dict_cluster_id[title_id] for title_id in df_train['title_id']]
+        #     df_train['cluster_id'] = cluster_ids
+        #     return df_train
 
         num_rounds=config.training.epochs//config.federated.num_epochs
         print("Creating train dataset")
         train_dataloader_dict = {i:None  for i in range(config.federated.num_clusters)}
-        df_train=add_dummy_cluster_id(df_train=df_train)
+        df_train=add_cluster_id(df_train=df_train)
 
         for i in range(config.federated.num_clusters):
             train_ds = SQuAD_Dataset(config, df_train[df_train['cluster_id']==i], tokenizer)
@@ -431,6 +529,7 @@ if __name__ == "__main__":
         for round in range(num_rounds):
             
             for i in range(config.federated.num_clusters):
+                    
                 model = BaselineQA(config, device).to(device)
                 checkpoint = torch.load(
                     "checkpoints/{}/avg_model.pt".format(config.load_path),
@@ -438,6 +537,16 @@ if __name__ == "__main__":
                 )
                 model.load_state_dict(checkpoint["model_state_dict"])
                 model.to(config.inference_device)
+
+                if len(train_dataloader_dict[i]) == 0:
+                    os.makedirs(f"checkpoints/{config.load_path}/{i}/", exist_ok=True)
+                    torch.save(
+                        {
+                            "model_state_dict": trainer.model.state_dict()
+                        },
+                        "checkpoints/{}/{}/model.pt".format(config.load_path,i),
+                    )
+                    continue
 
                 trainer = Trainer(
                     config=config,
@@ -514,36 +623,55 @@ if __name__ == "__main__":
         
 
     if config.inference:
-        model = BaselineQA(config, device).to(device)
-        if config.train and config.save_model_optimizer:
-            print(
-                "loading best model from checkpoints/{}/model_optimizer.pt for inference".format(
-                    config.load_path
-                )
-            )
-            checkpoint = torch.load(
-                "checkpoints/{}/model_optimizer.pt".format(config.load_path),
-                map_location=torch.device(device),
-            )
-            model.load_state_dict(checkpoint["model_state_dict"])
         
-        trainer = Trainer(
-                    config=config,
-                    model=model,
-                    optimizer=torch.optim.Adam(model.parameters(), lr=config.training.lr),
-                    device=device,
-                    tokenizer=tokenizer,
-                    ques2idx=ques2idx,
-                    val_retriever=val_retriever,
-                    df_val=df_val,
-        )
-        checkpoint = torch.load(
-                    "checkpoints/{}/avg_model.pt".format(config.load_path),
+        df_test = add_cluster_id(df_test, inference=True)
+        test_metrics_all = []
+        support_weights = []
+
+        for i in range(config.federated.num_clusters):
+            df_test_temp = df_test[df_test['cluster_id'] == i]
+            if len(df_test_temp) == 0:
+                continue
+            model = BaselineQA(config, device).to(device)
+            if config.train and config.save_model_optimizer:
+                print(
+                    "loading best model from checkpoints/{}/{}/model.pt for inference".format(
+                        config.load_path, i
+                    )
+                )
+                checkpoint = torch.load(
+                    "checkpoints/{}/{}/model.pt".format(config.load_path, i),
                     map_location=torch.device(device),
                 )
-        model.load_state_dict(checkpoint["model_state_dict"])
-        model.to(config.inference_device)
-        test_metrics = trainer.calculate_metrics(
-            df_test, test_retriever, "test", config.inference_device, do_prepare=True
-        )
-        print(test_metrics)
+                model.load_state_dict(checkpoint["model_state_dict"])
+            trainer = Trainer(
+                        config=config,
+                        model=model,
+                        optimizer=torch.optim.Adam(model.parameters(), lr=config.training.lr),
+                        device=device,
+                        tokenizer=tokenizer,
+                        ques2idx=ques2idx,
+                        val_retriever=val_retriever,
+                        df_val=df_val,
+            )
+            checkpoint = torch.load(
+                        "checkpoints/{}/avg_model.pt".format(config.load_path),
+                        map_location=torch.device(device),
+                    )
+            model.load_state_dict(checkpoint["model_state_dict"])
+            model.to(config.inference_device)
+            support_weights.append(len(df_test_temp))
+            test_metrics_i = trainer.calculate_metrics(
+                df_test_temp, test_retriever, "test", config.inference_device, do_prepare=True
+            )
+            test_metrics_all.append(test_metrics_i)
+
+        test_metrics_total = {
+            "classification_accuracy": 
+                np.average([test_metrics['classification_accuracy'] for test_metrics in test_metrics_all], weights=support_weights),
+            "classification_f1": 
+                np.average([test_metrics['classification_f1'] for test_metrics in test_metrics_all], weights=support_weights),
+            "mean_squad_f1": 
+                np.average([test_metrics['mean_squad_f1'] for test_metrics in test_metrics_all], weights=support_weights)
+        }
+        print(test_metrics_total)

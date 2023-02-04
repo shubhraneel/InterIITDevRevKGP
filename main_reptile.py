@@ -3,6 +3,7 @@ import json
 import os
 import pickle
 import sys
+import random
 
 import nltk
 import numpy as np
@@ -75,7 +76,7 @@ def load_mappings():
     with open("data-dir/idx2title.pkl", "rb") as f:
         idx2title = pickle.load(f)
 
-    return (
+        return (
             con_idx_2_title_idx,
             ques2idx,
             idx2ques,
@@ -196,7 +197,6 @@ def prepare_dense_retriever(tfidf_path, use_sentence_level):
         embeddings,
     )
 
-
 if __name__ == "__main__":
     nltk.download("punkt")
     import logging
@@ -228,7 +228,7 @@ if __name__ == "__main__":
     assert (not config.quantize or config.ONNX), "Quantizing without ONNX Runtime is not supported"
 
     print("Reading data csv")
-    df_train = pd.read_pickle(config.data.train_data_path)
+    df_train = pd.read_pickle(config.data.train_data_path).sample(5000, random_state=config.seed)
     df_val = pd.read_pickle(config.data.val_data_path)
     df_test = pd.read_pickle(config.data.test_data_path)
     print(len(df_test))
@@ -403,10 +403,7 @@ if __name__ == "__main__":
             optimizer_verifier.load_state_dict(checkpoint["optimizer_state_dict"])
 
         model = BaselineQA(config, device).to(device)
-        if config.data.reptile:
-            optimizer = torch.optim.Adam(model.parameters(), lr=config.data.outer_lr)
-        else:
-            optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
+        optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
 
         if config.load_model_optimizer:
             print(
@@ -513,11 +510,6 @@ if __name__ == "__main__":
             #         val_retriever = pickle.load(f)
             #     with open("data-dir/val_document_store.pkl") as f:
             #         val_document_store = pickle.load(f)
-
-
-
-            
-
             
 
         if config.save_model_optimizer:
@@ -556,7 +548,7 @@ if __name__ == "__main__":
                     train_ds,
                     batch_sampler = title_grouped_sampler(
                         train_ds, batch_size=config.data.train_batch_size,
-                        shuffle=True, keep_title_order=config.data.reptile
+                        shuffle=True, keep_title_order=config.data.keep_title_order
                     ),
                     collate_fn=train_ds.collate_fn,
                 )
@@ -566,6 +558,7 @@ if __name__ == "__main__":
                     batch_size=config.data.train_batch_size,
                     collate_fn=train_ds.collate_fn,
                 )
+            print("length of train dataset: {}".format(train_ds.__len__()))
 
             print("Creating val dataset")
             val_ds = SQuAD_Dataset(config, df_val, tokenizer)
@@ -609,13 +602,10 @@ if __name__ == "__main__":
               )
               trainer.verifier.load_state_dict(checkpoint["model_state_dict"])
         model.to(config.inference_device)
-        # test_metrics = trainer.calculate_metrics(
-        #     df_test, test_retriever, "test", config.inference_device, do_prepare=True
-        # )
-        # print(test_metrics)
-        trainer.inference(
+        test_metrics = trainer.calculate_metrics(
             df_test, test_retriever, "test", config.inference_device, do_prepare=True
         )
+        print(test_metrics)
 
         # model = AutoModel_Classifier_QA(config, tokenizer=tokenizer, logger=wandb_logger)
         # model.__train__(train_dataloader)
