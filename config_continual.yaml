@@ -1,0 +1,68 @@
+task: qa
+seed: 3407
+wandb_path: incremental-learning
+fewshot_qa: False
+inference_device: cuda
+train: False
+inference: True
+save_model_optimizer: False
+load_model_optimizer: True
+load_path: incremental-learning
+use_drqa: True
+use_dpr: False
+create_drqa_tfidf: False
+top_k: 5
+scheduler: "linear"
+sentence_level: True
+two_level_drqa: False
+quantize: False
+ONNX: False
+create_dense_embeddings: False
+retriever_type: dense # dense or tfidf
+create_inf_table: False
+
+data:
+  train_data_path: data-dir/train/df_train.pkl
+  val_data_path: data-dir/val/df_val.pkl
+  test_data_path: data-dir/test/df_test.pkl
+  train_batch_size: 16
+  val_batch_size: 16
+  apply_aliasing: False
+  pad_on_right: True
+  max_length: 512
+  doc_stride: 0
+  tokenizer_batch_size: 32
+  answer_max_len: 10
+
+training:
+  epochs: 5
+  optimizer: adam
+  finetune: False
+  method: direct # direct, random_replay, random_replay_con
+  lr: 0.00002
+  sched_function: none
+  sched_func_params: {}
+  sched_params:
+    monitor: val_loss
+  evaluate_every: 1
+  lr_flag : True
+  can_loss: False  # Contrastive_Adaptive_Loss
+  can_loss_beta: 0.01  # 0.00000001
+  
+
+model:
+  model_path: mrm8488/electra-small-finetuned-squadv2
+  params: {}
+  non_pooler: False
+  noise_tuner: False
+  noise_lambda: 0.15
+  non_pooler: False
+  dim: 128
+  span_level: False
+  two_step_loss: False
+  span_level: False
+
+retriever:
+  query_model: "facebook/dpr-question_encoder-single-nq-base"
+  passage_model: "facebook/dpr-ctx_encoder-single-nq-base"
+

@@ -1,11 +1,13 @@
 import json
 import os
+import pickle
 
+import random 
 import sys
 import time
 
 import numpy as np
-
+import pickle
 import onnxruntime
 import pandas as pd
 import torch
@@ -42,6 +44,8 @@ class Trainer:
         ques2idx,
         df_val=None,
         val_retriever=None,
+        verifier=None,
+        optimizer_verifier=None,
     ):
         self.config = config
         self.device = device
@@ -51,6 +55,11 @@ class Trainer:
         self.optimizer = optimizer
         self.model = model
         wandb.watch(self.model)
+
+        ## Add ONNX to verifier
+        if self.config.use_verifier:
+          self.verifier=verifier
+          self.optimizer_verifier=optimizer_verifier
 
         self.ques2idx = ques2idx
 
@@ -64,6 +73,13 @@ class Trainer:
             self.scheduler = get_scheduler(
                 self.config.scheduler,
                 self.optimizer,
+                num_warmup_steps=0,
+                num_training_steps=1840 * self.config.training.epochs,
+            )
+            if self.config.use_verifier:
+              self.verifier_scheduler=get_scheduler(
+                self.config.scheduler,
+                self.optimizer_verifier,
                 num_warmup_steps=0,
                 num_training_steps=1840 * self.config.training.epochs,
             )
@@ -189,8 +205,14 @@ class Trainer:
 
     def _train_step(self, dataloader, epoch):
         total_loss = 0
+        total_verifier_loss=0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
+        bidx=None
         for batch_idx, batch in enumerate(tepoch):
+            bidx=batch_idx
+            if self.config.training.incremental_learning:
+                if random.random() < 0.90:
+                    continue
             tepoch.set_description(f"Epoch {epoch + 1}")
             if len(batch["question_context_input_ids"].shape) == 1:
                 batch["question_context_input_ids"] = batch[
@@ -205,15 +227,37 @@ class Trainer:
                     ].unsqueeze(dim=0)
 
             out = self.model(batch)
-            if self.config.model.two_step_loss:
-                out=out[0]
-            if batch_idx%300==0:
-              self.log_ipop_batch(batch,out,batch_idx)
+            # if batch_idx % 300 == 0:
+            #     self.log_ipop_batch(batch, out, batch_idx)
 
             if self.config.model.span_level:
                 loss = out[0].loss
             else:
                 loss = out.loss
+            
+            ## Add contrastive loss to verifier
+            if self.config.use_verifier:
+              verifier_out=self.verifier(batch)
+              verifier_loss=verifier_out.loss
+
+              if self.config.training.verifier_can_loss and not self.config.model.non_pooler:
+                verifier_loss += self.contrastive_adaptive_loss(verifier_out, batch) * self.config.training.can_loss_beta
+
+              verifier_loss.backward()
+              if verifier_loss.isnan():
+                self.optimizer_verifier.zero_grad()
+                continue
+
+              total_verifier_loss+=verifier_loss.item()
+              wandb.log({"train_verifier_batch_loss": total_verifier_loss / (batch_idx + 1)})
+
+              self.optimizer_verifier.step()
+              if self.config.training.lr_flag:
+                self.verifier_scheduler.step()
+              self.optimizer_verifier.zero_grad()
+
+              if self.config.training.verifier_can_loss and not self.config.model.non_pooler:
+                torch.nn.utils.clip_grad_norm_(self.verifier.parameters(), 1.0)
 
             if self.config.training.can_loss and not self.config.model.non_pooler:
                 loss += self.contrastive_adaptive_loss(out, batch) * self.config.training.can_loss_beta
@@ -229,7 +273,7 @@ class Trainer:
             wandb.log({"train_batch_loss": total_loss / (batch_idx + 1)})
 
             if self.config.training.can_loss and not self.config.model.non_pooler:
-              torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+              torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.5)
             
             self.optimizer.step()
             if self.config.training.lr_flag:
@@ -237,8 +281,10 @@ class Trainer:
             self.optimizer.zero_grad()
 
         wandb.log({"train_epoch_loss": total_loss / (batch_idx + 1)})
+        if self.config.use_verifier:
+          wandb.log({"train_verifier_epoch_loss": total_verifier_loss / (batch_idx + 1)})
 
-        return total_loss / (batch_idx + 1)
+        return total_loss / (bidx + 1)
 
     def _train_reptile_step(self, dataloader, epoch):
         total_loss = 0
@@ -386,6 +432,8 @@ class Trainer:
                 self.model.state_dict()[name][:] += (torch.rand(para.size())-0.5).to(self.device)*self.config.model.noise_lambda*torch.std(para)
 
         self.model.train()
+        if self.config.use_verifier:
+          self.verifier.train()
         for epoch in range(self.config.training.epochs):
             
             if not self.config.data.reptile:
@@ -433,11 +481,34 @@ class Trainer:
                             self.config.load_path
                         ),
                     )
+                    if self.config.use_verifier:
+                      print(
+                        "saving best verifier model and optimizer at checkpoints/{}/model_optimizer.pt".format(
+                            self.config.verifier_load_path
+                        )
+                      )
+                      os.makedirs(
+                          "checkpoints/{}/".format(self.config.verifier_load_path), exist_ok=True
+                      )
+                      torch.save(
+                          {
+                              "model_state_dict": self.verifier.state_dict(),
+                              "optimizer_state_dict": self.optimizer_verifier.state_dict(),
+                          },
+                          "checkpoints/{}/model_optimizer.pt".format(
+                              self.config.verifier_load_path
+                          ),
+                      )
                 self.model.train()
+                if self.config.use_verifier:
+                  self.verifier.train()
 
     def evaluate(self, dataloader):
         self.model.eval()
+        if self.config.use_verifier:
+          self.verifier.eval()
         total_loss = 0
+        total_verifier_loss=0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
         tepoch.set_description("Validation Step")
         with torch.no_grad():
@@ -460,11 +531,21 @@ class Trainer:
                 else:
                     loss = out.loss
 
+                ## Add contrastive loss to verifier
+                if self.config.use_verifier:
+                  out=self.verifier(batch)
+                  verifier_loss=out.loss
+
+                  total_verifier_loss+=verifier_loss.item()
+                  wandb.log({"val_verifier_batch_loss": total_verifier_loss / (batch_idx + 1)})
+
                 total_loss += loss.item()
                 tepoch.set_postfix(loss=total_loss / (batch_idx + 1))
                 wandb.log({"val_batch_loss": total_loss / (batch_idx + 1)})
 
         wandb.log({"val_epoch_loss": total_loss / (batch_idx + 1)})
+        if self.config.use_verifier:
+          wandb.log({"val_verifier_epoch_loss": total_verifier_loss / (batch_idx + 1)})
         return total_loss / (batch_idx + 1)
 
     def predict(self, batch):
@@ -650,18 +731,100 @@ class Trainer:
 
         self.prepared_test_loader = test_dataloader
         self.prepared_test_df_matched = df_test_matched
+    
+    def get_qpred_from_logits(self,df_test,retriever,logits,do_prepare,prefix,device):
+      if do_prepare:
+          self.prepare_df_before_inference(df_test,retriever,prefix,device)
+
+      question_prediction_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
+
+      for qp_batch_id, qp_batch in tqdm(
+            enumerate(self.prepared_test_loader), total=len(self.prepared_test_loader)
+        ):
+            if len(qp_batch["question_context_input_ids"].shape) == 1:
+                qp_batch["question_context_input_ids"] = qp_batch[
+                    "question_context_input_ids"
+                ].unsqueeze(dim=0)
+                qp_batch["question_context_attention_mask"] = qp_batch[
+                    "question_context_attention_mask"
+                ].unsqueeze(dim=0)
+                if not self.config.model.non_pooler:
+                    qp_batch["question_context_token_type_ids"] = qp_batch[
+                        "question_context_token_type_ids"
+                    ].unsqueeze(dim=0)
+
+            # print(pred.start_logits.shape) -> [32,512]
+            if self.config.model.span_level: ## Saving different for span level
+                mlp_out=torch.from_numpy(logits['mlp_out'][qp_batch_id]).to(device)
+                probs = torch.sigmoid(mlp_out)
+                max_probs = torch.max(probs, axis=1)
+                confidence_scores = max_probs.values
+            else:
+                start_logits=torch.from_numpy(logits['start_logits'][qp_batch_id]).to(device)
+                end_logits=torch.from_numpy(logits['end_logits'][qp_batch_id]).to(device)
+
+                start_probs = F.softmax(start_logits, dim=1)  # -> [32,512]
+                end_probs = F.softmax(end_logits, dim=1)  # -> [32,512]
+
+                max_start_probs = torch.max(start_probs, axis=1)  # -> [32,1]
+                max_end_probs = torch.max(end_probs, axis=1)  # -> [32,1]
+
+                confidence_scores = (
+                    max_end_probs.values * max_start_probs.values
+                )  # -> [32,1]
+
+            for batch_idx, q_id in enumerate(qp_batch["question_id"]):
+                if question_prediction_dict[q_id][0] < confidence_scores[batch_idx]:
+                    # using the context in the qp_pair get extract the span using max_start_prob and max_end_prob
+                    context = qp_batch["context"][batch_idx]
+                    offset_mapping = qp_batch["question_context_offset_mapping"][
+                        batch_idx
+                    ]
+                    decoded_answer = ""
+
+                    if self.config.model.span_level:
+                        idx = max_probs.indices[batch_idx].item()
+                        start_index, end_index = self.seq_pair_indices[idx]
+                    else:
+                        start_index = max_start_probs.indices[batch_idx].item()
+                        end_index = max_end_probs.indices[batch_idx].item()
+
+                    if (
+                        offset_mapping[start_index] is not None
+                        and offset_mapping[end_index] is not None
+                    ):
+                        start_char = offset_mapping[start_index][0]
+                        end_char = offset_mapping[end_index][1]
+                        decoded_answer = context[start_char:end_char]
+
+                    if(len(decoded_answer)>0):
+                        question_prediction_dict[q_id]=(confidence_scores[batch_idx].item(),decoded_answer)
+      
+      return question_prediction_dict
 
     def inference(self, df_test, retriever, prefix, device, do_prepare):
         self.model.to(device)
         self.device = device
         self.model.device = device
 
+        if self.config.use_verifier:
+          self.verifier.to(device)
+
         if do_prepare:
           self.prepare_df_before_inference(df_test,retriever,prefix,device)
+
+        if self.config.save_logits:
+          if self.config.model.span_level:
+            mlp_out=[]
+          else:
+            start_logits=[]
+            end_logits=[]
        
         start_time=time.time()
         question_prediction_dict={q_id:(0,"") for q_id in self.prepared_test_df_matched["question_id"].unique()}
         results_dict = {}
+        if self.config.use_verifier or self.config.model.verifier:
+          clf_prediction_dict={q_id:0 for q_id in self.prepared_test_df_matched["question_id"].unique()}
 
         # TODO: without sequentional batch iteration
         for qp_batch_id, qp_batch in tqdm(
@@ -682,12 +845,31 @@ class Trainer:
             # para, para_id, theme, theme_id, question, question_id
             pred = self.predict(qp_batch)
 
+            if self.config.use_verifier:
+              ## Add ONNX and Quantize here too
+              verifier_pred=self.verifier(qp_batch)
+              cls_tokens=verifier_pred.hidden_states[-1][:,0]
+              scores=torch.sigmoid(self.verifier.score(cls_tokens).squeeze(1)) # [32,1]
+              batch_preds_clf=[1 if p>=0.5 else 0 for p in scores]
+            
+            if self.config.model.verifier:
+              cls_tokens=pred.hidden_states[-1][:,0]
+              scores=torch.sigmoid(self.model.score(cls_tokens).squeeze(1)) # [32,1]
+              batch_preds_clf=[1 if p>=0.5 else 0 for p in scores]
+
             # print(pred.start_logits.shape) -> [32,512]
             if self.config.model.span_level:
                 probs = torch.sigmoid(pred[1])
+                if self.config.save_logits:
+                  mlp_out.append(pred[1].detach().cpu().numpy())
                 max_probs = torch.max(probs, axis=1)
                 confidence_scores = max_probs.values
             else:
+                if self.config.save_logits:
+                  start_logits.append(pred.start_logits.detach().cpu().numpy())
+                  end_logits.append(pred.end_logits.detach().cpu().numpy())
+                  print(pred.end_logits.detach().cpu().numpy().shape)
+
                 start_probs = F.softmax(pred.start_logits, dim=1)  # -> [32,512]
                 end_probs = F.softmax(pred.end_logits, dim=1)  # -> [32,512]
 
@@ -697,8 +879,14 @@ class Trainer:
                 confidence_scores = (
                     max_end_probs.values * max_start_probs.values
                 )  # -> [32,1]
+            
 
             for batch_idx, q_id in enumerate(qp_batch["question_id"]):
+                if self.config.use_verifier or self.config.model.verifier:
+                  if(batch_preds_clf[batch_idx]==1):
+                    clf_prediction_dict[q_id]=1
+                  else:
+                    continue
                 if question_prediction_dict[q_id][0] < confidence_scores[batch_idx]:
                     # using the context in the qp_pair get extract the span using max_start_prob and max_end_prob
                     context = qp_batch["context"][batch_idx]
@@ -737,6 +925,7 @@ class Trainer:
                         
                     if(len(decoded_answer)>0):
                         question_prediction_dict[q_id]=(confidence_scores[batch_idx].item(),decoded_answer)
+
         if (self.config.create_inf_table):
             df=pd.read_pickle("data-dir/test/df_test.pkl")
             match_df = pd.DataFrame(columns=['match'])
@@ -772,9 +961,28 @@ class Trainer:
             }
         )
 
+        if self.config.save_logits:
+          os.makedirs(
+              self.config.inference_save_path, exist_ok=True
+          )
+          if self.config.model.span_level:
+            with open(self.config.inference_save_path+'logits.npz','w') as f:
+              np.savez(f,mlp_out=np.array(mlp_out))
+          else:
+            print(np.array(start_logits.shape))
+            # with open(self.config.inference_save_path+'logits.npz','w') as f:
+            #   np.savez(f,start_logits=np.array(start_logits),end_logits=np.array(end_logits))
+
+        if self.config.save_qpred_dict:
+          with open(self.config.inference_save_path+'qpred_dict.pkl','wb') as f:
+            pickle.dump(question_prediction_dict,f)
+                    
+        if self.config.use_verifier or self.config.model.verifier:
+            return question_prediction_dict,clf_prediction_dict
+
         return question_prediction_dict
 
-    def calculate_metrics(self, df_test, retriever, prefix, device, do_prepare):
+    def calculate_metrics(self, df_test, retriever, prefix, device, do_prepare,q_pred_dicts=None):
         """
         1. Run the inference script
         2. Calculate the time taken
@@ -785,9 +993,24 @@ class Trainer:
         # TODO: check if this way of calculating the time is correct
         if device == "cuda":
             torch.cuda.synchronize()
-        question_pred_dict = self.inference(
-            df_test, retriever, prefix, device, do_prepare
-        )
+        if q_pred_dicts==None:
+          question_pred_dict = self.inference(
+              df_test, retriever, prefix, device, do_prepare
+          )
+        else:
+          question_pred_dict={q_id:(0,"") for q_id in q_pred_dicts[0].keys()}
+          for q_id in df_test['question_id']:
+            for q_pred_dict in q_pred_dicts:
+              if question_pred_dict[q_id][0]<q_pred_dict[q_id][0]:
+                question_pred_dict[q_id]=q_pred_dict[q_id]
+        
+        if self.config.use_verifier or self.config.model.verifier:
+            question_pred_dict,clf_preds_dict=self.inference(df_test,retriever,prefix,device,do_prepare)
+            clf_preds=[clf_preds_dict[q_id] for q_id in df_test['question_id']]
+        else:
+            question_pred_dict = self.inference(
+                df_test, retriever, prefix, device, do_prepare
+            )
         predicted_answers = [
             question_pred_dict[q_id][1] for q_id in df_test["question_id"]
         ]
@@ -799,11 +1022,14 @@ class Trainer:
             for i in range(len(predicted_answers))
         ]
         mean_squad_f1 = np.mean(squad_f1_per_span)
-
-        classification_prediction = [
-            1 if (len(predicted_answers[i]) != 0) else 0
-            for i in range(len(predicted_answers))
-        ]
+                    
+        if self.config.use_verifier or self.config.model.verifier:
+            classification_prediction = clf_preds
+        else:
+            classification_prediction = [
+                1 if (len(predicted_answers[i]) != 0) else 0
+                for i in range(len(predicted_answers))
+            ]
         classification_actual = df_test["answerable"].astype(int)
         classification_f1 = f1_score(classification_actual, classification_prediction)
         classification_accuracy = accuracy_score(

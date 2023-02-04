@@ -3,7 +3,6 @@ import json
 import os
 import pickle
 import sys
-import random
 
 import nltk
 import numpy as np
@@ -18,7 +17,7 @@ import yaml
 from config import Config
 from src import BaselineQA, FewShotQA_Model
 from utils import Trainer, set_seed, Retriever,RetrieverTwoLevel
-from data import SQuAD_Dataset, SQuAD_Dataset_fewshot, title_grouped_sampler
+from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
 from nltk.tokenize import sent_tokenize
 
 from onnxruntime.transformers import optimizer as onnx_optimizer
@@ -197,6 +196,7 @@ def prepare_dense_retriever(tfidf_path, use_sentence_level):
         embeddings,
     )
 
+
 if __name__ == "__main__":
     nltk.download("punkt")
     import logging
@@ -228,9 +228,21 @@ if __name__ == "__main__":
     assert (not config.quantize or config.ONNX), "Quantizing without ONNX Runtime is not supported"
 
     print("Reading data csv")
-    df_train = pd.read_pickle(config.data.train_data_path).sample(5000, random_state=config.seed)
+    df_train = pd.read_pickle(config.data.train_data_path)
+    df_train = df_train.sample(n=5000, random_state=config.seed)
     df_val = pd.read_pickle(config.data.val_data_path)
+    print(len(df_val))
+    df_val_base = df_val.sample(n=1000, random_state=config.seed)
+    df_val = df_val.merge(df_val_base.drop_duplicates(), on=list(df_val.columns),
+                   how='left', indicator=True)
+    df_val = df_val[df_val['_merge']=='left_only']
+    print(len(df_val))
     df_test = pd.read_pickle(config.data.test_data_path)
+    print(len(df_test))
+    df_test_base = df_test.sample(n=1000, random_state=config.seed)
+    df_test = df_test.merge(df_test_base.drop_duplicates(), on=list(df_test.columns),
+                   how='left', indicator=True)
+    df_test = df_test[df_test['_merge']=='left_only']
     print(len(df_test))
     (
         con_idx_2_title_idx,
@@ -242,6 +254,11 @@ if __name__ == "__main__":
         idx2title,
     ) = load_mappings()
 
+    if config.training.finetune:
+      if config.training.method == 'direct':
+        df_train = pd.concat([df_val_base, df_test_base]).sample(1000, random_state=config.seed)
+      elif config.training.method == "random_replay":
+        df_train = pd.concat([df_train.sample(1000, random_state=config.seed), df_val_base, df_test_base])
     if config.use_drqa and config.create_drqa_tfidf:
         print("using drqa")
         prepare_retriever(df_val, "sqlite_con.db", "val", config.sentence_level,config.two_level_drqa)
@@ -260,13 +277,12 @@ if __name__ == "__main__":
         )
 
     # add local_files_only=local_files_only if using server
-    if not config.ensemble: ## separate tokenisers during ensembling
-      tokenizer = AutoTokenizer.from_pretrained(
-          config.model.model_path,
-          TOKENIZERS_PARALLELISM=True,
-          model_max_length=512,
-          padding="max_length",
-      )
+    tokenizer = AutoTokenizer.from_pretrained(
+        config.model.model_path,
+        TOKENIZERS_PARALLELISM=True,
+        model_max_length=512,
+        padding="max_length",
+    )
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -305,103 +321,8 @@ if __name__ == "__main__":
 
         qa_f1, ttime_per_example = model.few_shot_calculate_metrics(test_dataloader)
         print(f"QA F1: {qa_f1}, Inference time per example: {ttime_per_example} ms")
-    elif config.ensemble:
-      retriever = None
-      if (config.two_level_drqa):
-          tfidf_path_para = "data-dir/test/paragraph_sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
-          tfidf_path_sent = "data-dir/test/sentence_sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
-          questions_df = df_test[["question", "title_id"]]
-          db_path_sent = "data-dir/test/sentence_sqlite_con.db"
-          test_retriever = RetrieverTwoLevel(tfidf_path_sent=tfidf_path_sent, tfidf_path_para=tfidf_path_para, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path_sent=db_path_sent)
-    
-          tfidf_path_para = "data-dir/val/paragraph_sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
-          tfidf_path_sent = "data-dir/val/sentence_sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
-          questions_df = df_val[["question", "title_id"]]
-          db_path_sent = "data-dir/val/sentence_sqlite_con.db"
-          val_retriever = RetrieverTwoLevel(tfidf_path_sent=tfidf_path_sent, tfidf_path_para=tfidf_path_para, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path_sent=db_path_sent)
-          
-      elif (config.use_drqa):
-          tfidf_path = "/content/drive/MyDrive/InterIITDevRevKGP/data-dir/test/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
-          questions_df = df_test[["question", "title_id"]]
-          db_path = "data-dir/test/sqlite_con.db"
-          test_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level,retriever_type=config.retriever_type)
-    
-          tfidf_path = "data-dir/val/sqlite_con-tfidf-ngram=3-hash=33554432-tokenizer=corenlp.npz"
-          questions_df = df_val[["question", "title_id"]]
-          db_path = "data-dir/val/sqlite_con.db"
-          val_retriever = Retriever(tfidf_path=tfidf_path, questions_df=questions_df, con_idx_2_title_idx=con_idx_2_title_idx, db_path=db_path,sentence_level=config.sentence_level,retriever_type=config.retriever_type)
-
-      question_pred_dicts=[]
-      print("Running Inference on Ensemble Models")
-      for id,model_config in enumerate(config.ensemble_models):
-        print(f"Model {model_config.model_path}")
-        tokenizer = AutoTokenizer.from_pretrained(
-          model_config.model_path,
-          TOKENIZERS_PARALLELISM=True,
-          model_max_length=512,
-          padding="max_length",
-        )
-
-        config.model=model_config
-        model = BaselineQA(config, device).to(device)
-
-        trainer = Trainer(
-          config=config,
-          model=model,
-          optimizer=None,
-          device=device,
-          tokenizer=tokenizer,
-          ques2idx=ques2idx,
-          val_retriever=val_retriever,
-          df_val=df_val,
-        )
-
-        if config.ensemble_type=="inference":
-          checkpoint = torch.load(
-                  "checkpoints/{}/model_optimizer.pt".format(config.ensemble_load_paths[id]),
-                  map_location=torch.device(device),
-            )
-          model.load_state_dict(checkpoint["model_state_dict"])
-
-          qpred_dict=trainer.inference(df_test, test_retriever, 'test', device, do_prepare=True)
-        
-        elif config.ensemble_type=="logits":
-
-          logits=np.load(config.ensemble_load_paths[id],allow_pickle=True)
-          qpred_dict=trainer.get_qpred_from_logits(df_test,test_retriever,logits,
-                              do_prepare=True,prefix='test',device=device)
-
-        elif config.ensemble_type=="qpred_dict":
-          with open(config.ensemble_load_paths[id],'rb') as f:
-            qpred_dict=pickle.load(f)
-        question_pred_dicts.append(qpred_dict)
-      
-      ensemble_metrics=trainer.calculate_metrics(df_test, retriever, 'test', device, do_prepare=True,q_pred_dicts=question_pred_dicts)
-      print(ensemble_metrics)
-      config.inference=False ## So that the normal inference pipeline does not get called
 
     else:
-        model_verifier=None
-        optimizer_verifier=None
-        if config.use_verifier:
-          config.model.verifier=True
-          model_verifier = BaselineQA(config, device).to(device)
-          optimizer_verifier = torch.optim.Adam(model_verifier.parameters(), lr=config.training.lr)
-          config.model.verifier=False
-
-          if config.load_model_optimizer:
-            print(
-                "loading verifier model and optimizer from checkpoints/{}/model_optimizer.pt".format(
-                    config.verifier_load_path
-                )
-            )
-            checkpoint = torch.load(
-                "checkpoints/{}/model_optimizer.pt".format(config.verifier_load_path),
-                map_location=torch.device(device),
-            )
-            model_verifier.load_state_dict(checkpoint["model_state_dict"])
-            optimizer_verifier.load_state_dict(checkpoint["optimizer_state_dict"])
-
         model = BaselineQA(config, device).to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
 
@@ -412,12 +333,11 @@ if __name__ == "__main__":
                 )
             )
             checkpoint = torch.load(
-                "checkpoints/{}/model_optimizer.pt".format(config.load_path),
+                "./checkpoints/{}/model_optimizer.pt".format(config.load_path),
                 map_location=torch.device(device),
             )
             model.load_state_dict(checkpoint["model_state_dict"])
-            # optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-
+            #optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
         retriever = None
         if (config.two_level_drqa):
@@ -510,6 +430,11 @@ if __name__ == "__main__":
             #         val_retriever = pickle.load(f)
             #     with open("data-dir/val_document_store.pkl") as f:
             #         val_document_store = pickle.load(f)
+
+
+
+            
+
             
 
         if config.save_model_optimizer:
@@ -536,28 +461,16 @@ if __name__ == "__main__":
             ques2idx=ques2idx,
             val_retriever=val_retriever,
             df_val=df_val,
-            verifier=model_verifier,
-            optimizer_verifier=optimizer_verifier
         )
 
         if config.train:
             print("Creating train dataset")
             train_ds = SQuAD_Dataset(config, df_train, tokenizer)
-            if config.data.reptile:
-                train_dataloader = DataLoader(
-                    train_ds,
-                    batch_sampler = title_grouped_sampler(
-                        train_ds, batch_size=config.data.train_batch_size,
-                        shuffle=True, keep_title_order=config.data.keep_title_order
-                    ),
-                    collate_fn=train_ds.collate_fn,
-                )
-            else:
-                train_dataloader = DataLoader(
-                    train_ds,
-                    batch_size=config.data.train_batch_size,
-                    collate_fn=train_ds.collate_fn,
-                )
+            train_dataloader = DataLoader(
+                train_ds,
+                batch_size=config.data.train_batch_size,
+                collate_fn=train_ds.collate_fn,
+            )
             print("length of train dataset: {}".format(train_ds.__len__()))
 
             print("Creating val dataset")
@@ -589,18 +502,7 @@ if __name__ == "__main__":
                 "checkpoints/{}/model_optimizer.pt".format(config.load_path),
                 map_location=torch.device(device),
             )
-            trainer.model.load_state_dict(checkpoint["model_state_dict"])
-            if config.use_verifier:
-              print(
-                  "loading best verifier model from checkpoints/{}/model_optimizer.pt for inference".format(
-                      config.verifier_load_path
-                  )
-              )
-              checkpoint = torch.load(
-                  "checkpoints/{}/model_optimizer.pt".format(config.verifier_load_path),
-                  map_location=torch.device(device),
-              )
-              trainer.verifier.load_state_dict(checkpoint["model_state_dict"])
+            model.load_state_dict(checkpoint["model_state_dict"])
         model.to(config.inference_device)
         test_metrics = trainer.calculate_metrics(
             df_test, test_retriever, "test", config.inference_device, do_prepare=True
