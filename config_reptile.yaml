@@ -1,13 +1,14 @@
 task: qa
 seed: 3407
-wandb_path: reptile_1_outer_lr_2e-5_inner_lr
+wandb_path: reptile_outer_lr_1.0_inner_lr_0.00002
 fewshot_qa: False
 inference_device: cuda
 train: False
 inference: True
 save_model_optimizer: False
 load_model_optimizer: True
-load_path: reptile_1_outer_lr_2e-5_inner_lr
+load_path: reptile_outer_lr_1.0_inner_lr_0.00002
+verifier_load_path: verifier-training-bert-medium
 use_drqa: True
 use_dpr: False
 create_drqa_tfidf: False
@@ -18,15 +19,29 @@ two_level_drqa: False
 quantize: False
 ONNX: False
 create_dense_embeddings: False
-retriever_type: dense # dense or tfidf
+retriever_type: tfidf # dense or tfidf
 create_inf_table: False
+use_verifier: False
+ensemble: False
+ensemble_type: qpred_dict # inference, logits, qpred_dict
+save_logits: False
+save_qpred_dict: False
+inference_save_path: ""
+
+federated:
+  use: True
+  num_clusters: 4
+  lsa_dim_reduction: 800
+  num_epochs: 1
+  cluster_path: federated-clustering
 
 data:
+  reptile: False
   train_data_path: data-dir/train/df_train.pkl
   val_data_path: data-dir/val/df_val.pkl
   test_data_path: data-dir/test/df_test.pkl
   train_batch_size: 16
-  val_batch_size: 2
+  val_batch_size: 16
   apply_aliasing: False
   pad_on_right: True
   max_length: 512
@@ -38,12 +53,15 @@ data:
   inner_batch_size: 4
   inner_iters: 5
   inner_lr: 0.00002
-  keep_title_order: False
+  outer_lr: 1.0
 
 training:
+  incremental_learning: True
   epochs: 1
   optimizer: adam
-  lr: 1.0
+  finetune: False
+  method: direct # direct, random_replay, random_replay_con
+  lr: 0.00002
   sched_function: none
   sched_func_params: {}
   sched_params:
@@ -52,21 +70,21 @@ training:
   lr_flag : True
   can_loss: False  # Contrastive_Adaptive_Loss
   can_loss_beta: 0.01  # 0.00000001
-  
+  verifier_can_loss: False
 
 model:
   model_path: mrm8488/electra-small-finetuned-squadv2
+  verifier_model_path: mrm8488/electra-small-finetuned-squadv2
   params: {}
   non_pooler: False
   noise_tuner: False
   noise_lambda: 0.15
   non_pooler: False
-  dim: 128
+  dim: 512
   span_level: False
   two_step_loss: False
-  span_level: False
+  verifier: False
 
 retriever:
   query_model: "facebook/dpr-question_encoder-single-nq-base"
   passage_model: "facebook/dpr-ctx_encoder-single-nq-base"
-
