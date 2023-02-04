@@ -241,7 +241,7 @@ def add_cluster_id(df_train, inference=False):
     if config.load_model_optimizer or inference:
         with open(f"checkpoints/{config.federated.cluster_path}/tfidf_model.pkl", "rb") as f:
             vectorizer = pickle.load(f)
-        with open(f"checkpoints/{config.federated.cluster_path}/lsa_model.pkl", "rb") as f:
+        with open(f"checkpoints/{config.federated.cluster_path}/svdnorm_model.pkl", "rb") as f:
             lsa = pickle.load(f)
         with open(f"checkpoints/{config.federated.cluster_path}/kmeans_model.pkl", "rb") as f:
             kmeans = pickle.load(f)
@@ -280,8 +280,8 @@ def add_cluster_id(df_train, inference=False):
 
 
     if config.save_model_optimizer:
-        if not os.path.exists(f"checkpoints/{config.federated.cluster_path}/"):
-            os.mkdir(f"checkpoints/{config.federated.cluster_path}/")
+        if not os.path.exists(f"data-dir/{config.federated.cluster_path}/"):
+            os.mkdir(f"data-dir/{config.federated.cluster_path}/")
         with open(f"checkpoints/{config.federated.cluster_path}/tfidf_model.pkl", "wb+") as f:
             pickle.dump(vectorizer, f)
         with open(f"checkpoints/{config.federated.cluster_path}/svdnorm_model.pkl", "wb+") as f:
@@ -614,10 +614,13 @@ if __name__ == "__main__":
     if config.inference:
         
         df_test = add_cluster_id(df_test, inference=True)
-        test_metrics_all = [None for _ in range(config.federated.num_clusters)]
+        test_metrics_all = []
         support_weights = []
 
         for i in range(config.federated.num_clusters):
+            df_test_temp = df_test[df_test['cluster_id'] == i]
+            if len(df_test_temp) == 0:
+                continue
             model = BaselineQA(config, device).to(device)
             if config.train and config.save_model_optimizer:
                 print(
@@ -646,12 +649,11 @@ if __name__ == "__main__":
                     )
             model.load_state_dict(checkpoint["model_state_dict"])
             model.to(config.inference_device)
-            df_test_temp = df_test[df_test['cluster_id'] == i]
             support_weights.append(len(df_test_temp))
             test_metrics_i = trainer.calculate_metrics(
                 df_test_temp, test_retriever, "test", config.inference_device, do_prepare=True
             )
-            test_metrics_all[i] = test_metrics_i
+            test_metrics_all.append(test_metrics_i)
 
         test_metrics_total = {
             "classification_accuracy": 
@@ -661,4 +663,4 @@ if __name__ == "__main__":
             "mean_squad_f1": 
                 np.average([test_metrics['mean_squad_f1'] for test_metrics in test_metrics_all], weights=support_weights)
         }
-        print(test_metrics)
+        print(test_metrics_total)

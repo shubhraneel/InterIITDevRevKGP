@@ -3,10 +3,10 @@ seed: 3407
 wandb_path: verifier-test
 fewshot_qa: False
 inference_device: cuda
-train: True
+train: False
 inference: True
-save_model_optimizer: False
-load_model_optimizer: True
+save_model_optimizer: True
+load_model_optimizer: False
 load_path: bert-medium-finetuned-squadv2_train_logits
 verifier_load_path: verifier-training-bert-medium
 use_drqa: True
@@ -19,7 +19,7 @@ two_level_drqa: False
 quantize: False
 ONNX: False
 create_dense_embeddings: False
-retriever_type: dense # dense or tfidf
+retriever_type: tfidf # dense or tfidf
 create_inf_table: False
 use_verifier: False
 ensemble: False
@@ -29,7 +29,7 @@ save_qpred_dict: False
 inference_save_path: ""
 
 federated:
-  use: False
+  use: True
   num_clusters: 4
   lsa_dim_reduction: 800
   num_epochs: 1
@@ -51,7 +51,7 @@ data:
 
 training:
   incremental_learning: True
-  epochs: 10
+  epochs: 1
   optimizer: adam
   finetune: False
   method: direct # direct, random_replay, random_replay_con
