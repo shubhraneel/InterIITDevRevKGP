@@ -290,6 +290,10 @@ class Trainer:
         total_loss = 0
         tepoch = tqdm(dataloader, unit="batch", position=0, leave=True)
         for batch_idx, batch in enumerate(tepoch):
+            #########
+            if self.config.training.incremental_learning:
+                if random.random() < 0.90:
+                    continue
             tepoch.set_description(f"Epoch {epoch + 1}")
             if len(batch["question_context_input_ids"].shape) == 1:
                 batch["question_context_input_ids"] = batch[
