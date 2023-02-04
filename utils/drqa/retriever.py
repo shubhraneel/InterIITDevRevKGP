@@ -276,7 +276,7 @@ class Retriever(object):
         # print("type(title_id)", type(title_id))
         # print(f"{self.con_title_id_dict['11']=}")
         # print(f"{[self.con_title_id_dict[doc] for doc in doc_names]=}")
-        print(doc_names)
+        # print(doc_names)
         if self.sentence_level:
             doc_names_filtered = [
                 doc
