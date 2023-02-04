@@ -1,13 +1,13 @@
 task: qa
 seed: 3407
-wandb_path: reptile
+wandb_path: reptile_1_outer_lr_2e-5_inner_lr
 fewshot_qa: False
 inference_device: cuda
-train: True
-inference: False
-save_model_optimizer: True
-load_model_optimizer: False
-load_path: reptile
+train: False
+inference: True
+save_model_optimizer: False
+load_model_optimizer: True
+load_path: reptile_1_outer_lr_2e-5_inner_lr
 use_drqa: True
 use_dpr: False
 create_drqa_tfidf: False
@@ -43,7 +43,7 @@ data:
 training:
   epochs: 1
   optimizer: adam
-  lr: 0.00002
+  lr: 1.0
   sched_function: none
   sched_func_params: {}
   sched_params:
