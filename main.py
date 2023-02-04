@@ -17,7 +17,7 @@ import yaml
 from config import Config
 from src import BaselineQA, FewShotQA_Model
 from utils import Trainer, set_seed, Retriever,RetrieverTwoLevel
-from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
+from data import SQuAD_Dataset, SQuAD_Dataset_fewshot, title_grouped_sampler
 from nltk.tokenize import sent_tokenize
 
 from onnxruntime.transformers import optimizer as onnx_optimizer
@@ -205,7 +205,7 @@ if __name__ == "__main__":
     logging.getLogger("haystack").setLevel(logging.ERROR)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="config.yaml", help="Config File")
+    parser.add_argument("--config", default="config_reptile.yaml", help="Config File")
     parser.add_argument("--top_k", default=None, type=int, help="Topk for retrieval")
 
     args = parser.parse_args()
@@ -403,7 +403,10 @@ if __name__ == "__main__":
             optimizer_verifier.load_state_dict(checkpoint["optimizer_state_dict"])
 
         model = BaselineQA(config, device).to(device)
-        optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
+        if config.data.reptile:
+            optimizer = torch.optim.Adam(model.parameters(), lr=config.data.outer_lr)
+        else:
+            optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
 
         if config.load_model_optimizer:
             print(
@@ -548,12 +551,21 @@ if __name__ == "__main__":
         if config.train:
             print("Creating train dataset")
             train_ds = SQuAD_Dataset(config, df_train, tokenizer)
-            train_dataloader = DataLoader(
-                train_ds,
-                batch_size=config.data.train_batch_size,
-                collate_fn=train_ds.collate_fn,
-            )
-            print("length of train dataset: {}".format(train_ds.__len__()))
+            if config.data.reptile:
+                train_dataloader = DataLoader(
+                    train_ds,
+                    batch_sampler = title_grouped_sampler(
+                        train_ds, batch_size=config.data.train_batch_size,
+                        shuffle=True, keep_title_order=config.data.reptile
+                    ),
+                    collate_fn=train_ds.collate_fn,
+                )
+            else:
+                train_dataloader = DataLoader(
+                    train_ds,
+                    batch_size=config.data.train_batch_size,
+                    collate_fn=train_ds.collate_fn,
+                )
 
             print("Creating val dataset")
             val_ds = SQuAD_Dataset(config, df_val, tokenizer)
