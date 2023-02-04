@@ -205,7 +205,7 @@ if __name__ == "__main__":
     logging.getLogger("haystack").setLevel(logging.ERROR)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="config_reptile.yaml", help="Config File")
+    parser.add_argument("--config", default="config.yaml", help="Config File")
     parser.add_argument("--top_k", default=None, type=int, help="Topk for retrieval")
 
     args = parser.parse_args()
