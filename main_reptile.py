@@ -3,6 +3,7 @@ import json
 import os
 import pickle
 import sys
+import random
 
 import nltk
 import numpy as np
@@ -17,7 +18,7 @@ import yaml
 from config import Config
 from src import BaselineQA, FewShotQA_Model
 from utils import Trainer, set_seed, Retriever,RetrieverTwoLevel
-from data import SQuAD_Dataset, SQuAD_Dataset_fewshot
+from data import SQuAD_Dataset, SQuAD_Dataset_fewshot, title_grouped_sampler
 from nltk.tokenize import sent_tokenize
 
 from onnxruntime.transformers import optimizer as onnx_optimizer
@@ -196,7 +197,6 @@ def prepare_dense_retriever(tfidf_path, use_sentence_level):
         embeddings,
     )
 
-
 if __name__ == "__main__":
     nltk.download("punkt")
     import logging
@@ -228,7 +228,7 @@ if __name__ == "__main__":
     assert (not config.quantize or config.ONNX), "Quantizing without ONNX Runtime is not supported"
 
     print("Reading data csv")
-    df_train = pd.read_pickle(config.data.train_data_path)
+    df_train = pd.read_pickle(config.data.train_data_path).sample(5000, random_state=config.seed)
     df_val = pd.read_pickle(config.data.val_data_path)
     df_test = pd.read_pickle(config.data.test_data_path)
     print(len(df_test))
@@ -510,11 +510,6 @@ if __name__ == "__main__":
             #         val_retriever = pickle.load(f)
             #     with open("data-dir/val_document_store.pkl") as f:
             #         val_document_store = pickle.load(f)
-
-
-
-            
-
             
 
         if config.save_model_optimizer:
@@ -548,11 +543,21 @@ if __name__ == "__main__":
         if config.train:
             print("Creating train dataset")
             train_ds = SQuAD_Dataset(config, df_train, tokenizer)
-            train_dataloader = DataLoader(
-                train_ds,
-                batch_size=config.data.train_batch_size,
-                collate_fn=train_ds.collate_fn,
-            )
+            if config.data.reptile:
+                train_dataloader = DataLoader(
+                    train_ds,
+                    batch_sampler = title_grouped_sampler(
+                        train_ds, batch_size=config.data.train_batch_size,
+                        shuffle=True, keep_title_order=config.data.keep_title_order
+                    ),
+                    collate_fn=train_ds.collate_fn,
+                )
+            else:
+                train_dataloader = DataLoader(
+                    train_ds,
+                    batch_size=config.data.train_batch_size,
+                    collate_fn=train_ds.collate_fn,
+                )
             print("length of train dataset: {}".format(train_ds.__len__()))
 
             print("Creating val dataset")
