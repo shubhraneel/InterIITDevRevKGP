@@ -466,15 +466,15 @@ class Trainer:
                         self.device,
                         do_prepare=False,
                     )
-                if self.best_val_loss >= val_loss and self.config.save_model_optimizer:
+                if self.best_val_loss >= val_loss and self.config.save_after_training:
                     self.best_val_loss = val_loss
                     print(
                         "saving best model and optimizer at checkpoints/{}/model_optimizer.pt".format(
-                            self.config.load_path
+                            self.config.load_after_training_path
                         )
                     )
                     os.makedirs(
-                        "checkpoints/{}/".format(self.config.load_path), exist_ok=True
+                        "checkpoints/{}/".format(self.config.load_after_training_path), exist_ok=True
                     )
                     torch.save(
                         {
@@ -482,7 +482,7 @@ class Trainer:
                             "optimizer_state_dict": self.optimizer.state_dict(),
                         },
                         "checkpoints/{}/model_optimizer.pt".format(
-                            self.config.load_path
+                            self.config.load_after_training_path
                         ),
                     )
                     if self.config.use_verifier:

@@ -389,7 +389,7 @@ if __name__ == "__main__":
           optimizer_verifier = torch.optim.Adam(model_verifier.parameters(), lr=config.training.lr)
           config.model.verifier=False
 
-          if config.load_model_optimizer:
+          if config.load_before_training:
             print(
                 "loading verifier model and optimizer from checkpoints/{}/model_optimizer.pt".format(
                     config.verifier_load_path
@@ -408,14 +408,14 @@ if __name__ == "__main__":
         else:
             optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
 
-        if config.load_model_optimizer:
+        if config.load_before_training:
             print(
                 "loading model and optimizer from checkpoints/{}/model_optimizer.pt".format(
-                    config.load_path
+                    config.load_before_training_path
                 )
             )
             checkpoint = torch.load(
-                "checkpoints/{}/model_optimizer.pt".format(config.load_path),
+                "checkpoints/{}/model_optimizer.pt".format(config.load_before_training_path),
                 map_location=torch.device(device),
             )
             model.load_state_dict(checkpoint["model_state_dict"])
@@ -513,26 +513,19 @@ if __name__ == "__main__":
             #         val_retriever = pickle.load(f)
             #     with open("data-dir/val_document_store.pkl") as f:
             #         val_document_store = pickle.load(f)
-
-
-
-            
-
-            
-
-        if config.save_model_optimizer:
+        if config.save_before_training:
             print(
                 "saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(
-                    config.load_path
+                    config.load_before_training_path
                 )
             )
-            os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
+            os.makedirs("checkpoints/{}/".format(config.load_before_training_path), exist_ok=True)
             torch.save(
                 {
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                 },
-                "checkpoints/{}/model_optimizer.pt".format(config.load_path),
+                "checkpoints/{}/model_optimizer.pt".format(config.load_before_training_path),
             )
 
         trainer = Trainer(
@@ -566,6 +559,7 @@ if __name__ == "__main__":
                     batch_size=config.data.train_batch_size,
                     collate_fn=train_ds.collate_fn,
                 )
+            print("length of train dataset: {}".format(train_ds.__len__()))
 
             print("Creating val dataset")
             val_ds = SQuAD_Dataset(config, df_val, tokenizer)
@@ -586,14 +580,14 @@ if __name__ == "__main__":
 
         # calculate_metrics(test_ds, test_dataloader, wandb_logger)
         # test_metrics = trainer.calculate_metrics(test_ds, test_dataloader)
-        if config.train and config.save_model_optimizer:
+        if config.train and config.save_after_training:
             print(
                 "loading best model from checkpoints/{}/model_optimizer.pt for inference".format(
-                    config.load_path
+                    config.load_after_training_path
                 )
             )
             checkpoint = torch.load(
-                "checkpoints/{}/model_optimizer.pt".format(config.load_path),
+                "checkpoints/{}/model_optimizer.pt".format(config.load_after_training_path),
                 map_location=torch.device(device),
             )
             trainer.model.load_state_dict(checkpoint["model_state_dict"])

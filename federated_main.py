@@ -373,14 +373,14 @@ if __name__ == "__main__":
    
     model = BaselineQA(config, device).to(device)
 
-    if config.load_model_optimizer:
+    if config.load_before_training:
         print(
             "loading model and optimizer from checkpoints/{}/model_optimizer.pt".format(
-                config.load_path
+                config.load_before_training_path
             )
         )
         checkpoint = torch.load(
-            "checkpoints/{}/avg_model.pt".format(config.load_path),
+            "checkpoints/{}/avg_model.pt".format(config.load_before_training_path),
             map_location=torch.device(device),
         )
         model.load_state_dict(checkpoint["model_state_dict"])
@@ -475,18 +475,18 @@ if __name__ == "__main__":
 
         
 
-    if config.save_model_optimizer:
+    if config.save_before_training:
         print(
             "saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(
-                config.load_path
+                config.load_before_training_path
             )
         )
-        os.makedirs("checkpoints/{}/".format(config.load_path), exist_ok=True)
+        os.makedirs("checkpoints/{}/".format(config.load_before_training_path), exist_ok=True)
         torch.save(
             {
                 "model_state_dict": model.state_dict()
             },
-            "checkpoints/{}/avg_model.pt".format(config.load_path),
+            "checkpoints/{}/avg_model.pt".format(config.load_before_training_path),
         )
 
     if config.federated.use and config.train:
@@ -532,19 +532,19 @@ if __name__ == "__main__":
                     
                 model = BaselineQA(config, device).to(device)
                 checkpoint = torch.load(
-                    "checkpoints/{}/avg_model.pt".format(config.load_path),
+                    "checkpoints/{}/avg_model.pt".format(config.load_before_training_path),
                     map_location=torch.device(device),
                 )
                 model.load_state_dict(checkpoint["model_state_dict"])
                 model.to(config.inference_device)
 
                 if len(train_dataloader_dict[i]) == 0:
-                    os.makedirs(f"checkpoints/{config.load_path}/{i}/", exist_ok=True)
+                    os.makedirs(f"checkpoints/{config.load_before_training_path}/{i}/", exist_ok=True)
                     torch.save(
                         {
                             "model_state_dict": trainer.model.state_dict()
                         },
-                        "checkpoints/{}/{}/model.pt".format(config.load_path,i),
+                        "checkpoints/{}/{}/model.pt".format(config.load_before_training_path,i),
                     )
                     continue
 
@@ -561,12 +561,12 @@ if __name__ == "__main__":
                 print(f" runninng round {round} on cluster {i}")
                 trainer.train(train_dataloader_dict[i], val_dataloader)
                 
-                os.makedirs(f"checkpoints/{config.load_path}/{i}/", exist_ok=True)
+                os.makedirs(f"checkpoints/{config.load_after_training_path}/{i}/", exist_ok=True)
                 torch.save(
                     {
                         "model_state_dict": trainer.model.state_dict()
                     },
-                    "checkpoints/{}/{}/model.pt".format(config.load_path,i),
+                    "checkpoints/{}/{}/model.pt".format(config.load_after_training_path,i),
                 )
                 del model
                 del trainer
@@ -579,7 +579,7 @@ if __name__ == "__main__":
                 state_dict[key] = torch.zeros_like(state_dict[key])
             for i in range(config.federated.num_clusters):
                 checkpoint = torch.load(
-                    "checkpoints/{}/{}/model.pt".format(config.load_path,i),
+                    "checkpoints/{}/{}/model.pt".format(config.load_before_training_path,i),
                     map_location=torch.device(device),
                 )
                 client_state_dict = checkpoint['model_state_dict']
@@ -610,7 +610,7 @@ if __name__ == "__main__":
                 {
                     "model_state_dict": model.state_dict()
                 },
-                "checkpoints/{}/avg_model.pt".format(config.load_path),
+                "checkpoints/{}/avg_model.pt".format(config.load_after_training_path),
             )
             print(f"val metrics of avg model at round {round}")
             val_metrics = trainer.calculate_metrics(
@@ -633,14 +633,14 @@ if __name__ == "__main__":
             if len(df_test_temp) == 0:
                 continue
             model = BaselineQA(config, device).to(device)
-            if config.train and config.save_model_optimizer:
+            if config.train and config.save_after_training:
                 print(
                     "loading best model from checkpoints/{}/{}/model.pt for inference".format(
-                        config.load_path, i
+                        config.load_after_training_path, i
                     )
                 )
                 checkpoint = torch.load(
-                    "checkpoints/{}/{}/model.pt".format(config.load_path, i),
+                    "checkpoints/{}/{}/model.pt".format(config.load_after_training_path, i),
                     map_location=torch.device(device),
                 )
                 model.load_state_dict(checkpoint["model_state_dict"])
@@ -654,12 +654,6 @@ if __name__ == "__main__":
                         val_retriever=val_retriever,
                         df_val=df_val,
             )
-            checkpoint = torch.load(
-                        "checkpoints/{}/avg_model.pt".format(config.load_path),
-                        map_location=torch.device(device),
-                    )
-            model.load_state_dict(checkpoint["model_state_dict"])
-            model.to(config.inference_device)
             support_weights.append(len(df_test_temp))
             test_metrics_i = trainer.calculate_metrics(
                 df_test_temp, test_retriever, "test", config.inference_device, do_prepare=True
