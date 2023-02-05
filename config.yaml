@@ -10,7 +10,6 @@ load_before_training: True    # Keep it True to load trained checkpoints
 load_before_training_path: tinybert-6l-768d-squad2_train_cuda_test   # Load Path for trained checkpoints
 save_after_training: True                    # Keep it True if doing inference
 load_after_training_path: tinybert-6l-768d-squad2_pretrained_finetuning    # Should be different than pretrained model
-load_path: bert-medium-finetuned-squadv2_train_logits
 verifier_load_path: verifier-training-bert-medium
 use_drqa: True
 use_dpr: False
