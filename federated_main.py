@@ -280,8 +280,8 @@ def add_cluster_id(df_train, inference=False):
 
 
     if config.save_model_optimizer:
-        if not os.path.exists(f"data-dir/{config.federated.cluster_path}/"):
-            os.mkdir(f"data-dir/{config.federated.cluster_path}/")
+        if not os.path.exists(f"checkpoints/{config.federated.cluster_path}/"):
+            os.mkdir(f"checkpoints/{config.federated.cluster_path}/")
         with open(f"checkpoints/{config.federated.cluster_path}/tfidf_model.pkl", "wb+") as f:
             pickle.dump(vectorizer, f)
         with open(f"checkpoints/{config.federated.cluster_path}/svdnorm_model.pkl", "wb+") as f:
@@ -654,12 +654,7 @@ if __name__ == "__main__":
                         val_retriever=val_retriever,
                         df_val=df_val,
             )
-            checkpoint = torch.load(
-                        "checkpoints/{}/avg_model.pt".format(config.load_path),
-                        map_location=torch.device(device),
-                    )
-            model.load_state_dict(checkpoint["model_state_dict"])
-            model.to(config.inference_device)
+
             support_weights.append(len(df_test_temp))
             test_metrics_i = trainer.calculate_metrics(
                 df_test_temp, test_retriever, "test", config.inference_device, do_prepare=True
