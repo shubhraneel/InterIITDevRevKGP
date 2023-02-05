@@ -513,7 +513,21 @@ if __name__ == "__main__":
             #         val_retriever = pickle.load(f)
             #     with open("data-dir/val_document_store.pkl") as f:
             #         val_document_store = pickle.load(f)
-
+        if config.save_before_training:
+            print(
+                "saving model and optimizer at checkpoints/{}/model_optimizer.pt".format(
+                    config.load_before_training_path
+                )
+            )
+            os.makedirs("checkpoints/{}/".format(config.load_before_training_path), exist_ok=True)
+            torch.save(
+                {
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                },
+                "checkpoints/{}/model_optimizer.pt".format(config.load_before_training_path),
+            )
+            
         trainer = Trainer(
             config=config,
             model=model,
