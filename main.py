@@ -408,10 +408,10 @@ if __name__ == "__main__":
         else:
             optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
 
-        if config.load_model_optimizer:
+        if config.load_before_training:
             print(
                 "loading model and optimizer from checkpoints/{}/model_optimizer.pt".format(
-                    config.load_path
+                    config.load_before_training_path
                 )
             )
             checkpoint = torch.load(
@@ -527,7 +527,7 @@ if __name__ == "__main__":
                 },
                 "checkpoints/{}/model_optimizer.pt".format(config.load_before_training_path),
             )
-            
+
         trainer = Trainer(
             config=config,
             model=model,
