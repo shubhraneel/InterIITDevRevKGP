@@ -415,7 +415,7 @@ if __name__ == "__main__":
                 )
             )
             checkpoint = torch.load(
-                "checkpoints/{}/model_optimizer.pt".format(config.load_path),
+                "checkpoints/{}/model_optimizer.pt".format(config.load_before_training_path),
                 map_location=torch.device(device),
             )
             model.load_state_dict(checkpoint["model_state_dict"])
